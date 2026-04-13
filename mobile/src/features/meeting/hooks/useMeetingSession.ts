@@ -115,11 +115,8 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     useMeetingStore.getState().handlePipelineEvent(event);
 
     if (event.type === 'stt_partial') {
-      try {
-        maybeTranslateDraft(event);
-      } catch (error) {
-        warnLog('[useMeetingSession] Draft translation dispatch failed:', error);
-      }
+      // Draft translation disabled: NLLB inference on every partial starves STT CPU.
+      // Translation runs only on stt_final below.
     }
 
     if (event.type === 'stt_final') {
@@ -294,14 +291,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       let startedWithRealRecognizer = false;
       const translator = getOnDeviceTranslator();
       if (!(await translator.isLoaded())) {
-        try {
-          const initialized = await translator.initialize(getNllbModelDir());
-          if (!initialized) {
-            warnLog('[useMeetingSession] Translator model not ready; continuing without translation for now.');
-          }
-        } catch (error) {
-          warnLog('[useMeetingSession] Translator initialization failed; continuing with transcript only.', error);
-        }
+        translator.initialize(getNllbModelDir()).then((ok) => {
+          if (!ok) warnLog('[useMeetingSession] Translator model not ready; translation may be unavailable.');
+        }).catch((error) => {
+          warnLog('[useMeetingSession] Translator init failed; transcript-only mode.', error);
+        });
       }
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
         try {
@@ -311,12 +305,20 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           startedWithRealRecognizer = true;
         } catch (error) {
           warnLog('[useMeetingSession] Real recognizer failed to start:', error);
-          store.setPipelineStatus('error', error instanceof Error ? error.message : 'Recognizer failed to start');
         }
       }
 
       if (!startedWithRealRecognizer) {
-        warnLog('[useMeetingSession] Meeting started without active recognizer.');
+        warnLog('[useMeetingSession] Falling back to simulated pipeline');
+        try {
+          const pipeline = pipelineRef.current ?? meetingPipeline;
+          if (pipeline) {
+            await pipeline.start(sessionId);
+          }
+        } catch (error) {
+          warnLog('[useMeetingSession] Simulated pipeline also failed:', error);
+          store.setPipelineStatus('error', error instanceof Error ? error.message : 'No recognizer available');
+        }
       }
 
       const sessionData: SessionData = {

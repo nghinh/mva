@@ -3,6 +3,11 @@ PODS:
   - hermes-engine (250829098.0.10):
     - hermes-engine/Pre-built (= 250829098.0.10)
   - hermes-engine/Pre-built (250829098.0.10)
+  - onnxruntime-c (1.24.3)
+  - onnxruntime-objc (1.24.3):
+    - onnxruntime-objc/Core (= 1.24.3)
+  - onnxruntime-objc/Core (1.24.3):
+    - onnxruntime-c (= 1.24.3)
   - RCTDeprecation (0.85.0)
   - RCTRequired (0.85.0)
   - RCTSwiftUI (0.85.0)
@@ -1887,6 +1892,7 @@ PODS:
 DEPENDENCIES:
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - onnxruntime-objc (~> 1.17)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -1963,6 +1969,11 @@ DEPENDENCIES:
   - "RNCClipboard (from `../node_modules/@react-native-clipboard/clipboard`)"
   - SherpaOnnx (from `../node_modules/react-native-sherpa-onnx`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
+
+SPEC REPOS:
+  trunk:
+    - onnxruntime-c
+    - onnxruntime-objc
 
 EXTERNAL SOURCES:
   FBLazyVector:
@@ -2124,6 +2135,8 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   FBLazyVector: c00c20551d40126351a6783c47ce75f5b374851b
   hermes-engine: 418c3de97a47e47cda36cee2025f3f5276888935
+  onnxruntime-c: 4a1a1a81da2087869dc9b6357f182952db2df29c
+  onnxruntime-objc: f9310465f0a284682811d071b7eb8e93f10517b8
   RCTDeprecation: 3bb167081b134461cfeb875ff7ae1945f8635257
   RCTRequired: 74839f55d5058a133a0bc4569b0afec750957f64
   RCTSwiftUI: 87a316382f3eab4dd13d2a0d0fd2adcce917361a
@@ -2200,6 +2213,6 @@ SPEC CHECKSUMS:
   SherpaOnnx: e9e386cb6675f6e92ce0a5cb2e7f5692ca8d03fd
   Yoga: e83c3121d079541e69f3c5c623faaaf933fb5812
 
-PODFILE CHECKSUM: f0e6c331627a528a3cfc3f7004db6f5d0da725a6
+PODFILE CHECKSUM: 8e49f9a14a664abc459ccf4cb901635b895cf411
 
 COCOAPODS: 1.16.2

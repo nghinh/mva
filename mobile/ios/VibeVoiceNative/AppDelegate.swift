@@ -1,36 +1,22 @@
 import UIKit
 import React
+import React_RCTAppDelegate
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate, RCTBridgeDelegate {
-  var window: UIWindow?
-  var bridge: RCTBridge?
-
-  func application(
+class AppDelegate: RCTAppDelegate {
+  override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    bridge = RCTBridge(delegate: self, launchOptions: launchOptions)
-
-    guard let bridge else {
-      return false
-    }
-
-    let rootView = RCTRootView(bridge: bridge, moduleName: "vibevoice", initialProperties: nil)
-    rootView.frame = UIScreen.main.bounds
-    rootView.backgroundColor = UIColor.black
-
-    let rootViewController = UIViewController()
-    rootViewController.view = rootView
-
-    window = UIWindow(frame: UIScreen.main.bounds)
-    window?.rootViewController = rootViewController
-    window?.makeKeyAndVisible()
-
-    return true
+    self.moduleName = "vibevoice"
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  func sourceURL(for bridge: RCTBridge) -> URL? {
+  override func bundleURL() -> URL? {
+    #if DEBUG
+    return URL(string: "http://192.168.1.69:8081/index.bundle?platform=ios")
+    #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    #endif
   }
 }

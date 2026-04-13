@@ -21,6 +21,7 @@ target 'VibeVoiceNative' do
   pod 'RNCClipboard', :path => '../node_modules/@react-native-clipboard/clipboard'
   pod 'ReactNativeFs', :path => '../node_modules/@dr.pogodin/react-native-fs'
   pod 'SherpaOnnx', :path => '../node_modules/react-native-sherpa-onnx'
+  pod 'onnxruntime-objc', '~> 1.17', :modular_headers => true
 
   use_react_native!(
     :path => config[:reactNativePath],

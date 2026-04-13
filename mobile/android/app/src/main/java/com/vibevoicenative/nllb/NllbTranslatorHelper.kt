@@ -294,14 +294,16 @@ class NllbTranslatorHelper(private val reactContext: ReactApplicationContext) {
       names.firstOrNull { normalizeName(it) == normalizeName(candidate) || normalizeName(it).contains(normalizeName(candidate)) }
     }
     resolvedName?.let { name ->
-      val named = outputs[name]?.value as? OnnxTensor
-      if (named != null) return named
+      val tensor = outputs[name]
+      if (tensor is OnnxTensor) return tensor
     }
     for (index in 0 until outputs.size()) {
-      val tensor = outputs[index].value as? OnnxTensor ?: continue
-      val info = tensor.info as? TensorInfo ?: continue
-      if (info.type.name.contains("FLOAT", ignoreCase = true)) {
-        return tensor
+      val tensor = outputs[index]
+      if (tensor is OnnxTensor) {
+        val info = tensor.info as? TensorInfo
+        if (info != null && info.type.name.contains("FLOAT", ignoreCase = true)) {
+          return tensor
+        }
       }
     }
     return null

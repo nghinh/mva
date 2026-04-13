@@ -10,6 +10,7 @@
 
 #import <React/RCTBridgeModule.h>
 #import <ReactCommon/RCTTurboModule.h>
+#import <React-RCTAppDelegate/RCTAppDelegate.h>
 #import "VibeVoiceNative-Swift.h"
 
 @interface NllbTranslatorModule : NSObject <NativeNllbTranslatorSpec>
@@ -38,7 +39,10 @@ RCT_EXPORT_MODULE(NllbTranslatorModule)
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
-  resolve(@([_helper initializeWithModelDir:modelDir]));
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
+    BOOL ok = [self->_helper initializeWithModelDir:modelDir];
+    resolve(@(ok));
+  });
 }
 
 - (void)translate:(NSString *)text
@@ -47,11 +51,19 @@ RCT_EXPORT_MODULE(NllbTranslatorModule)
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
-  @try {
-    resolve([_helper translateWithText:text srcLang:srcLang tgtLang:tgtLang error:nil]);
-  } @catch (NSException *exception) {
-    reject(@"nllb_error", exception.reason, nil);
-  }
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    @try {
+      NSError *error = nil;
+      NSString *result = [self->_helper translateWithText:text srcLang:srcLang tgtLang:tgtLang error:&error];
+      if (error) {
+        reject(@"nllb_error", error.localizedDescription, error);
+      } else {
+        resolve(result);
+      }
+    } @catch (NSException *exception) {
+      reject(@"nllb_error", exception.reason, nil);
+    }
+  });
 }
 
 - (void)isLoaded:(RCTPromiseResolveBlock)resolve

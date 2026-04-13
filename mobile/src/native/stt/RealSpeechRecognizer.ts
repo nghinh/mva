@@ -18,9 +18,10 @@ import {LanguageDetector} from './LanguageDetector';
 const LOCAL_MODEL_FOLDER = 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17';
 const SAMPLE_RATE = 16000;
 const SPEECH_THRESHOLD = 0.02;
-const SILENCE_END_MS = 300;
-const MIN_UTTERANCE_MS = 250;
+const SILENCE_END_MS = 600;
+const MIN_UTTERANCE_MS = 300;
 const PARTIAL_INTERVAL_MS = 500;
+const MAX_UTTERANCE_SAMPLES = SAMPLE_RATE * 5; // 5 seconds max
 
 export class RealSpeechRecognizer {
   private engine: SttEngine | null = null;
@@ -38,6 +39,7 @@ export class RealSpeechRecognizer {
   private lastPartialMs = 0;
   private sampleBuffer: number[] = [];
   private processingChain: Promise<void> = Promise.resolve();
+  private inferenceActive = false;
   private emitFn: ((event: MeetingPipelineEvent) => void) | null = null;
 
   async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void): Promise<void> {
@@ -109,13 +111,18 @@ export class RealSpeechRecognizer {
       if (this.currentUtteranceId) {
         this.sampleBuffer.push(...Array.from(samples));
 
-        if (isSpeech && now - this.lastPartialMs >= PARTIAL_INTERVAL_MS) {
+        if (this.sampleBuffer.length >= MAX_UTTERANCE_SAMPLES) {
+          this.scheduleInference(() => this.emitFinal(Date.now(), emit));
+          return;
+        }
+
+        if (isSpeech && !this.inferenceActive && now - this.lastPartialMs >= PARTIAL_INTERVAL_MS) {
           this.lastPartialMs = now;
-          this.processingChain = this.processingChain.then(() => this.emitPartial(now, emit));
+          this.scheduleInference(() => this.emitPartial(Date.now(), emit));
         }
 
         if (!isSpeech && this.lastSpeechMs && now - this.lastSpeechMs >= SILENCE_END_MS) {
-          this.processingChain = this.processingChain.then(() => this.emitFinal(now, emit));
+          this.scheduleInference(() => this.emitFinal(Date.now(), emit));
         }
       }
     });
@@ -230,6 +237,17 @@ export class RealSpeechRecognizer {
     return localModelDir;
   }
 
+  private scheduleInference(fn: () => Promise<void>): void {
+    this.inferenceActive = true;
+    this.processingChain = this.processingChain.then(async () => {
+      try {
+        await fn();
+      } finally {
+        this.inferenceActive = false;
+      }
+    });
+  }
+
   private async emitPartial(now: number, emit: (event: MeetingPipelineEvent) => void): Promise<void> {
     if (!this.engine || !this.sessionId || !this.currentUtteranceId || this.sampleBuffer.length === 0) {
       return;
@@ -328,6 +346,7 @@ export class RealSpeechRecognizer {
     this.lastSpeechMs = 0;
     this.lastPartialMs = 0;
     this.sampleBuffer = [];
+    this.inferenceActive = false;
   }
 
   private detectLanguage(text: string, langFromModel?: string): SourceLanguage {

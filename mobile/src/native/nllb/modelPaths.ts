@@ -6,6 +6,7 @@ export const NLLB_REQUIRED_FILES = [
   'decoder_model_quantized.onnx',
   'decoder_with_past_model_quantized.onnx',
   'sentencepiece.bpe.model',
+  'vocab.json',
 ] as const;
 
 export function getNllbModelDir(): string {

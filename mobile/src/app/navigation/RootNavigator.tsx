@@ -11,6 +11,7 @@ import {SessionReviewScreen} from '../../features/history/screens/SessionReviewS
 import {SettingsScreen} from '../../features/settings/screens';
 import {ModelRepositoryScreen} from '../../features/models/screens';
 import {AppRouterProvider, useRoute} from './router';
+import {ThemeProvider} from '../../shared/hooks/useTheme';
 
 function NavigatorContent(): React.JSX.Element {
   const route = useRoute();
@@ -34,9 +35,11 @@ function NavigatorContent(): React.JSX.Element {
 
 export function RootNavigator(): React.JSX.Element {
   return (
-    <AppRouterProvider>
-      <NavigatorContent />
-    </AppRouterProvider>
+    <ThemeProvider>
+      <AppRouterProvider>
+        <NavigatorContent />
+      </AppRouterProvider>
+    </ThemeProvider>
   );
 }
 

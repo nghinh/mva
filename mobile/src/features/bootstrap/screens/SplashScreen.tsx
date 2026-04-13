@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, StyleSheet, Pressable, ActivityIndicator, Platform} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '../../../app/navigation/router';
@@ -56,49 +56,41 @@ export const SplashScreen: React.FC = () => {
 
   const [isInitializing, setIsInitializing] = useState(true);
   const hasBootstrappedRef = useRef(false);
-
-  const runBootstrapSequence = useCallback(async (): Promise<'ready' | 'error'> => {
-    try {
-      initialize();
-      setModelDownloading(MOCK_MODEL);
-      await simulateProgress((p) => setModelDownloadProgress(p), 67);
-      await getSTTProcessorInstance().loadModel();
-      setModelReady(MOCK_MODEL);
-      setTranslatorModelDownloading(MOCK_TRANSLATOR_MODEL);
-      await simulateProgress((p) => setTranslatorModelDownloadProgress(p), 100);
-      await getOnDeviceTranslator().initialize(getNllbModelDir());
-      setTranslatorModelReady(MOCK_TRANSLATOR_MODEL);
-      startPrewarm();
-      await delay(1500);
-      completePrewarm();
-      return 'ready';
-    } catch (error) {
-      warnLog('[SplashScreen] Bootstrap sequence failed:', error);
-      return 'error';
-    }
-  }, [completePrewarm, initialize, setModelDownloadProgress, setModelDownloading, setModelReady, setTranslatorModelDownloadProgress, setTranslatorModelDownloading, setTranslatorModelReady, startPrewarm]);
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
 
   useEffect(() => {
-    let cancelled = false;
     if (hasBootstrappedRef.current) {
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
-
     hasBootstrappedRef.current = true;
-    runBootstrapSequence().then((result) => {
-      if (cancelled) return;
-      setIsInitializing(false);
-      if (result === 'ready') {
-        navigation.replace('Meeting');
-      }
-    });
 
-    return () => {
-      cancelled = true;
+    const run = async () => {
+      try {
+        initialize();
+        setModelDownloading(MOCK_MODEL);
+        await simulateProgress((p) => setModelDownloadProgress(p), 67);
+        await getSTTProcessorInstance().loadModel();
+        setModelReady(MOCK_MODEL);
+        setTranslatorModelDownloading(MOCK_TRANSLATOR_MODEL);
+        await simulateProgress((p) => setTranslatorModelDownloadProgress(p), 100);
+        setTranslatorModelReady(MOCK_TRANSLATOR_MODEL);
+        startPrewarm();
+        // NLLB init deferred to startMeeting to avoid launch crash
+        warnLog('[SplashScreen] NLLB init deferred');
+        await delay(300);
+        completePrewarm();
+        setIsInitializing(false);
+        navigationRef.current.replace('Meeting');
+      } catch (error) {
+        warnLog('[SplashScreen] Bootstrap sequence failed:', error);
+        setIsInitializing(false);
+      }
     };
-  }, [navigation, runBootstrapSequence]);
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getProgressPercentage = (): number => {
     if (modelState.status === 'cached-ready') {

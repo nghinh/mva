@@ -3,6 +3,7 @@
 # Local tool/runtime caches
 .ruff_cache/
 .serena/
+.claude/
 
 # Python virtual/build caches
 __pycache__/
@@ -13,3 +14,12 @@ ios/build/
 
 # Tool output
 .local/
+
+# Large on-device model outputs (download / prepare locally)
+nllb-600m-mobile/
+
+# Android / RN local build caches
+mobile/android/.gradle/
+mobile/android/app/.cxx/
+mobile/android/build/
+mobile/android/app/src/main/assets/index.android.bundle
