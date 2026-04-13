@@ -1,0 +1,19 @@
+{
+  "name": "react-component-builder",
+  "version": "1.0.0",
+  "description": "Tạo React Component với cấu trúc chuẩn, TypeScript strict mode, Tailwind CSS",
+  "author": "BMad Workflow Builder",
+  "tags": ["react", "component", "generator", "typescript", "tailwind"],
+  "triggers": [
+    "tạo component react",
+    "create react component",
+    "new component",
+    "add component"
+  ],
+  "config": {
+    "tsMode": "strict",
+    "cssMethod": "tailwind",
+    "naming": "kebab-case",
+    "features": ["hooks", "types", "tests", "barrel"]
+  }
+}

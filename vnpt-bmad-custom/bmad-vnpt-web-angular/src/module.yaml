@@ -1,0 +1,7 @@
+name: BMAD VNPT Web Angular Workflow
+code: bmadwebangular
+version: 1.0.0
+description: Adds a BMAD-aligned workflow for Angular web implementation using VNPT Angular standards.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-web-angular/workflow.md

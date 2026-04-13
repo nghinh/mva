@@ -1,0 +1,10 @@
+checks:
+  - standalone-first when repo supports it
+  - feature-first placement
+  - thin components
+  - signals for local UI state
+  - RxJS reserved for async/evented flows
+  - route lazy loading where appropriate
+  - loading/empty/error states covered
+  - duplicate submit and stale state reviewed
+  - tests added or explicitly justified

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meeting Voice Assistant - Waiting State</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e4dfff",
+                        "tertiary": "#adc6ff",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "tertiary-fixed": "#d8e2ff",
+                        "secondary-fixed": "#57fdc8",
+                        "on-surface": "#e4e1e9",
+                        "surface-tint": "#c6bfff",
+                        "surface-container": "#1f1f25",
+                        "background": "#131318",
+                        "on-background": "#e4e1e9",
+                        "on-primary-container": "#faf6ff",
+                        "on-error": "#690005",
+                        "tertiary-container": "#1a6de0",
+                        "on-tertiary": "#002e6a",
+                        "primary": "#c6bfff",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#2a292f",
+                        "surface-container-lowest": "#0e0e13",
+                        "surface-container-highest": "#35343a",
+                        "secondary-container": "#00d19f",
+                        "inverse-surface": "#e4e1e9",
+                        "on-secondary": "#003828",
+                        "on-secondary-container": "#00543e",
+                        "on-error-container": "#ffdad6",
+                        "secondary": "#44eeba",
+                        "on-secondary-fixed": "#002116",
+                        "on-primary": "#2900a0",
+                        "surface-container-low": "#1b1b20",
+                        "inverse-on-surface": "#303036",
+                        "on-tertiary-fixed": "#001a42",
+                        "primary-fixed-dim": "#c6bfff",
+                        "surface-variant": "#35343a",
+                        "on-surface-variant": "#c8c4d7",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "primary-container": "#6c5ce7",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "outline": "#928ea0",
+                        "surface-dim": "#131318",
+                        "on-tertiary-container": "#f6f6ff",
+                        "inverse-primary": "#5847d2",
+                        "surface-bright": "#39383e",
+                        "outline-variant": "#474554",
+                        "error": "#ffb4ab",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "surface": "#131318"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .recording-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .3; }
+        }
+        .wave-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dash 5s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: 0; }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body overflow-hidden">
+<!-- Top Navigation Shell (TopAppBar) -->
+<header class="bg-[#131318] flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-[#E4E2EE]" data-icon="menu">menu</span>
+<div class="flex items-center gap-3">
+<div class="w-2.5 h-2.5 bg-error rounded-full recording-pulse"></div>
+<span class="font-label text-sm tracking-widest text-on-surface-variant">00:00:00</span>
+</div>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2">
+<h1 class="text-xl font-black text-[#E4E2EE] tracking-tighter uppercase font-headline">Executive MVA</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-secondary-container/10 rounded-full border border-secondary-container/20">
+<div class="w-1.5 h-1.5 bg-secondary rounded-full"></div>
+<span class="font-label text-[10px] uppercase text-secondary tracking-widest">Connected</span>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User" data-alt="close-up portrait of a professional executive in a dark suit against a blurred architectural background with moody lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfTSR_BcG2iEDDLqgMRBiKiUzK9l1J0MDINaDWoeDyXiBOvDSTDXom8OTvMqQgPch8_hAfwhGyLvnWU1TnQd1xcqEgcZ3BPrt6mBe-nIw7o2FCZLAKTIPXoSu4wMxl2obEF7NUEXdcJqDWVgddGw2aeRA-j8cvo2aWLA43z-JrdGK1dPQTNXmN-Z22J1_Uw2J7PvUQ1RwGwTRCI8SyFz0rySnmJBgOWGDCk-1MZOigLtO2dGeaaF4WtgirZvYqN-gw0aREM9xUEak"/>
+</div>
+</div>
+</header>
+<main class="h-screen pt-16 pb-24 px-6 flex flex-col gap-8">
+<!-- Center Visualization Area -->
+<section class="flex-1 flex flex-col items-center justify-center relative">
+<!-- Subtle Sound Wave Animation (SVG) -->
+<div class="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+<svg fill="none" height="200" viewbox="0 0 600 200" width="600" xmlns="http://www.w3.org/2000/svg">
+<path class="wave-line" d="M0 100C50 100 100 80 150 100C200 120 250 100 300 100C350 100 400 120 450 100C500 80 550 100 600 100" stroke="#6C5CE7" stroke-width="1.5"></path>
+<path d="M0 110C60 110 110 95 160 110C210 125 260 110 310 110C360 110 410 125 460 110C510 95 560 110 610 110" opacity="0.5" stroke="#6C5CE7" stroke-width="1"></path>
+<path d="M0 90C40 90 90 105 140 90C190 75 240 90 290 90C340 90 390 75 440 90C490 105 540 90 590 90" opacity="0.3" stroke="#6C5CE7" stroke-width="1"></path>
+</svg>
+</div>
+<!-- Listening Indicators -->
+<div class="z-10 text-center flex flex-col items-center gap-4">
+<h2 class="text-[18px] text-on-surface-variant font-medium tracking-tight">Listening...</h2>
+<p class="text-[14px] text-on-surface-variant/50 font-label">Speak in English, Japanese, or Korean</p>
+<div class="flex gap-4 mt-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-xl border border-outline-variant/10">
+<span class="text-lg">🇬🇧</span>
+<span class="font-label text-[10px] text-on-surface-variant">EN</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-xl border border-outline-variant/10">
+<span class="text-lg">🇯🇵</span>
+<span class="font-label text-[10px] text-on-surface-variant">JA</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-xl border border-outline-variant/10">
+<span class="text-lg">🇰🇷</span>
+<span class="font-label text-[10px] text-on-surface-variant">KO</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Lane Architecture (Empty States) -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-none h-48 mb-8">
+<!-- Original Lane -->
+<div class="bg-surface-container-lowest border-l-4 border-tertiary rounded-r-xl p-4 flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<span class="font-label text-[11px] uppercase tracking-widest text-tertiary">Original Audio</span>
+<span class="material-symbols-outlined text-sm text-tertiary/40" data-icon="graphic_eq">graphic_eq</span>
+</div>
+<div class="flex-1 border-2 border-dashed border-outline-variant/10 rounded-lg flex items-center justify-center">
+<span class="text-[10px] font-label text-outline/30 uppercase tracking-tighter">Awaiting Signal</span>
+</div>
+</div>
+<!-- Translation Lane -->
+<div class="bg-surface-container-lowest border-l-4 border-secondary rounded-r-xl p-4 flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<span class="font-label text-[11px] uppercase tracking-widest text-secondary">Live Translation</span>
+<span class="material-symbols-outlined text-sm text-secondary/40" data-icon="translate">translate</span>
+</div>
+<div class="flex-1 border-2 border-dashed border-outline-variant/10 rounded-lg flex items-center justify-center">
+<span class="text-[10px] font-label text-outline/30 uppercase tracking-tighter">Ready to Process</span>
+</div>
+</div>
+<!-- AI Suggestion Lane -->
+<div class="bg-surface-container-lowest border-l-4 border-error/50 rounded-r-xl p-4 flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<span class="font-label text-[11px] uppercase tracking-widest text-error/80">AI Insights</span>
+<span class="material-symbols-outlined text-sm text-error/40" data-icon="psychology">psychology</span>
+</div>
+<div class="flex-1 border-2 border-dashed border-outline-variant/10 rounded-lg flex items-center justify-center">
+<span class="text-[10px] font-label text-outline/30 uppercase tracking-tighter">Neutralizing Context</span>
+</div>
+</div>
+</section>
+<!-- Bottom Actions -->
+<div class="flex justify-center mb-12">
+<button class="group flex items-center gap-3 px-8 py-3 rounded-full border border-error/40 hover:bg-error/5 transition-all duration-300">
+<span class="material-symbols-outlined text-error" data-icon="stop_circle">stop_circle</span>
+<span class="font-headline font-bold text-error tracking-tight">Stop Meeting</span>
+</button>
+</div>
+</main>
+<!-- Navigation Shell (BottomNavBar) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#0E0E13]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(108,92,231,0.05)] border-t border-[#474554]/15">
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="history">history</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Meetings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C6BFFF] bg-[#1F1F25] rounded-xl px-6 py-2 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="mic" data-weight="fill" style="font-variation-settings: 'FILL' 1;">mic</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Live</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="lan">lan</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Network</span>
+</a>
+</nav>
+<!-- Side Navigation Placeholder (NavigationDrawer) -->
+<aside class="fixed inset-y-0 left-0 z-[60] flex flex-col p-8 bg-[#0E0E13] h-full w-80 rounded-r-3xl shadow-2xl shadow-black transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 hidden">
+<div class="mb-12 flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden">
+<img alt="Director" data-alt="minimalist professional avatar icon on a soft grey background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5P5AtgLGvHAO8jGNHYLVd6MfFkZhG3jb7_zeSeDUVUEAO1o35Ue5oyb5XyqxVlBtjZ1dHBNWHRammwAKTntoRUG8Ihmica5T7RPXVdtwGkz9HAyZw2L6q9CvsPDtwbdjIznv8K82eUvz7xwK70VUVYd8P_dsswMUk6hG4kjAHlijBO9lvg1XMSuLVTtBXd0s7aX8kxJofjBp-VGU-DudaQ9FNyBmSAr--uwFEM6QkVW-ffSRzwIdNboqoHAuyWdwVkE2-P9_XsEo"/>
+</div>
+<div>
+<h3 class="text-[#E4E2EE] font-bold font-headline">Director Level</h3>
+<p class="text-on-surface-variant/60 text-xs font-label uppercase">Secure Session Active</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl bg-gradient-to-r from-[#6C5CE7]/20 to-transparent text-[#C6BFFF] border-l-2 border-[#6C5CE7]" href="#">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+<span class="font-body text-sm">Executive Profile</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-[#C8C4D7]/60 hover:bg-[#1F1F25] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dns">dns</span>
+<span class="font-body text-sm">Server Config</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-[#C8C4D7]/60 hover:bg-[#1F1F25] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="translate">translate</span>
+<span class="font-body text-sm">Language Packs</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 rounded-xl text-[#C8C4D7]/60 hover:bg-[#1F1F25] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="key">key</span>
+<span class="font-body text-sm">Security Keys</span>
+</a>
+</nav>
+<div class="mt-auto pt-8 border-t border-outline-variant/10">
+<span class="font-label text-[10px] uppercase text-outline/40">v2.4.0-Stable</span>
+</div>
+</aside>
+</body></html>

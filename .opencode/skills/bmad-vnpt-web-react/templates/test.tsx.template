@@ -1,0 +1,15 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { {ComponentName} } from './index';
+
+describe('{ComponentName}', () => {
+  it('should render successfully', () => {
+    const { container } = render(<{ComponentName} {={defaultProps}} />);
+    expect(container).toBeInTheDocument();
+  });
+
+  it('should render with correct props', () => {
+    render(<{ComponentName} {={testProps}} />);
+    // Add specific assertions
+  });
+});

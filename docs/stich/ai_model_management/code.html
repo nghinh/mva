@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive MVA - AI Models</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary-fixed": "#e4dfff",
+            "tertiary": "#adc6ff",
+            "on-primary-fixed-variant": "#4029ba",
+            "tertiary-fixed": "#d8e2ff",
+            "secondary-fixed": "#57fdc8",
+            "on-surface": "#e4e1e9",
+            "surface-tint": "#c6bfff",
+            "surface-container": "#1f1f25",
+            "background": "#131318",
+            "on-primary-fixed": "#160066",
+            "on-background": "#e4e1e9",
+            "on-primary-container": "#faf6ff",
+            "on-error": "#690005",
+            "tertiary-container": "#1a6de0",
+            "on-tertiary": "#002e6a",
+            "primary": "#c6bfff",
+            "error-container": "#93000a",
+            "surface-container-high": "#2a292f",
+            "surface-container-lowest": "#0e0e13",
+            "surface-container-highest": "#35343a",
+            "secondary-container": "#00d19f",
+            "inverse-surface": "#e4e1e9",
+            "on-secondary": "#003828",
+            "on-secondary-container": "#00543e",
+            "on-error-container": "#ffdad6",
+            "secondary": "#44eeba",
+            "on-secondary-fixed": "#002116",
+            "on-primary": "#2900a0",
+            "surface-container-low": "#1b1b20",
+            "inverse-on-surface": "#303036",
+            "on-tertiary-fixed": "#001a42",
+            "primary-fixed-dim": "#c6bfff",
+            "surface-variant": "#35343a",
+            "on-surface-variant": "#c8c4d7",
+            "tertiary-fixed-dim": "#adc6ff",
+            "primary-container": "#6c5ce7",
+            "on-secondary-fixed-variant": "#00513c",
+            "on-tertiary-fixed-variant": "#004395",
+            "outline": "#928ea0",
+            "surface-dim": "#131318",
+            "on-tertiary-container": "#f6f6ff",
+            "inverse-primary": "#5847d2",
+            "surface-bright": "#39383e",
+            "outline-variant": "#474554",
+            "error": "#ffb4ab",
+            "secondary-fixed-dim": "#2ce0ad",
+            "surface": "#131318"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "fontFamily": {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"],
+            "mono": ["JetBrains Mono"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glass-card {
+      background: rgba(31, 31, 37, 0.6);
+      backdrop-filter: blur(20px);
+    }
+    .technical-gradient {
+      background: linear-gradient(135deg, #6c5ce7 0%, #c6bfff 100%);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body selection:bg-primary/30 min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#131318] sticky top-0 z-50 flex justify-between items-center w-full px-6 h-16">
+<div class="flex items-center gap-4">
+<button class="text-[#6C5CE7] hover:bg-[#1F1F25] transition-colors p-2 rounded-full active:duration-100 scale-95">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="text-xl font-black text-[#E4E2EE] tracking-tighter font-['Inter']">AI Models</h1>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest text-[#C8C4D7]/50">SECURE SESSION</span>
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant/20">
+<img alt="Executive User" data-alt="Close up professional portrait of a tech executive with glasses and a dark suit in a minimalist studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDd4JHeeWMl9Eb2FtgD60wKOgdvRkkn2jY0rCeKkID07rmJnzh3U3NfpKiASCtT659g2Y-eUmDFamOBESyElwdqQaHr0yhHfEXXJDcF20C2XplLmj7ZDTpS5FICZfuoh4jn4NKYzShRtWotI49h24liYZM7qJAO1YuGDSYD5ydIl9OJm9joCToBk_2OaVb_Riwtyoyl3ftzUyaDc1qJWPjBCSKrh-uLrV8TkJQGynC-CfC0RhKyXux01mSZ-MpWx-ju8wNEHJBC48U"/>
+</div>
+</div>
+</header>
+<main class="max-w-3xl mx-auto px-6 pt-8 space-y-8">
+<!-- Hero Section / Status -->
+<section class="space-y-2">
+<div class="flex justify-between items-end">
+<div>
+<p class="font-mono text-[10px] uppercase tracking-[0.2em] text-primary mb-1">Local Intelligence</p>
+<h2 class="text-3xl font-extrabold tracking-tight text-on-surface">Compute Engine</h2>
+</div>
+<div class="text-right">
+<p class="font-mono text-[10px] text-on-surface-variant/60 uppercase">System Status</p>
+<p class="text-secondary font-bold flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+            ACTIVE
+          </p>
+</div>
+</div>
+</section>
+<!-- Model List -->
+<div class="space-y-4">
+<!-- SenseVoice-Small (Active Card) -->
+<div class="group relative surface-container p-6 rounded-xl transition-all duration-300 hover:bg-surface-container-high border border-transparent hover:border-outline-variant/10">
+<div class="flex justify-between items-start mb-6">
+<div class="flex gap-4">
+<div class="w-14 h-14 rounded-xl technical-gradient flex items-center justify-center shadow-[0_4px_20px_rgba(108,92,231,0.2)]">
+<span class="material-symbols-outlined text-on-primary-fixed text-3xl">psychology</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-on-surface">SenseVoice-Small</h3>
+<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-secondary/10 text-secondary border border-secondary/20">v1.2.4</span>
+</div>
+<p class="text-sm text-on-surface-variant mt-0.5">Multilingual High-Fidelity ASR</p>
+</div>
+</div>
+<div class="text-right">
+<span class="font-mono text-sm text-on-surface font-bold">234 MB</span>
+<div class="flex gap-1 mt-2 justify-end">
+<span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-bold border border-outline-variant/20">EN</span>
+<span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-bold border border-outline-variant/20">JA</span>
+<span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-bold border border-outline-variant/20">KO</span>
+<span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant font-bold border border-outline-variant/20">ZH</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 py-4 border-y border-outline-variant/10">
+<div>
+<p class="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant/50 mb-1">Performance Bench</p>
+<p class="text-sm font-medium text-on-surface italic">Real-time factor: 0.05 on iPhone 15 Pro</p>
+</div>
+<div class="text-right">
+<p class="font-mono text-[10px] uppercase tracking-wider text-on-surface-variant/50 mb-1">Quantization</p>
+<p class="text-sm font-medium text-on-surface">INT8 Optimized</p>
+</div>
+</div>
+<div class="flex justify-between items-center mt-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-lg" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-xs font-bold text-on-surface uppercase tracking-widest">Ready for local use</span>
+</div>
+<button class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-error hover:bg-error-container/20 transition-colors text-xs font-bold uppercase tracking-tighter">
+<span class="material-symbols-outlined text-sm">delete_sweep</span>
+            Delete
+          </button>
+</div>
+</div>
+<!-- Whisper-Small (Disabled Card) -->
+<div class="relative bg-surface-container-lowest/50 p-6 rounded-xl border border-outline-variant/5 opacity-60">
+<div class="absolute top-4 right-4">
+<span class="font-mono text-[10px] px-2 py-1 rounded-full bg-outline-variant/20 text-on-surface-variant uppercase font-bold tracking-widest">Coming Soon</span>
+</div>
+<div class="flex gap-4">
+<div class="w-14 h-14 rounded-xl bg-surface-container-high flex items-center justify-center grayscale">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">graphic_eq</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h3 class="text-lg font-bold text-on-surface-variant">Whisper-Small</h3>
+<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-outline-variant/10 text-on-surface-variant/50 border border-outline-variant/10">v2.0.0-beta</span>
+</div>
+<p class="text-sm text-on-surface-variant/50 mt-0.5">OpenAI Architecture - Global Language Support</p>
+<div class="mt-4 flex gap-6">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-on-surface-variant/40">database</span>
+<span class="font-mono text-xs text-on-surface-variant/40">460 MB Est.</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-on-surface-variant/40">speed</span>
+<span class="font-mono text-xs text-on-surface-variant/40">0.12 RTF</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Storage Info Bento Section -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="col-span-1 md:col-span-2 glass-card p-6 rounded-xl border border-outline-variant/10">
+<div class="flex justify-between items-start mb-4">
+<h4 class="font-bold text-on-surface">On-Device Storage</h4>
+<span class="font-mono text-xs text-primary">45% Used</span>
+</div>
+<div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden mb-4">
+<div class="h-full technical-gradient w-[45%]" style="width: 45.7%"></div>
+</div>
+<div class="flex justify-between items-center">
+<p class="font-mono text-[11px] text-on-surface-variant/70 uppercase">Models: 234 MB / 512 MB available</p>
+<span class="material-symbols-outlined text-on-surface-variant/30 text-lg">hard_drive</span>
+</div>
+</div>
+<div class="bg-primary-container/10 p-6 rounded-xl border border-primary-container/20 flex flex-col justify-center items-center text-center">
+<span class="material-symbols-outlined text-primary text-3xl mb-2">cloud_download</span>
+<p class="text-xs font-bold text-primary uppercase tracking-widest">Update All</p>
+<p class="text-[10px] text-primary/60 font-mono mt-1">2 Updates Pending</p>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#0E0E13]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(108,92,231,0.05)] border-t border-[#474554]/15">
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Meetings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C6BFFF] bg-[#1F1F25] rounded-xl px-4 py-1 transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">mic</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Live</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out" href="#">
+<span class="material-symbols-outlined mb-1">lan</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Network</span>
+</a>
+</nav>
+<!-- Floating Decoration (The "Glow") -->
+<div class="fixed top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary/5 blur-[100px] pointer-events-none rounded-full"></div>
+<div class="fixed bottom-[-10%] left-[-10%] w-[30%] h-[30%] bg-secondary/5 blur-[100px] pointer-events-none rounded-full"></div>
+</body></html>

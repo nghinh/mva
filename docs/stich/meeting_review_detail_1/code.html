@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meeting Review - Executive Command</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#131318",
+                        "inverse-primary": "#5847d2",
+                        "tertiary-container": "#1a6de0",
+                        "on-secondary-container": "#00543e",
+                        "on-primary-container": "#faf6ff",
+                        "on-secondary-fixed": "#002116",
+                        "tertiary": "#adc6ff",
+                        "surface-container-highest": "#35343a",
+                        "tertiary-fixed": "#d8e2ff",
+                        "primary-container": "#6c5ce7",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "surface-container": "#1f1f25",
+                        "on-surface": "#e4e1e9",
+                        "error-container": "#93000a",
+                        "surface-container-low": "#1b1b20",
+                        "primary-fixed": "#e4dfff",
+                        "secondary-fixed": "#57fdc8",
+                        "on-secondary": "#003828",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "on-primary-fixed": "#160066",
+                        "surface-tint": "#c6bfff",
+                        "on-surface-variant": "#c8c4d7",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary-container": "#f6f6ff",
+                        "surface-container-high": "#2a292f",
+                        "primary-fixed-dim": "#c6bfff",
+                        "outline-variant": "#474554",
+                        "on-tertiary-fixed": "#001a42",
+                        "outline": "#928ea0",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#39383e",
+                        "on-background": "#e4e1e9",
+                        "background": "#131318",
+                        "surface-dim": "#131318",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "surface-container-lowest": "#0e0e13",
+                        "on-error": "#690005",
+                        "primary": "#c6bfff",
+                        "inverse-on-surface": "#303036",
+                        "secondary": "#44eeba",
+                        "on-tertiary": "#002e6a",
+                        "surface-variant": "#35343a",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "inverse-surface": "#e4e1e9",
+                        "on-primary": "#2900a0",
+                        "secondary-container": "#00d19f"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0E0E13; }
+        ::-webkit-scrollbar-thumb { background: #474554; border-radius: 10px; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-dim text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex items-center px-4 h-16 bg-[#0E0E13] no-line tonal-shift">
+<div class="flex items-center justify-between w-full max-w-5xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#E4E2EE]">arrow_back</span>
+</button>
+<h1 class="font-['Inter'] font-bold tracking-tight text-[#E4E2EE] text-lg">Meeting Review</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#E4E2EE]">share</span>
+</button>
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-[#E4E2EE]">more_vert</span>
+</button>
+</div>
+</div>
+</header>
+<main class="pt-24 px-4 max-w-5xl mx-auto">
+<!-- Summary Dashboard (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
+<!-- Hero Title -->
+<div class="md:col-span-4 mb-4">
+<span class="mono text-[10px] uppercase tracking-[0.2em] text-secondary opacity-80 mb-1 block">Archive Report</span>
+<h2 class="text-3xl font-extrabold tracking-tighter text-on-surface">Meeting Apr 11, 2026</h2>
+</div>
+<!-- Stats Card 1: Duration -->
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden flex flex-col justify-between h-32">
+<span class="material-symbols-outlined text-primary/20 absolute -right-2 -top-2 text-6xl">schedule</span>
+<span class="mono text-[10px] uppercase tracking-wider text-on-surface-variant/60">Duration</span>
+<span class="text-2xl font-bold text-on-primary-container">1h 15m</span>
+</div>
+<!-- Stats Card 2: Utterances -->
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden flex flex-col justify-between h-32">
+<span class="material-symbols-outlined text-tertiary/20 absolute -right-2 -top-2 text-6xl">record_voice_over</span>
+<span class="mono text-[10px] uppercase tracking-wider text-on-surface-variant/60">Total Activity</span>
+<span class="text-2xl font-bold text-on-primary-container">47 utterances</span>
+</div>
+<!-- Stats Card 3: AI Suggestions -->
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden flex flex-col justify-between h-32 border border-primary/5">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+<span class="material-symbols-outlined text-secondary/20 absolute -right-2 -top-2 text-6xl">auto_awesome</span>
+<span class="mono text-[10px] uppercase tracking-wider text-on-surface-variant/60">AI Suggestions</span>
+<span class="text-2xl font-bold text-secondary">08 Insights</span>
+</div>
+<!-- Stats Card 4: Languages -->
+<div class="bg-surface-container-low p-6 rounded-xl relative overflow-hidden flex flex-col justify-between h-32">
+<span class="mono text-[10px] uppercase tracking-wider text-on-surface-variant/60">Language Split</span>
+<div class="flex items-center gap-3">
+<div class="flex flex-col">
+<span class="text-lg font-bold text-primary">EN <span class="mono text-xs font-normal opacity-50">34</span></span>
+</div>
+<div class="w-px h-6 bg-outline-variant/20"></div>
+<div class="flex flex-col">
+<span class="text-lg font-bold text-secondary">JA <span class="mono text-xs font-normal opacity-50">12</span></span>
+</div>
+<div class="w-px h-6 bg-outline-variant/20"></div>
+<div class="flex flex-col">
+<span class="text-lg font-bold text-tertiary">KO <span class="mono text-xs font-normal opacity-50">1</span></span>
+</div>
+</div>
+</div>
+</div>
+<!-- Timeline Section -->
+<div class="space-y-8 relative">
+<!-- Timeline vertical line (subtle) -->
+<div class="absolute left-4 top-0 bottom-0 w-px bg-gradient-to-b from-primary/20 via-outline-variant/10 to-transparent"></div>
+<!-- Utterance 1 -->
+<div class="relative pl-12">
+<div class="absolute left-[13px] top-2 w-2 h-2 rounded-full bg-primary ring-4 ring-surface"></div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="mono text-[11px] text-on-surface-variant/70">14:32:07</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-tertiary-container/20 text-tertiary border border-tertiary/20">EN</span>
+</div>
+<div class="bg-surface-container rounded-xl p-5 hover:bg-surface-container-high transition-all shadow-lg shadow-black/20">
+<p class="text-[0.9375rem] leading-relaxed text-[#E4E2EE] mb-3">Our primary objective for Q2 is to streamline the cross-border logistics between our Tokyo and Seoul hubs.</p>
+<p class="text-[0.875rem] leading-relaxed text-[#F59E0B] italic opacity-90">Mục tiêu chính của chúng tôi trong Quý 2 là hợp lý hóa hoạt động hậu cần xuyên biên giới giữa các trung tâm Tokyo và Seoul.</p>
+</div>
+</div>
+</div>
+<!-- Utterance 2: AI Suggestion -->
+<div class="relative pl-12">
+<div class="absolute left-[13px] top-2 w-2 h-2 rounded-full bg-error ring-4 ring-surface"></div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="mono text-[11px] text-on-surface-variant/70">14:32:45</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container/20 text-secondary border border-secondary/20">JA</span>
+</div>
+<div class="bg-error-container/10 border border-error/10 rounded-xl p-5 relative group transition-all">
+<button class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-error/20 rounded-lg">
+<span class="material-symbols-outlined text-error text-sm">content_copy</span>
+</button>
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-error text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="mono text-[10px] uppercase tracking-widest text-error">AI Correction Applied</span>
+</div>
+<p class="text-[0.9375rem] leading-relaxed text-[#E4E2EE] mb-3">現在の物流ネットワークは非常に複雑で、コストがかかりすぎています。</p>
+<p class="text-[0.875rem] leading-relaxed text-[#F59E0B] italic opacity-90">Mạng lưới hậu cần hiện tại cực kỳ phức tạp và tốn kém quá nhiều chi phí.</p>
+</div>
+</div>
+</div>
+<!-- Utterance 3 -->
+<div class="relative pl-12">
+<div class="absolute left-[13px] top-2 w-2 h-2 rounded-full bg-primary ring-4 ring-surface"></div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="mono text-[11px] text-on-surface-variant/70">14:33:12</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-tertiary-container/20 text-tertiary border border-tertiary/20">EN</span>
+</div>
+<div class="bg-surface-container rounded-xl p-5 hover:bg-surface-container-high transition-all shadow-lg shadow-black/20">
+<p class="text-[0.9375rem] leading-relaxed text-[#E4E2EE] mb-3">I agree. We should consider implementing the new automated routing system by late May.</p>
+<p class="text-[0.875rem] leading-relaxed text-[#F59E0B] italic opacity-90">Tôi đồng ý. Chúng ta nên xem xét việc triển khai hệ thống định tuyến tự động mới vào cuối tháng Năm.</p>
+</div>
+</div>
+</div>
+<!-- Center Call to Action -->
+<div class="flex justify-center pt-8">
+<button class="flex items-center gap-2 px-8 py-3 rounded-xl border border-outline-variant hover:bg-surface-container transition-all active:scale-95">
+<span class="material-symbols-outlined text-sm">output</span>
+<span class="mono text-[11px] uppercase tracking-widest font-bold">Export Transcript</span>
+</button>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-6 pb-6 pt-3 bg-[#0E0E13]/80 backdrop-blur-xl border-t border-[#474554]/15 shadow-[0_-4px_40px_rgba(108,92,231,0.05)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-[#C6BFFF] font-bold bg-[#1F1F25] rounded-xl px-3 py-1 hover:text-[#E4E2EE] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="Article">article</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-wider mt-1">Transcript</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/50 hover:text-[#E4E2EE] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="Analytics">analytics</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-wider mt-1">Insights</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/50 hover:text-[#E4E2EE] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="Play_Circle">play_circle</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-wider mt-1">Media</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#C8C4D7]/50 hover:text-[#E4E2EE] transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="Output">output</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-wider mt-1">Export</span>
+</a>
+</nav>
+</body></html>

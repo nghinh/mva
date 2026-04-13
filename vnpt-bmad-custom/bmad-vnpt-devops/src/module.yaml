@@ -1,0 +1,6 @@
+name: bmad-vnpt-devops
+version: 1.0.0
+summary: VNPT BMAD custom DevOps workflow for OpenCode/BMAD.
+author: OpenAI for VNPT custom bundle
+workflows:
+  - path: workflows/bmad-vnpt-devops/workflow.md

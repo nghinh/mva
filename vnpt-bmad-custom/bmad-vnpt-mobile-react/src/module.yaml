@@ -1,0 +1,7 @@
+name: BMAD VNPT Mobile React Workflow
+code: bmadmobile
+version: 1.0.0
+description: Adds a BMAD-aligned workflow for React Native / Expo mobile implementation using VNPT mobile React standards.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-mobile-react/workflow.md

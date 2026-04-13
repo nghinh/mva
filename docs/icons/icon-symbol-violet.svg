@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+<rect width="512" height="512" rx="112" fill="#6C5CE7"/>
+
+<!-- Microphone body -->
+<path d="M234 110 C234 110 206 110 206 140 L206 296 C206 312 218 324 234 324 C250 324 262 312 262 296 L262 140 C262 110 234 110 234 110Z" fill="#FFFFFF"/>
+
+<!-- Microphone stand -->
+<path d="M178 282 C178 282 178 348 234 348 C290 348 290 282 290 282" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+<line x1="234" y1="348" x2="234" y2="382" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+<line x1="206" y1="382" x2="262" y2="382" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+
+<!-- Sound waves left -->
+<path d="M150 195 Q132 235 150 275 Q132 315 150 355" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
+<path d="M124 180 Q100 240 124 300 Q100 355 124 375" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.2"/>
+
+<!-- White text lines (Original) -->
+<rect x="310" y="150" width="80" height="12" rx="6" fill="#FFFFFF" opacity="0.9"/>
+<rect x="322" y="172" width="56" height="12" rx="6" fill="#FFFFFF" opacity="0.6"/>
+<rect x="316" y="194" width="68" height="12" rx="6" fill="#FFFFFF" opacity="0.35"/>
+
+<!-- Teal text lines (Translation) -->
+<rect x="310" y="238" width="74" height="12" rx="6" fill="#00D2A0"/>
+<rect x="320" y="260" width="60" height="12" rx="6" fill="#00D2A0" opacity="0.65"/>
+
+<!-- Gold text lines (AI Suggest) -->
+<rect x="310" y="304" width="66" height="12" rx="6" fill="#FAC775"/>
+<rect x="324" y="326" width="48" height="12" rx="6" fill="#FAC775" opacity="0.65"/>
+</svg>

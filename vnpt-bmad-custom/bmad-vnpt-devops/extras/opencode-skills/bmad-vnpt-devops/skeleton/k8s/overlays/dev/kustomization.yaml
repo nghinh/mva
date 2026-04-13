@@ -1,0 +1,15 @@
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/example/app
+    newTag: dev
+
+patches:
+  - target:
+      kind: Deployment
+      name: app
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

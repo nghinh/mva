@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Voice Assistant — Final Architecture v2.1</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --bg:#080810; --bg2:#0e0e1a; --bg3:#161625; --bg4:#1e1e30;
+  --text:#e4e2ee; --text2:#9895ad; --text3:#6560786e;
+  --accent:#7c6cf0; --accent2:#b0a4ff;
+  --green:#2dd4a8; --green2:#5efcd0; --greenBg:rgba(45,212,168,.08);
+  --amber:#f0b429; --amberBg:rgba(240,180,41,.08);
+  --coral:#f06060; --coralBg:rgba(240,96,96,.08);
+  --blue:#5ea8f0; --blueBg:rgba(94,168,240,.08);
+  --teal:#20c4c0; --tealBg:rgba(32,196,192,.08);
+  --pink:#e070b0; --pinkBg:rgba(224,112,176,.08);
+  --border:rgba(124,108,240,.12); --border2:rgba(124,108,240,.25);
+  --mono:'IBM Plex Mono',monospace; --sans:'Instrument Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;-webkit-font-smoothing:antialiased}
+.c{max-width:1060px;margin:0 auto;padding:0 28px}
+
+/* Header */
+.hdr{padding:56px 0 36px;text-align:center;border-bottom:1px solid var(--border)}
+.hdr h1{font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr .sub{color:var(--text2);font-size:14px;margin-top:4px}
+.hdr .ver{display:inline-block;margin-top:14px;padding:5px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:16px;font-family:var(--mono);font-size:11px;color:var(--accent2)}
+
+/* Nav */
+.nav{position:sticky;top:0;z-index:99;background:rgba(8,8,16,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:10px 0}
+.nav .c{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.nav .c::-webkit-scrollbar{display:none}
+.nav a{flex-shrink:0;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;color:var(--text2);text-decoration:none;border:1px solid transparent;transition:all .15s;white-space:nowrap}
+.nav a:hover{color:var(--accent2);border-color:var(--border2);background:var(--bg3)}
+
+/* Section */
+.s{padding:44px 0;border-bottom:1px solid var(--border)}
+.s:last-child{border-bottom:none}
+h2{font-size:20px;font-weight:600;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+h2 .n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;font-size:12px;font-weight:600}
+h3{font-size:15px;font-weight:600;color:var(--accent2);margin:20px 0 8px}
+p{color:var(--text2);margin-bottom:12px;font-size:13.5px}
+
+/* Review box */
+.rv{border-radius:10px;padding:14px 18px;margin:16px 0;font-size:13px;line-height:1.6}
+.rv .rt{font-weight:600;margin-bottom:4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+.rv-ok{background:var(--greenBg);border:1px solid rgba(45,212,168,.25)}
+.rv-ok .rt{color:var(--green)}
+.rv-warn{background:var(--amberBg);border:1px solid rgba(240,180,41,.25)}
+.rv-warn .rt{color:var(--amber)}
+.rv-change{background:var(--coralBg);border:1px solid rgba(240,96,96,.25)}
+.rv-change .rt{color:var(--coral)}
+.rv-info{background:rgba(124,108,240,.06);border:1px solid var(--border2)}
+.rv-info .rt{color:var(--accent2)}
+
+/* Table */
+.tb{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px}
+.tb th{text-align:left;padding:9px 14px;font-weight:600;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border2);background:var(--bg2)}
+.tb td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+.tb tr:last-child td{border-bottom:none}
+.tb code{font-family:var(--mono);font-size:11px;background:var(--bg3);padding:2px 6px;border-radius:4px;color:var(--accent2)}
+.rec{color:var(--green2);font-weight:600;font-size:10px;border:1px solid rgba(94,252,208,.3);padding:2px 7px;border-radius:4px;display:inline-block}
+
+/* Pipeline */
+.pipe{display:flex;flex-direction:column;margin:20px 0}
+.ps{display:grid;grid-template-columns:70px 1fr 100px 110px;align-items:stretch;border:1px solid var(--border);margin-bottom:-1px}
+.ps:first-child{border-radius:10px 10px 0 0}
+.ps:last-child{border-radius:0 0 10px 10px}
+.ps-n{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:600;border-right:1px solid var(--border)}
+.ps-c{padding:12px 16px}
+.ps-c .nm{font-size:13px;font-weight:600;margin-bottom:2px}
+.ps-c .tk{font-family:var(--mono);font-size:10.5px;margin-bottom:3px}
+.ps-c .dt{font-size:11.5px;color:var(--text3)}
+.ps-w{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:500;border-left:1px solid var(--border);text-align:center;padding:4px 6px;color:var(--text3)}
+.ps-l{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:600;border-left:1px solid var(--border);padding:4px}
+
+/* Color coding */
+.c-gr .ps-n{background:var(--greenBg);color:var(--green)} .c-gr .ps-l{color:var(--green)}
+.c-te .ps-n{background:var(--tealBg);color:var(--teal)} .c-te .ps-l{color:var(--teal)}
+.c-ac .ps-n{background:rgba(124,108,240,.08);color:var(--accent2)} .c-ac .ps-l{color:var(--accent2)}
+.c-am .ps-n{background:var(--amberBg);color:var(--amber)} .c-am .ps-l{color:var(--amber)}
+.c-co .ps-n{background:var(--coralBg);color:var(--coral)} .c-co .ps-l{color:var(--coral)}
+.c-bl .ps-n{background:var(--blueBg);color:var(--blue)} .c-bl .ps-l{color:var(--blue)}
+
+/* Metric cards */
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:16px 0}
+.mc{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center}
+.mc .v{font-family:var(--mono);font-size:20px;font-weight:600}
+.mc .l{font-size:10px;color:var(--text3);margin-top:3px}
+
+/* Code block */
+.cb{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin:12px 0;font-family:var(--mono);font-size:11.5px;line-height:1.8;overflow-x:auto;white-space:pre;color:var(--text2)}
+.cb .cm{color:#555065} .cb .kw{color:var(--accent2)} .cb .st{color:var(--green)} .cb .fn{color:var(--amber)} .cb .tp{color:var(--teal)}
+
+/* Folder tree */
+.ft{font-family:var(--mono);font-size:11.5px;line-height:2;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:14px 0}
+.ft .dr{color:var(--amber)} .ft .fl{color:var(--text3)} .ft .dc{color:#555065;font-style:italic}
+
+/* Flow diagram */
+.fd{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px;margin:16px 0;overflow-x:auto}
+.fr{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:680px;margin-bottom:8px}
+.fb{padding:7px 11px;border-radius:7px;font-size:10.5px;font-weight:600;white-space:nowrap;text-align:center;border:1px solid}
+.fa{color:var(--text3);font-size:13px;flex-shrink:0}
+
+/* Arch diagram box */
+.arch{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;margin:20px 0;align-items:start}
+.arch-side{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px}
+.arch-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding-top:40px}
+.arch-mid .arrow{writing-mode:vertical-lr;font-size:10px;color:var(--text3);font-family:var(--mono)}
+.arch-title{font-size:13px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.arch-item{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px}
+.arch-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* Timeline */
+.tl{display:grid;grid-template-columns:70px 1fr;margin:16px 0}
+.tl-t{font-family:var(--mono);font-size:10.5px;color:var(--text3);padding:6px 0;text-align:right;padding-right:14px;border-right:2px solid var(--border)}
+.tl-e{padding:6px 0 6px 14px;font-size:12.5px;color:var(--text2)}
+.tl-e strong{color:var(--text)}
+
+@media(max-width:768px){
+  .ps{grid-template-columns:50px 1fr 80px}
+  .ps-w{display:none}
+  .arch{grid-template-columns:1fr}
+  .arch-mid{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+<div class="c">
+  <h1>Meeting Voice Assistant</h1>
+  <div class="sub">Final System Architecture — Self-hosted, Low-latency</div>
+  <div class="ver">v2.1 FINAL — React Native + react-native-sherpa-onnx + FastAPI + NLLB/CTranslate2 + vLLM</div>
+</div>
+</div>
+
+<div class="nav"><div class="c">
+  <a href="#review">Review</a>
+  <a href="#arch">Kiến trúc tổng</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#server">Server stack</a>
+  <a href="#ws">WebSocket protocol</a>
+  <a href="#native">Native modules</a>
+  <a href="#parallel">Song song hóa</a>
+  <a href="#gpu">GPU strategy</a>
+  <a href="#project">Cấu trúc dự án</a>
+  <a href="#latency">Latency budget</a>
+  <a href="#deploy">Deployment</a>
+</div></div>
+
+<div class="c">
+
+<!-- ============ SECTION 0: REVIEW ============ -->
+<div class="s" id="review">
+<h2><span class="n">0</span> Review kiến trúc đề xuất</h2>
+<p>Dưới đây là đánh giá từng thành phần anh đề xuất, kèm điều chỉnh.</p>
+
+<div class="rv rv-warn">
+  <div class="rt">Điều chỉnh — FastAPI / Node gateway</div>
+  <p style="color:var(--text2);margin:0">Anh đề xuất dùng cả FastAPI lẫn Node gateway. Hai layer gateway sẽ thêm 1-2ms latency mỗi hop và tăng complexity. <strong style="color:var(--amber)">Đề xuất:</strong> Dùng <strong>FastAPI làm duy nhất gateway</strong> — FastAPI đã hỗ trợ native WebSocket, async/await, và truy cập trực tiếp CTranslate2 Python API. Node.js không cần thiết trừ khi scale >100 concurrent WebSocket connections. Với use case họp nội bộ (5-20 người), FastAPI single process + uvicorn workers đủ sức.</p>
+</div>
+
+<div class="rv rv-ok">
+  <div class="rt">Giữ nguyên — NLLB + CTranslate2</div>
+  <p style="color:var(--text2);margin:0">Lựa chọn xuất sắc. CTranslate2 tối ưu đặc biệt cho NLLB — int8 quantization giảm 2-4x memory, inference ~30-80ms/câu trên GPU. NLLB-200-distilled-1.3B là sweet spot cho JA/KO/EN→VI: nhỏ hơn 3.3B (nhanh hơn 2x) nhưng chất lượng tốt hơn 600M đáng kể cho cặp ngôn ngữ thấp tài nguyên như KO→VI.</p>
+</div>
+
+<div class="rv rv-ok">
+  <div class="rt">Giữ nguyên — WebSocket cho text delta</div>
+  <p style="color:var(--text2);margin:0">Đúng pattern. WebSocket persistent connection loại bỏ HTTP overhead cho mỗi message. Text delta (chỉ gửi phần thay đổi) giảm bandwidth và cho phép streaming UI — user thấy kết quả ngay khi có token đầu tiên.</p>
+</div>
+
+<div class="rv rv-warn">
+  <div class="rt">Điều chỉnh — AI model qua 9router</div>
+  <p style="color:var(--text2);margin:0">9router/Router9 là cloud LLM gateway — route tới OpenAI/Anthropic/Google. Nếu mục tiêu là self-hosted hoàn toàn, anh nên chạy LLM local bằng <strong style="color:var(--amber)">vLLM</strong> (engine tốt nhất cho decoder-only models, hỗ trợ continuous batching + PagedAttention). Model đề xuất: <strong>Qwen2.5-7B-Instruct</strong> (hiểu tốt EN/JA/KO/VI, chạy trên 1x RTX 4090). Nếu anh vẫn muốn option gọi cloud LLM backup, dùng <strong>LiteLLM</strong> (self-hosted, open-source) thay cho 9router — nó cung cấp OpenAI-compatible API cho cả local model lẫn cloud providers.</p>
+</div>
+
+<div class="rv rv-change">
+  <div class="rt">Bổ sung — Thiếu component quan trọng</div>
+  <p style="color:var(--text2);margin:0"><strong style="color:var(--coral)">1. Redis</strong> — cần cho conversation context store (sliding window 5 turns) và session management giữa WebSocket reconnects. <strong style="color:var(--coral)">2. Language Detection</strong> — SenseVoice on-device đã tự detect EN/JA/KO, nhưng server cần biết ngôn ngữ nguồn để chọn đúng NLLB language code. Client phải gửi kèm detected_lang trong mỗi message. <strong style="color:var(--coral)">3. Health check + Graceful degradation</strong> — Nếu LLM server quá tải, pipeline vẫn phải trả translation (skip AI suggest) thay vì block toàn bộ.</p>
+</div>
+</div>
+
+<!-- ============ SECTION 1: ARCHITECTURE OVERVIEW ============ -->
+<div class="s" id="arch">
+<h2><span class="n">1</span> Kiến trúc tổng thể (Final)</h2>
+
+<div class="arch">
+  <div class="arch-side">
+    <div class="arch-title" style="color:var(--green)">📱 Mobile Client (React Native)</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--green)"></div><strong>AudioCaptureModule</strong> — Mic 16kHz PCM</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--teal)"></div><strong>SherpaOnnxModule</strong> — VAD + STT on-device</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--accent2)"></div><strong>WebSocket Client</strong> — Persistent conn</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--blue)"></div><strong>UI Renderer</strong> — 3-lane streaming</div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">
+      On-device: SenseVoice-Small int8 (234MB)<br>
+      Audio stays native — chỉ text cross bridge
+    </div>
+  </div>
+
+  <div class="arch-mid">
+    <div class="arrow">WebSocket</div>
+    <div style="font-size:18px;color:var(--accent2)">⇄</div>
+    <div class="arrow">JSON delta</div>
+  </div>
+
+  <div class="arch-side">
+    <div class="arch-title" style="color:var(--coral)">🖥️ Self-hosted Server</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--coral)"></div><strong>FastAPI Gateway</strong> — WebSocket + routing</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--amber)"></div><strong>Translation Worker</strong> — NLLB + CTranslate2</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--pink)"></div><strong>LLM Worker</strong> — vLLM + Qwen2.5-7B</div>
+    <div class="arch-item"><div class="arch-dot" style="background:var(--teal)"></div><strong>Redis</strong> — Session + context store</div>
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text3)">
+      GPU 0: NLLB translation (~2GB VRAM)<br>
+      GPU 1: Qwen2.5-7B LLM (~16GB VRAM)
+    </div>
+  </div>
+</div>
+
+<div class="rv rv-info">
+  <div class="rt">Tại sao single FastAPI gateway thay vì FastAPI + Node.js?</div>
+  <p style="color:var(--text2);margin:0">FastAPI + uvicorn (ASGI) xử lý WebSocket native, async I/O tương đương Node.js cho workload này. Dùng single gateway giúp: (1) giảm 1-2ms inter-service hop, (2) FastAPI truy cập trực tiếp CTranslate2 Python API — không cần serialize qua HTTP/gRPC tới separate ML service, (3) giảm infrastructure complexity. Nếu sau này cần scale >100 concurrent connections → tách thành Node.js WS gateway + FastAPI ML backend.</p>
+</div>
+</div>
+
+<!-- ============ SECTION 2: PIPELINE ============ -->
+<div class="s" id="pipeline">
+<h2><span class="n">2</span> Processing pipeline</h2>
+
+<div class="pipe">
+  <div class="ps c-gr">
+    <div class="ps-n">S1</div>
+    <div class="ps-c">
+      <div class="nm">Audio Capture</div>
+      <div class="tk" style="color:var(--green)">Native Module → AVAudioEngine / AudioRecord</div>
+      <div class="dt">16kHz mono PCM, chunk 80ms. Circular buffer 30s.</div>
+    </div>
+    <div class="ps-w">On-device</div>
+    <div class="ps-l">80ms</div>
+  </div>
+  <div class="ps c-te">
+    <div class="ps-n">S2</div>
+    <div class="ps-c">
+      <div class="nm">VAD + Streaming STT</div>
+      <div class="tk" style="color:var(--teal)">sherpa-onnx → Silero VAD + SenseVoice-Small</div>
+      <div class="dt">VAD 32ms chunks. STT emit partial mỗi ~300ms. Auto-detect EN/JA/KO. End-of-utterance khi silence >600ms.</div>
+    </div>
+    <div class="ps-w">On-device</div>
+    <div class="ps-l">200–400ms</div>
+  </div>
+  <div class="ps c-ac">
+    <div class="ps-n">S3</div>
+    <div class="ps-c">
+      <div class="nm">WebSocket Send</div>
+      <div class="tk" style="color:var(--accent2)">Persistent WS → FastAPI gateway</div>
+      <div class="dt">Gửi JSON: {type: "partial"|"final", text, lang, session_id, timestamp}. Chỉ gửi text delta, không gửi audio.</div>
+    </div>
+    <div class="ps-w">Network</div>
+    <div class="ps-l">5–30ms</div>
+  </div>
+  <div class="ps c-am">
+    <div class="ps-n">S4</div>
+    <div class="ps-c">
+      <div class="nm">Translation</div>
+      <div class="tk" style="color:var(--amber)">NLLB-200-distilled-1.3B + CTranslate2 (int8, GPU)</div>
+      <div class="dt">Tokenize → translate → detokenize. Batch multiple partials. NLLB language codes: eng_Latn, jpn_Jpan, kor_Hang → vie_Latn.</div>
+    </div>
+    <div class="ps-w">Server GPU 0</div>
+    <div class="ps-l">30–80ms</div>
+  </div>
+  <div class="ps c-co">
+    <div class="ps-n">S5</div>
+    <div class="ps-c">
+      <div class="nm">AI Response Suggest</div>
+      <div class="tk" style="color:var(--coral)">vLLM → Qwen2.5-7B-Instruct (AWQ int4)</div>
+      <div class="dt">Context: 5 turns gần nhất + câu hiện tại. System prompt cố định (role: Director DSC @ VNPT SI). Streaming tokens, max_tokens=150.</div>
+    </div>
+    <div class="ps-w">Server GPU 1</div>
+    <div class="ps-l">600–1200ms</div>
+  </div>
+  <div class="ps c-bl">
+    <div class="ps-n">S6</div>
+    <div class="ps-c">
+      <div class="nm">WebSocket Stream → UI Render</div>
+      <div class="tk" style="color:var(--blue)">WS delta → React Native Reanimated + FlashList</div>
+      <div class="dt">3 lanes cập nhật độc lập: Original (từ STT), Translation (từ S4), AI Suggest (streaming từ S5).</div>
+    </div>
+    <div class="ps-w">Client</div>
+    <div class="ps-l">16ms</div>
+  </div>
+</div>
+
+<div class="mg">
+  <div class="mc"><div class="v" style="color:var(--green2)">~350ms</div><div class="l">Bản dịch (từ end-of-speech)</div></div>
+  <div class="mc"><div class="v" style="color:var(--amber)">~950ms</div><div class="l">AI suggest first token</div></div>
+  <div class="mc"><div class="v" style="color:var(--coral)">~1.8s</div><div class="l">AI suggest hoàn tất</div></div>
+  <div class="mc"><div class="v" style="color:var(--accent2)">~200ms</div><div class="l">Partial dịch (speculative)</div></div>
+</div>
+
+<div class="rv rv-info">
+  <div class="rt">So sánh: Self-hosted vs Cloud API</div>
+  <p style="color:var(--text2);margin:0">Translation self-hosted (30-80ms) nhanh hơn 2-3x so với Google Cloud API (100-250ms) vì loại bỏ internet round-trip. Server đặt cùng LAN hoặc cùng building → latency network gần như zero. Tuy nhiên, AI suggest self-hosted (Qwen2.5-7B) có TTFT ~300-500ms, chậm hơn chút so với Gemini Flash cloud (~250ms) nhưng trade-off chấp nhận được khi đổi lại toàn quyền kiểm soát data.</p>
+</div>
+</div>
+
+<!-- ============ SECTION 3: SERVER STACK ============ -->
+<div class="s" id="server">
+<h2><span class="n">3</span> Server stack chi tiết</h2>
+
+<h3>3.1 FastAPI Gateway</h3>
+<div class="cb"><span class="cm"># Vai trò: WebSocket manager + request orchestrator</span>
+<span class="cm"># KHÔNG làm ML inference trực tiếp — delegate cho workers</span>
+
+<span class="kw">Tech stack:</span>
+  FastAPI 0.115+
+  uvicorn (ASGI, workers = CPU cores)
+  websockets (native FastAPI WebSocket)
+  redis-py (async) — session store
+  
+<span class="kw">Responsibilities:</span>
+  1. WebSocket lifecycle (connect/disconnect/reconnect)
+  2. Route messages to Translation Worker hoặc LLM Worker
+  3. Aggregate results + stream back to client
+  4. Session management via Redis
+  5. Graceful degradation (skip AI nếu LLM overloaded)</div>
+
+<h3>3.2 Translation Worker</h3>
+<table class="tb">
+<tr><th>Component</th><th>Choice</th><th>Lý do</th></tr>
+<tr>
+  <td><code>Model</code></td>
+  <td>NLLB-200-distilled-1.3B (int8)</td>
+  <td><span class="rec">Khuyên dùng</span> — 1.3B params sweet spot: chất lượng KO/JA→VI tốt hơn 600M rõ rệt, inference vẫn nhanh (~50ms/câu GPU)</td>
+</tr>
+<tr>
+  <td><code>Engine</code></td>
+  <td>CTranslate2 4.7+</td>
+  <td>Tối ưu đặc biệt cho NLLB. Int8 quantization, layer fusion, batch reordering. 2-4x nhanh hơn HuggingFace Transformers</td>
+</tr>
+<tr>
+  <td><code>Tokenizer</code></td>
+  <td>SentencePiece (bundled)</td>
+  <td>NLLB sử dụng SPM tokenizer. Load 1 lần khi start, reuse cho mọi request</td>
+</tr>
+<tr>
+  <td><code>GPU</code></td>
+  <td>~2GB VRAM (int8)</td>
+  <td>Có thể share GPU với service khác hoặc chạy riêng</td>
+</tr>
+<tr>
+  <td><code>Concurrency</code></td>
+  <td>CTranslate2 async batching</td>
+  <td>Tự động batch multiple requests. inter_threads=1, intra_threads=4</td>
+</tr>
+</table>
+
+<div class="cb"><span class="cm"># Translation Worker — khởi tạo 1 lần</span>
+<span class="kw">import</span> ctranslate2, sentencepiece
+
+translator = ctranslate2.<span class="fn">Translator</span>(
+    <span class="st">"models/nllb-1.3b-distilled-ct2"</span>,
+    device=<span class="st">"cuda"</span>,
+    device_index=<span class="tp">0</span>,
+    compute_type=<span class="st">"int8"</span>,         <span class="cm"># int8 trên GPU: nhanh + ít VRAM</span>
+    inter_threads=<span class="tp">1</span>,
+    intra_threads=<span class="tp">4</span>
+)
+sp = sentencepiece.<span class="fn">SentencePieceProcessor</span>()
+sp.<span class="fn">load</span>(<span class="st">"models/nllb-1.3b-distilled-ct2/sentencepiece.bpe.model"</span>)
+
+<span class="cm"># Hàm dịch — gọi từ FastAPI handler</span>
+<span class="kw">LANG_MAP</span> = {<span class="st">"en"</span>:<span class="st">"eng_Latn"</span>, <span class="st">"ja"</span>:<span class="st">"jpn_Jpan"</span>, <span class="st">"ko"</span>:<span class="st">"kor_Hang"</span>}
+
+<span class="kw">def</span> <span class="fn">translate</span>(text: str, src_lang: str) -> str:
+    src_code = LANG_MAP[src_lang]
+    tokens = sp.<span class="fn">encode</span>(text, out_type=str)
+    tokens = [src_code] + tokens  <span class="cm"># NLLB cần prefix language code</span>
+    
+    results = translator.<span class="fn">translate_batch</span>(
+        [tokens],
+        target_prefix=[[<span class="st">"vie_Latn"</span>]],
+        beam_size=<span class="tp">2</span>,              <span class="cm"># beam=2 đủ tốt, nhanh hơn beam=4</span>
+        max_input_length=<span class="tp">512</span>,
+        max_decoding_length=<span class="tp">256</span>
+    )
+    output_tokens = results[0].hypotheses[0][1:]  <span class="cm"># bỏ lang prefix</span>
+    <span class="kw">return</span> sp.<span class="fn">decode</span>(output_tokens)</div>
+
+<h3>3.3 LLM Worker (AI Suggest)</h3>
+<table class="tb">
+<tr><th>Component</th><th>Choice</th><th>Lý do</th></tr>
+<tr>
+  <td><code>Engine</code></td>
+  <td>vLLM 0.7+</td>
+  <td><span class="rec">Khuyên dùng</span> — PagedAttention, continuous batching, OpenAI-compatible API. Nhanh nhất cho self-hosted LLM serving</td>
+</tr>
+<tr>
+  <td><code>Model</code></td>
+  <td>Qwen2.5-7B-Instruct-AWQ</td>
+  <td>Hiểu tốt EN/JA/KO/VI/ZH. AWQ int4: chỉ cần ~6GB VRAM, TTFT ~300ms trên RTX 4090</td>
+</tr>
+<tr>
+  <td><code>Fallback</code></td>
+  <td>LiteLLM proxy (optional)</td>
+  <td>Nếu local LLM quá tải → route tới cloud API backup. Self-hosted, OpenAI-compatible</td>
+</tr>
+<tr>
+  <td><code>GPU</code></td>
+  <td>~6GB VRAM (AWQ int4)</td>
+  <td>Hoặc ~16GB (FP16). RTX 4090 chạy thoải mái cả 2 model</td>
+</tr>
+</table>
+
+<div class="cb"><span class="cm"># Khởi chạy vLLM server — chạy riêng process</span>
+$ vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ \
+    --port <span class="tp">8001</span> \
+    --tensor-parallel-size <span class="tp">1</span> \
+    --gpu-memory-utilization <span class="tp">0.85</span> \
+    --max-model-len <span class="tp">4096</span> \
+    --quantization awq \
+    --enable-prefix-caching     <span class="cm"># cache system prompt prefix</span>
+
+<span class="cm"># FastAPI gọi vLLM qua OpenAI-compatible API</span>
+<span class="kw">from</span> openai <span class="kw">import</span> AsyncOpenAI
+
+llm = AsyncOpenAI(base_url=<span class="st">"http://localhost:8001/v1"</span>, api_key=<span class="st">"dummy"</span>)
+
+<span class="kw">async def</span> <span class="fn">get_suggestion</span>(context, current_text, lang):
+    stream = <span class="kw">await</span> llm.chat.completions.<span class="fn">create</span>(
+        model=<span class="st">"Qwen/Qwen2.5-7B-Instruct-AWQ"</span>,
+        messages=[
+            {<span class="st">"role"</span>:<span class="st">"system"</span>, <span class="st">"content"</span>: SYSTEM_PROMPT},
+            *context,
+            {<span class="st">"role"</span>:<span class="st">"user"</span>, <span class="st">"content"</span>: f<span class="st">"[{lang}] {current_text}"</span>}
+        ],
+        max_tokens=<span class="tp">150</span>,
+        temperature=<span class="tp">0.3</span>,
+        stream=<span class="tp">True</span>
+    )
+    <span class="kw">async for</span> chunk <span class="kw">in</span> stream:
+        <span class="kw">if</span> chunk.choices[0].delta.content:
+            <span class="kw">yield</span> chunk.choices[0].delta.content</div>
+</div>
+
+<!-- ============ SECTION 4: WEBSOCKET PROTOCOL ============ -->
+<div class="s" id="ws">
+<h2><span class="n">4</span> WebSocket protocol</h2>
+
+<h3>4.1 Client → Server messages</h3>
+<div class="cb"><span class="cm">// Type 1: Partial STT result (gửi mỗi ~300ms khi đang nói)</span>
+{
+  <span class="st">"type"</span>: <span class="st">"stt_partial"</span>,
+  <span class="st">"text"</span>: <span class="st">"The quarterly report"</span>,
+  <span class="st">"lang"</span>: <span class="st">"en"</span>,            <span class="cm">// detected by SenseVoice</span>
+  <span class="st">"session_id"</span>: <span class="st">"abc123"</span>,
+  <span class="st">"ts"</span>: <span class="tp">1713000000000</span>
+}
+
+<span class="cm">// Type 2: Final STT result (khi VAD detect end-of-utterance)</span>
+{
+  <span class="st">"type"</span>: <span class="st">"stt_final"</span>,
+  <span class="st">"text"</span>: <span class="st">"The quarterly report shows 15% growth"</span>,
+  <span class="st">"lang"</span>: <span class="st">"en"</span>,
+  <span class="st">"utterance_id"</span>: <span class="st">"utt_007"</span>,  <span class="cm">// unique per utterance</span>
+  <span class="st">"session_id"</span>: <span class="st">"abc123"</span>,
+  <span class="st">"ts"</span>: <span class="tp">1713000001500</span>
+}
+
+<span class="cm">// Type 3: Config (gửi lúc connect)</span>
+{
+  <span class="st">"type"</span>: <span class="st">"config"</span>,
+  <span class="st">"ai_suggest"</span>: <span class="tp">true</span>,       <span class="cm">// bật/tắt AI suggest</span>
+  <span class="st">"ai_mode"</span>: <span class="st">"auto"</span>,        <span class="cm">// "auto" | "question_only" | "manual"</span>
+  <span class="st">"target_lang"</span>: <span class="st">"vi"</span>       <span class="cm">// ngôn ngữ dịch đích</span>
+}</div>
+
+<h3>4.2 Server → Client messages</h3>
+<div class="cb"><span class="cm">// Type 1: Translation result (trả lại cho partial hoặc final)</span>
+{
+  <span class="st">"type"</span>: <span class="st">"translation"</span>,
+  <span class="st">"utterance_id"</span>: <span class="st">"utt_007"</span>,
+  <span class="st">"text"</span>: <span class="st">"Báo cáo quý cho thấy tăng trưởng 15%"</span>,
+  <span class="st">"is_final"</span>: <span class="tp">true</span>,         <span class="cm">// false nếu là partial translation</span>
+  <span class="st">"latency_ms"</span>: <span class="tp">45</span>
+}
+
+<span class="cm">// Type 2: AI suggest — streaming token-by-token</span>
+{
+  <span class="st">"type"</span>: <span class="st">"ai_suggest"</span>,
+  <span class="st">"utterance_id"</span>: <span class="st">"utt_007"</span>,
+  <span class="st">"delta"</span>: <span class="st">"Cảm ơn. Con số"</span>,   <span class="cm">// text delta (append)</span>
+  <span class="st">"done"</span>: <span class="tp">false</span>
+}
+{
+  <span class="st">"type"</span>: <span class="st">"ai_suggest"</span>,
+  <span class="st">"utterance_id"</span>: <span class="st">"utt_007"</span>,
+  <span class="st">"delta"</span>: <span class="st">""</span>,
+  <span class="st">"done"</span>: <span class="tp">true</span>,
+  <span class="st">"full_text"</span>: <span class="st">"Cảm ơn. Con số tăng trưởng này phù hợp với kế hoạch Q2."</span>,
+  <span class="st">"latency_ms"</span>: <span class="tp">1150</span>
+}
+
+<span class="cm">// Type 3: System status</span>
+{
+  <span class="st">"type"</span>: <span class="st">"status"</span>,
+  <span class="st">"gpu_util"</span>: <span class="tp">0.65</span>,
+  <span class="st">"llm_queue"</span>: <span class="tp">0</span>,           <span class="cm">// pending LLM requests</span>
+  <span class="st">"translation_avg_ms"</span>: <span class="tp">42</span>
+}</div>
+
+<h3>4.3 Server-side orchestration logic</h3>
+<div class="cb"><span class="cm"># FastAPI WebSocket handler — orchestration core</span>
+
+<span class="kw">@app.websocket</span>(<span class="st">"/ws/{session_id}"</span>)
+<span class="kw">async def</span> <span class="fn">ws_handler</span>(ws: WebSocket, session_id: str):
+    <span class="kw">await</span> ws.<span class="fn">accept</span>()
+    context = <span class="kw">await</span> redis.<span class="fn">get_context</span>(session_id) <span class="kw">or</span> []
+    
+    <span class="kw">try</span>:
+        <span class="kw">async for</span> msg <span class="kw">in</span> ws.<span class="fn">iter_json</span>():
+            <span class="kw">if</span> msg[<span class="st">"type"</span>] == <span class="st">"stt_partial"</span>:
+                <span class="cm"># Speculative translation — debounced</span>
+                <span class="kw">if</span> <span class="fn">should_translate_partial</span>(msg):
+                    translation = <span class="kw">await</span> <span class="fn">translate</span>(msg[<span class="st">"text"</span>], msg[<span class="st">"lang"</span>])
+                    <span class="kw">await</span> ws.<span class="fn">send_json</span>({
+                        <span class="st">"type"</span>: <span class="st">"translation"</span>,
+                        <span class="st">"text"</span>: translation,
+                        <span class="st">"is_final"</span>: <span class="tp">False</span>
+                    })
+            
+            <span class="kw">elif</span> msg[<span class="st">"type"</span>] == <span class="st">"stt_final"</span>:
+                <span class="cm"># Fire translation + AI suggest CONCURRENTLY</span>
+                <span class="kw">async def</span> <span class="fn">do_translate</span>():
+                    t = <span class="kw">await</span> <span class="fn">translate</span>(msg[<span class="st">"text"</span>], msg[<span class="st">"lang"</span>])
+                    <span class="kw">await</span> ws.<span class="fn">send_json</span>({<span class="st">"type"</span>:<span class="st">"translation"</span>, <span class="st">"text"</span>:t, <span class="st">"is_final"</span>:<span class="tp">True</span>})
+                
+                <span class="kw">async def</span> <span class="fn">do_suggest</span>():
+                    <span class="kw">async for</span> delta <span class="kw">in</span> <span class="fn">get_suggestion</span>(context, msg[<span class="st">"text"</span>], msg[<span class="st">"lang"</span>]):
+                        <span class="kw">await</span> ws.<span class="fn">send_json</span>({<span class="st">"type"</span>:<span class="st">"ai_suggest"</span>, <span class="st">"delta"</span>:delta, <span class="st">"done"</span>:<span class="tp">False</span>})
+                    <span class="kw">await</span> ws.<span class="fn">send_json</span>({<span class="st">"type"</span>:<span class="st">"ai_suggest"</span>, <span class="st">"delta"</span>:<span class="st">""</span>, <span class="st">"done"</span>:<span class="tp">True</span>})
+                
+                <span class="cm"># Concurrent — translation + AI cùng lúc</span>
+                <span class="kw">await</span> asyncio.<span class="fn">gather</span>(<span class="fn">do_translate</span>(), <span class="fn">do_suggest</span>())
+                
+                <span class="cm"># Update context in Redis</span>
+                context.<span class="fn">append</span>({<span class="st">"role"</span>:<span class="st">"user"</span>, <span class="st">"content"</span>:msg[<span class="st">"text"</span>]})
+                <span class="kw">if</span> <span class="fn">len</span>(context) > <span class="tp">10</span>: context = context[-<span class="tp">10</span>:]
+                <span class="kw">await</span> redis.<span class="fn">set_context</span>(session_id, context)
+    <span class="kw">except</span> WebSocketDisconnect:
+        <span class="kw">pass</span></div>
+</div>
+
+<!-- ============ SECTION 5: NATIVE MODULES ============ -->
+<div class="s" id="native">
+<h2><span class="n">5</span> On-device STT: react-native-sherpa-onnx</h2>
+
+<div class="rv rv-ok">
+  <div class="rt">Thay đổi so với v2.0 — Xóa bỏ custom native modules</div>
+  <p style="color:var(--text2);margin:0">v2.0 yêu cầu tự viết 2 native modules (AudioCaptureModule + SherpaOnnxModule) cho cả Android và iOS — tốn 2-3 tuần. Package <code>react-native-sherpa-onnx</code> (XDcobra, v0.3.3) đã wrap toàn bộ sherpa-onnx thành TurboModule, hỗ trợ streaming STT, VAD, PCM live stream, auto model detection. Chỉ cần <code>npm install</code> + config model path.</p>
+</div>
+
+<h3>Package: react-native-sherpa-onnx</h3>
+<table class="tb">
+<tr><th>Thuộc tính</th><th>Chi tiết</th></tr>
+<tr><td>Repo</td><td><code>github.com/XDcobra/react-native-sherpa-onnx</code></td></tr>
+<tr><td>Version</td><td>v0.3.3 (March 2026, actively maintained)</td></tr>
+<tr><td>Architecture</td><td>TurboModule (React Native New Architecture)</td></tr>
+<tr><td>Platform</td><td>Android (Gradle auto-setup) + iOS (XCFramework via pod install)</td></tr>
+<tr><td>STT models</td><td>SenseVoice, Whisper, Paraformer, Zipformer, NeMo CTC, FunASR, Qwen3 ASR</td></tr>
+<tr><td>Features</td><td>Streaming STT, offline STT, VAD, TTS, diarization, PCM live stream</td></tr>
+<tr><td>License</td><td>Apache 2.0 (compatible with sherpa-onnx)</td></tr>
+</table>
+
+<h3>Integration code</h3>
+<div class="cb"><span class="cm">// Installation</span>
+$ npm install react-native-sherpa-onnx
+$ cd ios && pod install
+
+<span class="cm">// Streaming STT hook — replaces 400+ lines of custom native code</span>
+<span class="kw">import</span> {
+  <span class="fn">initializeOnlineStt</span>,
+  <span class="fn">startLiveStream</span>,
+  <span class="fn">stopLiveStream</span>,
+  <span class="fn">createPcmLiveStream</span>,
+} <span class="kw">from</span> <span class="st">'react-native-sherpa-onnx'</span>;
+
+<span class="cm">// 1. Initialize with SenseVoice model</span>
+<span class="kw">await</span> <span class="fn">initializeOnlineStt</span>({
+  modelPath: <span class="fn">assetModelPath</span>(<span class="st">'models/sensevoice-small-int8'</span>),
+  modelType: <span class="st">'sense_voice'</span>,
+  preferInt8: <span class="tp">true</span>,
+  numThreads: <span class="tp">4</span>,
+});
+
+<span class="cm">// 2. Start live streaming — audio stays in native layer</span>
+<span class="kw">const</span> stream = <span class="kw">await</span> <span class="fn">createPcmLiveStream</span>({ sampleRate: <span class="tp">16000</span> });
+
+stream.<span class="fn">onPartialResult</span>((result) => {
+  <span class="cm">// Partial STT result → send to server for speculative translation</span>
+  ws.<span class="fn">send</span>(JSON.<span class="fn">stringify</span>({
+    type: <span class="st">'stt_partial'</span>,
+    text: result.text,
+    lang: result.detectedLanguage,  <span class="cm">// 'en' | 'ja' | 'ko'</span>
+  }));
+});
+
+stream.<span class="fn">onFinalResult</span>((result) => {
+  <span class="cm">// Final STT result → send to server for translation + AI suggest</span>
+  ws.<span class="fn">send</span>(JSON.<span class="fn">stringify</span>({
+    type: <span class="st">'stt_final'</span>,
+    text: result.text,
+    lang: result.detectedLanguage,
+    utteranceId: <span class="fn">generateId</span>(),
+  }));
+});
+
+<span class="kw">await</span> <span class="fn">startLiveStream</span>(stream);</div>
+
+<div class="rv rv-info">
+  <div class="rt">Audio pipeline vẫn thuần native</div>
+  <p style="color:var(--text2);margin:0">Giống v2.0, audio data flow: Mic → PCM capture → VAD → STT hoàn toàn trong native C++ layer. Package handle tất cả qua TurboModule — audio buffer không bao giờ cross React Native bridge. Chỉ text results (partial/final) mới emit sang JS. Performance tương đương custom native module.</p>
+</div>
+
+<h3>Model: SenseVoice-Small int8</h3>
+<table class="tb">
+<tr><th>Thuộc tính</th><th>Giá trị</th></tr>
+<tr><td>Ngôn ngữ</td><td>EN, JA, KO, ZH, YUE — auto-detect</td></tr>
+<tr><td>Size</td><td>~234MB (int8 quantized)</td></tr>
+<tr><td>RTF iPhone 15 Pro</td><td>0.05 (20x faster than realtime)</td></tr>
+<tr><td>RTF Android flagship</td><td>0.08 (12x faster than realtime)</td></tr>
+<tr><td>Delivery</td><td>Download on first launch, cache locally</td></tr>
+</table>
+
+<h3>Tại sao không dùng LiveKit + SeamlessStreaming?</h3>
+<div class="rv rv-warn">
+  <div class="rt">LiveKit — Skip cho v1</div>
+  <p style="color:var(--text2);margin:0">LiveKit là WebRTC platform cho multi-participant rooms. Use case hiện tại là personal assistant (1 phone), không phải conferencing. WebSocket đủ cho text deltas. LiveKit Agents giả định audio stream lên server — ta đã làm STT on-device nhanh hơn.</p>
+</div>
+<div class="rv rv-warn">
+  <div class="rt">SeamlessStreaming — Xem xét v2</div>
+  <p style="color:var(--text2);margin:0">SeamlessStreaming (Meta) dịch đồng thời nhưng latency ~2s — chậm hơn 5x so với pipeline SenseVoice (300ms) + NLLB (50ms) = 350ms. Phải stream audio lên server (bandwidth + privacy). Speculative translation trong pipeline hiện tại đã giải quyết 80% nhu cầu dịch-khi-đang-nói.</p>
+</div>
+</div>
+
+<!-- ============ SECTION 6: PARALLELISM ============ -->
+<div class="s" id="parallel">
+<h2><span class="n">6</span> Song song hóa — giảm latency 40-50%</h2>
+
+<h3>6.1 Speculative translation (dịch khi đang nói)</h3>
+<div class="fd">
+  <div style="font-size:10.5px;color:var(--text3);margin-bottom:10px;font-family:var(--mono)">Timeline: Câu tiếng Nhật dài 3 giây "四半期の報告書は15%の成長を示しています"</div>
+  <div class="fr">
+    <div class="fb" style="background:var(--tealBg);color:var(--teal);border-color:rgba(32,196,192,.3);width:180px">STT partial: 四半期の報告書は...</div>
+    <div class="fa">→</div>
+    <div class="fb" style="background:var(--tealBg);color:var(--teal);border-color:rgba(32,196,192,.3);width:200px">STT final: ...15%の成長を示しています</div>
+  </div>
+  <div class="fr">
+    <div style="width:90px"></div>
+    <div class="fb" style="background:var(--amberBg);color:var(--amber);border-color:rgba(240,180,41,.3);width:90px">Dịch partial</div>
+    <div style="width:100px"></div>
+    <div class="fb" style="background:var(--amberBg);color:var(--amber);border-color:rgba(240,180,41,.3);width:80px">Dịch delta</div>
+    <div class="fa">→</div>
+    <div class="fb" style="background:var(--amberBg);color:var(--amber);border-color:rgba(240,180,41,.3);width:60px">Merge</div>
+  </div>
+  <div class="fr">
+    <div style="width:280px"></div>
+    <div class="fb" style="background:var(--coralBg);color:var(--coral);border-color:rgba(240,96,96,.3);width:260px">AI suggest (streaming, start khi có final)</div>
+  </div>
+  <div style="font-size:9.5px;color:var(--text3);margin-top:6px;font-family:var(--mono)">
+    ← 0ms ————— 500ms ————— 1000ms ————— 1500ms ————— 2000ms →
+  </div>
+</div>
+
+<h3>6.2 Translation + AI suggest concurrent (asyncio.gather)</h3>
+<p>Khi có STT final → fire cả 2 tasks đồng thời. Translation trả về trước (~50ms), AI suggest stream dần. Client hiển thị translation ngay lập tức, AI suggest stream vào lane riêng.</p>
+
+<h3>6.3 Smart AI trigger — tiết kiệm GPU + giảm noise</h3>
+<table class="tb">
+<tr><th>Rule</th><th>Mô tả</th><th>Lý do</th></tr>
+<tr><td><code>min_words</code></td><td>Chỉ trigger khi câu ≥ 8 từ</td><td>Câu ngắn ("Thank you", "はい") không cần AI suggest</td></tr>
+<tr><td><code>question_detect</code></td><td>Ưu tiên câu hỏi (?, か, 까)</td><td>Câu hỏi cần trả lời → AI suggest hữu ích nhất</td></tr>
+<tr><td><code>cooldown</code></td><td>Max 1 AI suggest / 5 giây</td><td>Tránh spam khi nhiều người nói liên tục</td></tr>
+<tr><td><code>manual_mode</code></td><td>User tap button để trigger</td><td>Khi muốn kiểm soát hoàn toàn</td></tr>
+</table>
+</div>
+
+<!-- ============ SECTION 7: GPU STRATEGY ============ -->
+<div class="s" id="gpu">
+<h2><span class="n">7</span> GPU allocation strategy</h2>
+
+<h3>Option A: Single GPU (RTX 4090 — 24GB VRAM)</h3>
+<table class="tb">
+<tr><th>Service</th><th>VRAM</th><th>Ghi chú</th></tr>
+<tr><td>NLLB-1.3B int8</td><td>~2GB</td><td>CTranslate2, inference ~50ms</td></tr>
+<tr><td>Qwen2.5-7B AWQ int4</td><td>~6GB</td><td>vLLM, TTFT ~300ms</td></tr>
+<tr><td>KV cache (vLLM)</td><td>~8GB</td><td>PagedAttention, ~5 concurrent requests</td></tr>
+<tr><td style="font-weight:600">Tổng</td><td style="font-weight:600">~16GB</td><td><span class="rec">Fits 1x RTX 4090</span></td></tr>
+</table>
+
+<div class="rv rv-warn">
+  <div class="rt">Lưu ý GPU contention</div>
+  <p style="color:var(--text2);margin:0">NLLB và Qwen chạy cùng GPU sẽ tranh chấp CUDA streams. Khi LLM đang generate tokens (liên tục), translation request có thể bị queue 10-20ms. Mitigations: (1) CTranslate2 dùng separate CUDA stream, (2) Set vLLM <code>--gpu-memory-utilization 0.7</code> để chừa headroom, (3) Nếu có budget → dùng 2 GPU (Option B).</p>
+</div>
+
+<h3>Option B: Dual GPU (khuyên dùng cho production)</h3>
+<table class="tb">
+<tr><th>GPU</th><th>Service</th><th>VRAM cần</th></tr>
+<tr><td>GPU 0 (RTX 3090/4070)</td><td>NLLB-1.3B int8 (CTranslate2)</td><td>~2GB — dư rất nhiều</td></tr>
+<tr><td>GPU 1 (RTX 4090)</td><td>Qwen2.5-7B AWQ (vLLM)</td><td>~14GB with KV cache</td></tr>
+</table>
+<p>Dual GPU loại bỏ hoàn toàn contention. Translation luôn <50ms bất kể LLM load.</p>
+</div>
+
+<!-- ============ SECTION 8: PROJECT STRUCTURE ============ -->
+<div class="s" id="project">
+<h2><span class="n">8</span> Cấu trúc dự án</h2>
+
+<div class="ft">
+<span class="dr">meeting-voice-assistant/</span>
+├── <span class="dr">mobile/</span>                            <span class="dc"># React Native app (New Architecture)</span>
+│   ├── <span class="dr">android/</span>                       <span class="dc"># Auto-configured by react-native-sherpa-onnx</span>
+│   ├── <span class="dr">ios/</span>                           <span class="dc"># pod install downloads XCFramework</span>
+│   └── <span class="dr">src/</span>
+│       ├── <span class="dr">hooks/</span>
+│       │   ├── <span class="fl">useSherpaStream.ts</span>     <span class="dc"># Wrap react-native-sherpa-onnx streaming</span>
+│       │   ├── <span class="fl">useWebSocket.ts</span>        <span class="dc"># WS connection + auto-reconnect</span>
+│       │   └── <span class="fl">useMeetingPipeline.ts</span>  <span class="dc"># Orchestrate STT → WS → UI updates</span>
+│       ├── <span class="dr">services/</span>
+│       │   ├── <span class="fl">PipelineOrchestrator.ts</span><span class="dc"># Stage coordination + debounce</span>
+│       │   ├── <span class="fl">PartialTranslator.ts</span>   <span class="dc"># Speculative translation logic</span>
+│       │   └── <span class="fl">SmartTrigger.ts</span>        <span class="dc"># AI trigger rules (min_words, question)</span>
+│       ├── <span class="dr">screens/</span>
+│       │   └── <span class="fl">MeetingScreen.tsx</span>      <span class="dc"># Main 3-lane view</span>
+│       ├── <span class="dr">components/</span>
+│       │   ├── <span class="fl">TranscriptLane.tsx</span>     <span class="dc"># Original text (streaming)</span>
+│       │   ├── <span class="fl">TranslationLane.tsx</span>    <span class="dc"># Vietnamese translation</span>
+│       │   ├── <span class="fl">SuggestLane.tsx</span>        <span class="dc"># AI suggest + copy button</span>
+│       │   └── <span class="fl">LangBadge.tsx</span>          <span class="dc"># EN/JA/KO indicator</span>
+│       └── <span class="dr">store/</span>
+│           └── <span class="fl">conversationStore.ts</span>   <span class="dc"># Zustand state</span>
+│
+├── <span class="dr">server/</span>                            <span class="dc"># Self-hosted backend</span>
+│   ├── <span class="fl">main.py</span>                        <span class="dc"># FastAPI app + WS handler</span>
+│   ├── <span class="fl">translation.py</span>                 <span class="dc"># NLLB + CTranslate2 worker</span>
+│   ├── <span class="fl">llm_client.py</span>                  <span class="dc"># vLLM OpenAI-compatible client</span>
+│   ├── <span class="fl">orchestrator.py</span>                <span class="dc"># Pipeline logic + smart trigger</span>
+│   ├── <span class="fl">redis_store.py</span>                 <span class="dc"># Session + context management</span>
+│   ├── <span class="fl">config.py</span>                      <span class="dc"># Model paths, ports, thresholds</span>
+│   ├── <span class="fl">prompts.py</span>                     <span class="dc"># System prompt templates</span>
+│   ├── <span class="fl">Dockerfile</span>                     <span class="dc"># CUDA + Python + CTranslate2</span>
+│   └── <span class="fl">docker-compose.yml</span>             <span class="dc"># FastAPI + vLLM + Redis</span>
+│
+├── <span class="dr">models/</span>                            <span class="dc"># Downloaded model files</span>
+│   ├── <span class="dr">sensevoice-small-int8/</span>         <span class="dc"># On-device STT (234MB)</span>
+│   ├── <span class="dr">nllb-1.3b-distilled-ct2/</span>      <span class="dc"># Server translation</span>
+│   └── <span class="dr">qwen2.5-7b-instruct-awq/</span>     <span class="dc"># Server LLM (auto by vLLM)</span>
+│
+└── <span class="dr">deploy/</span>
+    ├── <span class="fl">docker-compose.prod.yml</span>
+    └── <span class="fl">nginx.conf</span>                    <span class="dc"># WS proxy + TLS termination</span>
+</div>
+</div>
+
+<!-- ============ SECTION 9: LATENCY BUDGET ============ -->
+<div class="s" id="latency">
+<h2><span class="n">9</span> Latency budget (self-hosted, LAN)</h2>
+
+<p>Ưu điểm lớn nhất của self-hosted: server cùng LAN → network latency gần zero (~1-5ms) thay vì 30-80ms ra internet.</p>
+
+<table class="tb">
+<tr><th>Stage</th><th>Target</th><th>Max</th><th>Bottleneck</th></tr>
+<tr><td>Audio chunk</td><td>80ms</td><td>80ms</td><td>Fixed (chunk size)</td></tr>
+<tr><td>VAD decision</td><td>30ms</td><td>50ms</td><td>Silero inference</td></tr>
+<tr><td>STT → final text</td><td>200ms</td><td>400ms</td><td>SenseVoice on-device</td></tr>
+<tr><td>WebSocket send</td><td>2ms</td><td>5ms</td><td>LAN (same building)</td></tr>
+<tr><td>Translation (NLLB)</td><td>30ms</td><td>80ms</td><td>CTranslate2 GPU inference</td></tr>
+<tr><td>WebSocket response</td><td>2ms</td><td>5ms</td><td>LAN</td></tr>
+<tr><td style="font-weight:600;color:var(--green2)">TỔNG → bản dịch</td><td style="font-weight:600;color:var(--green2)">~345ms</td><td style="font-weight:600;color:var(--amber)">~625ms</td><td>Từ end-of-speech</td></tr>
+<tr><td>AI suggest TTFT</td><td>300ms</td><td>500ms</td><td>vLLM cold token</td></tr>
+<tr><td>AI suggest complete</td><td>600ms</td><td>1200ms</td><td>150 tokens × ~100tok/s</td></tr>
+<tr><td style="font-weight:600;color:var(--green2)">TỔNG → AI suggest</td><td style="font-weight:600;color:var(--green2)">~950ms</td><td style="font-weight:600;color:var(--coral)">~1800ms</td><td>Từ end-of-speech</td></tr>
+</table>
+
+<div class="mg">
+  <div class="mc"><div class="v" style="color:var(--green2)">345ms</div><div class="l">Target bản dịch</div></div>
+  <div class="mc"><div class="v" style="color:var(--green2)">950ms</div><div class="l">Target AI suggest</div></div>
+  <div class="mc"><div class="v" style="color:var(--accent2)">~200ms</div><div class="l">Speculative partial dịch</div></div>
+  <div class="mc"><div class="v" style="color:var(--teal)">0 đồng</div><div class="l">Chi phí API/tháng</div></div>
+</div>
+</div>
+
+<!-- ============ SECTION 10: DEPLOYMENT ============ -->
+<div class="s" id="deploy">
+<h2><span class="n">10</span> Deployment</h2>
+
+<h3>docker-compose.yml</h3>
+<div class="cb"><span class="kw">version</span>: <span class="st">"3.8"</span>
+<span class="kw">services</span>:
+
+  <span class="fn">gateway</span>:                          <span class="cm"># FastAPI + WebSocket</span>
+    build: ./server
+    ports: [<span class="st">"8000:8000"</span>]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - VLLM_URL=http://llm:8001/v1
+      - NLLB_MODEL_PATH=/models/nllb-1.3b-distilled-ct2
+    volumes:
+      - ./models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [<span class="st">"0"</span>]       <span class="cm"># GPU 0 cho NLLB</span>
+              capabilities: [gpu]
+    depends_on: [redis, llm]
+
+  <span class="fn">llm</span>:                              <span class="cm"># vLLM server</span>
+    image: vllm/vllm-openai:latest
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct-AWQ
+      --port 8001
+      --quantization awq
+      --gpu-memory-utilization 0.85
+      --max-model-len 4096
+      --enable-prefix-caching
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [<span class="st">"1"</span>]       <span class="cm"># GPU 1 cho LLM</span>
+              capabilities: [gpu]
+
+  <span class="fn">redis</span>:
+    image: redis:7-alpine
+    volumes: [<span class="st">"redis_data:/data"</span>]
+
+  <span class="fn">nginx</span>:                            <span class="cm"># TLS + WS proxy</span>
+    image: nginx:alpine
+    ports: [<span class="st">"443:443"</span>]
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf
+      - ./certs:/etc/nginx/certs
+
+<span class="kw">volumes</span>:
+  redis_data:</div>
+
+<h3>Hardware recommendation</h3>
+<table class="tb">
+<tr><th>Component</th><th>Minimum</th><th>Recommended</th></tr>
+<tr><td>GPU</td><td>1x RTX 4090 (24GB)</td><td>1x RTX 4090 + 1x RTX 3090</td></tr>
+<tr><td>CPU</td><td>8 cores</td><td>16 cores (AMD EPYC / Intel Xeon)</td></tr>
+<tr><td>RAM</td><td>32GB</td><td>64GB</td></tr>
+<tr><td>Storage</td><td>100GB SSD</td><td>256GB NVMe</td></tr>
+<tr><td>Network</td><td>1Gbps LAN</td><td>10Gbps LAN tới meeting room</td></tr>
+</table>
+
+<div class="rv rv-info">
+  <div class="rt">Lộ trình triển khai đề xuất</div>
+  <p style="color:var(--text2);margin:0">
+  <strong>Week 1-2:</strong> Setup server (docker-compose), test NLLB translation quality cho JA/KO→VI. Build FastAPI WebSocket handler.<br>
+  <strong>Week 3-4:</strong> React Native app: <code>npm install react-native-sherpa-onnx</code>, config SenseVoice model, test streaming STT. Build WebSocket client + 3-lane UI.<br>
+  <strong>Week 5-6:</strong> Integration: mobile → server. Speculative translation + smart AI trigger + concurrent pipeline.<br>
+  <strong>Week 7:</strong> UI polish, latency monitoring, load testing. Beta test trong cuộc họp thực.<br>
+  <em style="color:var(--green)">Tiết kiệm ~2 tuần so với v2.0 nhờ react-native-sherpa-onnx thay custom native modules.</em></p>
+</div>
+</div>
+
+</div>
+
+<footer style="text-align:center;padding:36px 0;color:var(--text3);font-size:11px;border-top:1px solid var(--border)">
+  Meeting Voice Assistant — System Architecture v2.1 FINAL<br>
+  VNPT SI / VGS — Self-hosted, Low-latency, Privacy-first<br>
+  React Native + react-native-sherpa-onnx + FastAPI + NLLB/CTranslate2 + vLLM/Qwen2.5
+</footer>
+
+</body>
+</html>

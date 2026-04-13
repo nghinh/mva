@@ -1,0 +1,7 @@
+name: BMAD VNPT Deep Review
+code: bmaddeepreview
+version: 1.0.0
+description: Adds a BMAD-aligned deep review workflow for GitNexus-first codebase analysis with Serena verification and source confirmation.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-deep-review/workflow.md

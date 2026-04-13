@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive Assistant - Offline Resilience</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-low": "#1b1b20",
+                        "error": "#ffb4ab",
+                        "surface-container-lowest": "#0e0e13",
+                        "inverse-on-surface": "#303036",
+                        "outline": "#928ea0",
+                        "secondary": "#44eeba",
+                        "background": "#131318",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "primary": "#c6bfff",
+                        "outline-variant": "#474554",
+                        "tertiary-fixed": "#d8e2ff",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "tertiary": "#adc6ff",
+                        "secondary-fixed": "#57fdc8",
+                        "inverse-primary": "#5847d2",
+                        "on-error": "#690005",
+                        "on-background": "#e4e1e9",
+                        "on-tertiary": "#002e6a",
+                        "tertiary-container": "#1a6de0",
+                        "surface-bright": "#39383e",
+                        "on-primary-fixed": "#160066",
+                        "surface-tint": "#c6bfff",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "surface-dim": "#131318",
+                        "surface-container-high": "#2a292f",
+                        "surface-container": "#1f1f25",
+                        "primary-fixed-dim": "#c6bfff",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "on-tertiary-fixed": "#001a42",
+                        "on-tertiary-container": "#f6f6ff",
+                        "on-primary-container": "#faf6ff",
+                        "surface-container-highest": "#35343a",
+                        "primary-container": "#6c5ce7",
+                        "surface-variant": "#35343a",
+                        "on-secondary-fixed": "#002116",
+                        "on-error-container": "#ffdad6",
+                        "primary-fixed": "#e4dfff",
+                        "surface": "#131318",
+                        "on-secondary": "#003828",
+                        "secondary-container": "#00d19f",
+                        "on-secondary-container": "#00543e",
+                        "on-surface-variant": "#c8c4d7",
+                        "inverse-surface": "#e4e1e9",
+                        "on-surface": "#e4e1e9",
+                        "on-primary": "#2900a0",
+                        "error-container": "#93000a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .pulse-red {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .4; }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-dim text-on-surface font-body selection:bg-primary/30 min-h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar -->
+<header class="bg-[#131318] flex justify-between items-center px-6 py-4 w-full shadow-[0_4px_20px_rgba(108,92,231,0.05)] sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-error pulse-red"></span>
+<span class="font-['JetBrains_Mono'] text-error text-sm font-bold">00:15:42</span>
+</div>
+<div class="h-4 w-[1px] bg-outline-variant/30"></div>
+<h1 class="font-['Inter'] font-bold tracking-tight text-[#E4E2EE] text-lg">Executive Assistant</h1>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-high px-4 py-1.5 rounded-full border border-outline-variant/10">
+<span class="material-symbols-outlined text-[#6C5CE7] text-sm" data-icon="signal_disconnected">signal_disconnected</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest text-[#E4E2EE]">Offline</span>
+<span class="w-2 h-2 rounded-full bg-secondary-container"></span>
+</div>
+</header>
+<!-- Main Command Center Canvas -->
+<main class="flex-1 overflow-hidden p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Lane 1: Original Transcript -->
+<section class="flex flex-col h-full bg-surface-container-lowest/40 rounded-xl overflow-hidden">
+<div class="flex items-center gap-2 px-4 py-3 border-l-[3px] border-tertiary-container bg-surface-container-low/50">
+<span class="font-['JetBrains_Mono'] text-[11px] font-bold tracking-widest text-tertiary">ORIGINAL</span>
+<span class="material-symbols-outlined text-[14px] text-tertiary" data-icon="mic">mic</span>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-6">
+<!-- Speaker 01 -->
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase text-outline">Speaker_01</span>
+<span class="font-['JetBrains_Mono'] text-[10px] text-outline/50">14:02:11</span>
+</div>
+<p class="text-on-surface leading-relaxed font-medium">The quarterly projections for the APAC region indicate a significant shift in enterprise cloud adoption. We need to finalize the infrastructure strategy before the board meeting on Friday.</p>
+</div>
+<!-- Speaker 02 -->
+<div class="space-y-2 pl-4 border-l border-outline-variant/20">
+<div class="flex justify-between items-center">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase text-outline">Speaker_02</span>
+<span class="font-['JetBrains_Mono'] text-[10px] text-outline/50">14:02:35</span>
+</div>
+<p class="text-on-surface leading-relaxed">Agreed. However, the regulatory constraints in Singapore might delay the rollout. Have we consulted the legal team regarding the new compliance framework?</p>
+</div>
+<!-- Active Transcription Pulse -->
+<div class="space-y-2">
+<div class="flex items-center gap-2">
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase text-primary">Speaker_01</span>
+<span class="flex gap-1">
+<span class="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
+<span class="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+<span class="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+</span>
+</div>
+<p class="text-on-surface/90 leading-relaxed italic">Processing incoming audio...</p>
+</div>
+</div>
+</section>
+<!-- Lane 2: Translation -->
+<section class="flex flex-col h-full bg-surface-container-lowest/40 rounded-xl overflow-hidden relative">
+<div class="flex items-center gap-2 px-4 py-3 border-l-[3px] border-secondary-container bg-surface-container-low/50">
+<span class="font-['JetBrains_Mono'] text-[11px] font-bold tracking-widest text-secondary-container">BẢN DỊCH</span>
+<span class="material-symbols-outlined text-[14px] text-secondary-container" data-icon="translate">translate</span>
+</div>
+<!-- Offline Warning Banner -->
+<div class="bg-secondary-container/10 px-4 py-2 flex items-center gap-3">
+<span class="material-symbols-outlined text-[16px] text-secondary-container" data-icon="warning">warning</span>
+<span class="text-[11px] font-['JetBrains_Mono'] text-secondary-container/90">⚠ Server offline — translation paused</span>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-6 opacity-40">
+<div class="space-y-2">
+<p class="text-on-surface leading-relaxed">Các dự báo hàng quý cho khu vực APAC cho thấy một sự thay đổi đáng kể trong việc áp dụng đám mây doanh nghiệp. Chúng ta cần hoàn thiện chiến lược cơ sở hạ tầng trước cuộc họp hội đồng quản trị vào thứ Sáu.</p>
+</div>
+<div class="space-y-2 pl-4 border-l border-outline-variant/20">
+<p class="text-on-surface leading-relaxed">Đồng ý. Tuy nhiên, các hạn chế về quy định tại Singapore có thể làm chậm quá trình triển khai. Chúng ta đã tham khảo ý kiến của đội ngũ pháp lý về khung tuân thủ mới chưa?</p>
+</div>
+</div>
+<!-- Visual Overlay for Offline State -->
+<div class="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-surface-container-lowest to-transparent pointer-events-none"></div>
+</section>
+<!-- Lane 3: AI Suggest -->
+<section class="flex flex-col h-full bg-surface-container-lowest/40 rounded-xl overflow-hidden">
+<div class="flex items-center gap-2 px-4 py-3 border-l-[3px] border-error bg-surface-container-low/50">
+<span class="font-['JetBrains_Mono'] text-[11px] font-bold tracking-widest text-error">GỢI Ý TRẢ LỜI</span>
+<span class="material-symbols-outlined text-[14px] text-error" data-icon="psychology">psychology</span>
+</div>
+<!-- Unavailable Banner -->
+<div class="bg-error/10 px-4 py-2 flex items-center gap-3">
+<span class="material-symbols-outlined text-[16px] text-error" data-icon="cloud_off">cloud_off</span>
+<span class="text-[11px] font-['JetBrains_Mono'] text-error/90">⚠ AI suggestions unavailable</span>
+</div>
+<div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4 opacity-30">
+<div class="w-16 h-16 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-outline-variant" data-icon="block">block</span>
+</div>
+<div>
+<h3 class="font-bold text-on-surface-variant">Intelligence Disconnected</h3>
+<p class="text-sm text-outline-variant px-4">Local buffer is active, but neural analysis requires a server uplink.</p>
+</div>
+<!-- Grayed out toggle -->
+<div class="flex items-center gap-3 pt-4">
+<span class="text-[10px] font-['JetBrains_Mono'] text-outline">AUTO-SUGGEST</span>
+<div class="w-10 h-5 bg-outline-variant rounded-full relative opacity-50 cursor-not-allowed">
+<div class="absolute left-1 top-1 w-3 h-3 bg-surface-dim rounded-full"></div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation & Controls Shell -->
+<nav class="fixed bottom-0 w-full z-50 flex flex-col items-center gap-4 pb-8 pt-4 px-8 bg-gradient-to-t from-background via-background/95 to-transparent">
+<!-- Reconnecting Status -->
+<div class="flex items-center gap-3 text-secondary-fixed-dim/80">
+<span class="material-symbols-outlined text-sm animate-spin" data-icon="sync">sync</span>
+<span class="font-['JetBrains_Mono'] text-[11px] tracking-widest uppercase">Reconnecting to secure uplink...</span>
+</div>
+<div class="flex justify-center items-center w-full max-w-md gap-4">
+<!-- Stop Meeting Button -->
+<button class="flex-1 group border-2 border-error/40 hover:bg-error/10 text-error px-6 py-3 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 active:scale-95">
+<span class="material-symbols-outlined font-variation-settings-fill" data-icon="stop_circle" style="font-variation-settings: 'FILL' 1;">stop_circle</span>
+<span class="font-['Inter'] font-bold text-sm tracking-tight">Stop Meeting</span>
+</button>
+<!-- Secondary Actions -->
+<button class="bg-surface-container-high text-on-surface-variant p-3.5 rounded-xl hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-xl" data-icon="sync_problem">sync_problem</span>
+</button>
+</div>
+</nav>
+<!-- BottomNavBar (Hidden on desktop as per Shell Layout rules) -->
+<div class="fixed bottom-0 w-full z-50 flex justify-between items-center px-8 py-6 bg-[#0E0E13]/80 backdrop-blur-xl md:hidden rounded-t-xl">
+<div class="flex items-center gap-2 text-[#C8C4D7] px-4 py-2">
+<span class="material-symbols-outlined" data-icon="stop_circle">stop_circle</span>
+</div>
+<div class="flex items-center gap-2 bg-gradient-to-br from-[#6C5CE7] to-[#C6BFFF] text-[#0A0A0F] px-6 py-2 rounded-full">
+<span class="material-symbols-outlined" data-icon="sync_problem" style="font-variation-settings: 'FILL' 1;">sync_problem</span>
+</div>
+</div>
+</body></html>

@@ -1,0 +1,7 @@
+name: BMAD Data Architecture Workflow
+code: bmdatarch
+version: 1.0.0
+description: Adds the bmad-create-data-architecture workflow for BMAD 6.2.0.
+items:
+  workflows:
+    - path: workflows/bmad-create-data-architecture/workflow.md

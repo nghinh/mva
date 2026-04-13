@@ -1,0 +1,14 @@
+name: bmad-vnpt-web-vue
+version: 1.0.0
+label: VNPT Web Vue
+kind: workflow
+summary: Vue 3 web engineering workflow for BMAD/OpenCode.
+workflows:
+  - name: bmad-vnpt-web-vue
+    path: src/workflows/bmad-vnpt-web-vue/workflow.md
+commands:
+  - name: bmad-vnpt-web-vue
+    path: extras/opencode-commands/bmad-vnpt-web-vue.md
+skills:
+  - name: bmad-vnpt-web-vue
+    path: extras/opencode-skills/bmad-vnpt-web-vue/SKILL.md

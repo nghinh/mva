@@ -1,0 +1,14 @@
+{
+  "name": "bmad-vnpt-python",
+  "version": "1.0.0",
+  "description": "VNPT Python skill for AI/ML, web, desktop, and scripts",
+  "domains": [
+    "python",
+    "fastapi",
+    "django",
+    "pyside6",
+    "typer",
+    "scikit-learn",
+    "pytorch"
+  ]
+}

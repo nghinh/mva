@@ -1,0 +1,6 @@
+name: bmad-vnpt-c-cpp
+version: 1.0.0
+summary: VNPT BMAD custom native C/C++ workflow for OpenCode/BMAD.
+author: OpenAI for VNPT custom bundle
+workflows:
+  - path: workflows/bmad-vnpt-c-cpp/workflow.md

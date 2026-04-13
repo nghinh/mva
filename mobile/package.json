@@ -1,0 +1,78 @@
+{
+  "name": "vibevoice",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "ios:release": "react-native run-ios --mode Release",
+    "sync:metro-host": "node scripts/sync-metro-host.js",
+    "ios:device": "npm run sync:metro-host && react-native run-ios --device \"Nghi's iPhone 14 Pro Max\"",
+    "start:lan": "react-native start --host 0.0.0.0 --port 8081 --reset-cache",
+    "lint": "eslint .",
+    "start": "react-native start",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "typecheck": "tsc --noEmit",
+    "build:android:debug": "cd android && ./gradlew assembleDebug",
+    "build:android:release": "cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@dr.pogodin/react-native-fs": "^2.38.2",
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-native-clipboard/clipboard": "^1.16.3",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/stack": "^7.0.0",
+    "@tanstack/react-query": "^5.56.0",
+    "agent-base": "^9.0.0",
+    "https-proxy-agent": "^9.0.0",
+    "react": "19.2.3",
+    "react-native": "0.85.0",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-sherpa-onnx": "^0.4.2",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-android": "20.1.0",
+    "@react-native-community/cli-platform-ios": "20.1.0",
+    "@react-native/babel-preset": "0.85.0",
+    "@react-native/debugger-frontend": "^0.85.0",
+    "@react-native/eslint-config": "0.85.0",
+    "@react-native/jest-preset": "^0.85.0",
+    "@react-native/metro-config": "0.85.0",
+    "@react-native/typescript-config": "0.85.0",
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.0.0",
+    "@types/react-test-renderer": "^19.0.0",
+    "babel-jest": "^29.7.0",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.3.0",
+    "react-test-renderer": "19.2.3",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "codegenConfig": {
+    "name": "VibeVoiceSpecs",
+    "type": "modules",
+    "jsSrcsDir": "src/native",
+    "android": {
+      "javaPackageName": "com.vibevoicenative.nllb"
+    },
+    "ios": {
+      "modules": {
+        "NllbTranslatorModule": {
+          "className": "NllbTranslatorModule"
+        }
+      }
+    }
+  }
+}

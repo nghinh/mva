@@ -1,0 +1,7 @@
+/**
+ * Barrel exports for {ComponentName} component
+ */
+
+export { {ComponentName} } from './index';
+export type { {ComponentName}Props, {ComponentName}Ref } from './types';
+export { use{ComponentName} } from './hooks';

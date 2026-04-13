@@ -1,0 +1,11 @@
+checks:
+  - name: vue-sfc-script-setup
+    description: Prefer <script setup> in new Vue SFCs unless repo conventions require otherwise.
+  - name: composition-api-first
+    description: Favor Composition API over Options API in new code.
+  - name: composable-first-reuse
+    description: Reusable reactive/business logic should move into composables or services.
+  - name: pinia-shared-state-only
+    description: Use Pinia for shared/global state, not every local UI flag.
+  - name: verify-vite-quality-gates
+    description: Run lint, typecheck, tests, and build when available.

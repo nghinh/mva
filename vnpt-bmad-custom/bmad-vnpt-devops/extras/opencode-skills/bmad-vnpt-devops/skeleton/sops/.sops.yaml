@@ -1,0 +1,3 @@
+creation_rules:
+  - path_regex: .*(secrets|secret).*\.(yaml|yml|json|env)$
+    age: age1exampleexampleexampleexampleexampleexampleexampleexample

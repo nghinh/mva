@@ -1,0 +1,11 @@
+name: bmad-vnpt-php
+version: 1.0.0
+label: VNPT PHP Backend
+kind: workflow
+summary: PHP backend development skill/workflow for modern Composer-based projects.
+commands:
+  - bmad-vnpt-php
+skills:
+  - bmad-vnpt-php
+workflows:
+  - bmad-vnpt-php

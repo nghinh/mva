@@ -1,0 +1,7 @@
+name: BMAD UI Design Concept Workflow
+code: bmuiuxconcept
+version: 1.0.0
+description: Adds the bmad-create-ui-design-concept workflow for BMAD 6.2.0.
+items:
+  workflows:
+    - path: workflows/bmad-create-ui-design-concept/workflow.md

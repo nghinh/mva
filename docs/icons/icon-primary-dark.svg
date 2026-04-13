@@ -1,0 +1,38 @@
+<svg width="1024" height="1024" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+<rect width="512" height="512" rx="112" fill="#0E0E1A"/>
+<rect x="8" y="8" width="496" height="496" rx="108" fill="#0E0E1A" stroke="#6C5CE7" stroke-width="1.5" stroke-opacity="0.25"/>
+
+<!-- Microphone body -->
+<path d="M256 120 C256 120 230 120 230 148 L230 268 C230 282 242 292 256 292 C270 292 282 282 282 268 L282 148 C282 120 256 120 256 120Z" fill="#6C5CE7"/>
+<rect x="238" y="130" width="36" height="8" rx="4" fill="#A29BFE" opacity="0.5"/>
+<rect x="242" y="146" width="28" height="4" rx="2" fill="#A29BFE" opacity="0.3"/>
+
+<!-- Microphone stand -->
+<path d="M204 248 C204 248 204 308 256 308 C308 308 308 248 308 248" fill="none" stroke="#A29BFE" stroke-width="8" stroke-linecap="round"/>
+<line x1="256" y1="308" x2="256" y2="340" stroke="#A29BFE" stroke-width="8" stroke-linecap="round"/>
+<line x1="230" y1="340" x2="282" y2="340" stroke="#A29BFE" stroke-width="8" stroke-linecap="round"/>
+
+<!-- Text lines - Original (blue = EN/JA/KO) -->
+<rect x="320" y="160" width="72" height="10" rx="5" fill="#3B82F6" opacity="0.9"/>
+<rect x="330" y="180" width="52" height="10" rx="5" fill="#3B82F6" opacity="0.6"/>
+<rect x="325" y="200" width="62" height="10" rx="5" fill="#3B82F6" opacity="0.4"/>
+
+<!-- Text lines - Translation (amber = VI) -->
+<rect x="320" y="236" width="68" height="10" rx="5" fill="#F59E0B" opacity="0.9"/>
+<rect x="328" y="256" width="56" height="10" rx="5" fill="#F59E0B" opacity="0.6"/>
+
+<!-- Text lines - AI Suggest (teal) -->
+<rect x="320" y="292" width="60" height="10" rx="5" fill="#00D2A0" opacity="0.9"/>
+<rect x="332" y="312" width="44" height="10" rx="5" fill="#00D2A0" opacity="0.6"/>
+
+<!-- Sound waves (left side) -->
+<circle cx="160" cy="195" r="3" fill="#6C5CE7" opacity="0.4"/>
+<circle cx="148" cy="220" r="2.5" fill="#6C5CE7" opacity="0.3"/>
+<circle cx="155" cy="245" r="3.5" fill="#6C5CE7" opacity="0.35"/>
+<path d="M172 180 Q158 210 172 240 Q158 270 172 300" fill="none" stroke="#6C5CE7" stroke-width="3" stroke-linecap="round" opacity="0.25"/>
+<path d="M148 170 Q128 215 148 260 Q128 305 148 340" fill="none" stroke="#6C5CE7" stroke-width="2.5" stroke-linecap="round" opacity="0.15"/>
+
+<!-- App name -->
+<text x="256" y="404" text-anchor="middle" fill="#A29BFE" font-family="Inter,-apple-system,system-ui,sans-serif" font-size="42" font-weight="700" letter-spacing="3">MVA</text>
+<text x="256" y="432" text-anchor="middle" fill="#6B7280" font-family="Inter,-apple-system,system-ui,sans-serif" font-size="16" font-weight="400" letter-spacing="1">VOICE ASSISTANT</text>
+</svg>

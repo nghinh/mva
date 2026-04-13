@@ -1,0 +1,6 @@
+[allowlist]
+description = "VNPT local allowlist example"
+paths = [
+  "tests/fixtures/",
+  "docs/examples/"
+]

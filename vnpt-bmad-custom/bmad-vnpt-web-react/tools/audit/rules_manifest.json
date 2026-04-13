@@ -1,0 +1,96 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-checkable rules for VNPT React Developer two-layer audit.",
+  "rules": [
+    {
+      "id": "structure.component_files",
+      "severity": "warning",
+      "type": "structure",
+      "description": "Component directories should include index.tsx, types.ts, hooks.ts, index.ts, and a test file unless justified."
+    },
+    {
+      "id": "structure.kebab_case_folder",
+      "severity": "warning",
+      "type": "naming",
+      "description": "Component folder names should use kebab-case."
+    },
+    {
+      "id": "exports.barrel_file",
+      "severity": "warning",
+      "type": "exports",
+      "description": "Component directories should expose a barrel export file index.ts."
+    },
+    {
+      "id": "typing.any_usage",
+      "severity": "warning",
+      "type": "typing",
+      "description": "Avoid explicit any in React source unless strongly justified."
+    },
+    {
+      "id": "typing.missing_types_file",
+      "severity": "warning",
+      "type": "typing",
+      "description": "A component package should usually have a types.ts file."
+    },
+    {
+      "id": "hooks.naming",
+      "severity": "warning",
+      "type": "hooks",
+      "description": "Hooks should use the useXxx naming convention."
+    },
+    {
+      "id": "hooks.missing_cleanup",
+      "severity": "error",
+      "type": "hooks",
+      "description": "Effects that add listeners, intervals, or timeouts should include cleanup."
+    },
+    {
+      "id": "hooks.missing_dependencies",
+      "severity": "warning",
+      "type": "hooks",
+      "description": "Review effects with suspicious empty dependency arrays or missing dependency comments."
+    },
+    {
+      "id": "tests.missing_component_test",
+      "severity": "warning",
+      "type": "tests",
+      "description": "Component directories should include a test scaffold."
+    },
+    {
+      "id": "performance.inline_array_object_prop",
+      "severity": "info",
+      "type": "performance",
+      "description": "Detect likely inline object/array props that may cause avoidable rerenders."
+    },
+    {
+      "id": "performance.regex_in_render",
+      "severity": "info",
+      "type": "performance",
+      "description": "Avoid creating RegExp instances inside render paths."
+    },
+    {
+      "id": "performance.sort_mutation",
+      "severity": "info",
+      "type": "performance",
+      "description": "Prefer immutable sorting patterns such as toSorted where appropriate."
+    },
+    {
+      "id": "data_fetching.fetch_in_component",
+      "severity": "warning",
+      "type": "data-fetching",
+      "description": "Direct fetch/axios calls inside component render modules should be reviewed."
+    },
+    {
+      "id": "data_fetching.missing_query_layer",
+      "severity": "info",
+      "type": "data-fetching",
+      "description": "Data-heavy components without hooks/adapters should be reviewed for query-layer extraction."
+    },
+    {
+      "id": "architecture.oversized_component",
+      "severity": "warning",
+      "type": "architecture",
+      "description": "Very large component files may indicate too much responsibility in one module."
+    }
+  ]
+}

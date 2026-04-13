@@ -1,0 +1,9 @@
+name: bmad-vnpt-dotnet
+description: VNPT BMAD custom workflow and skill for modern .NET / ASP.NET Core development
+version: 1.0.0
+commands:
+  - bmad-vnpt-dotnet
+skills:
+  - bmad-vnpt-dotnet
+workflows:
+  - bmad-vnpt-dotnet

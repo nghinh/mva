@@ -1,0 +1,17 @@
+import { ref, computed } from 'vue'
+import { defineStore } from 'pinia'
+
+export const useExampleStore = defineStore('example', () => {
+  const items = ref<string[]>([])
+  const count = computed(() => items.value.length)
+
+  function setItems(next: string[]) {
+    items.value = next
+  }
+
+  return {
+    items,
+    count,
+    setItems,
+  }
+})

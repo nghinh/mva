@@ -1,0 +1,11 @@
+/**
+ * TypeScript interfaces and types for {ComponentName} component
+ */
+
+export interface {ComponentName}Props {
+  {propsDefinition}
+}
+
+export interface {ComponentName}Ref {
+  // Ref interface if needed
+}

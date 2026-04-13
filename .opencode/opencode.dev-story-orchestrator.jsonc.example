@@ -1,0 +1,17 @@
+{
+  // Example only. Merge into your own OpenCode config if you want these names
+  // visible globally in addition to the project-local files.
+  "agents": {
+    "vnpt-dev-story-orchestrator": {
+      "file": ".opencode/agents/vnpt-dev-story-orchestrator.md"
+    },
+    "vnpt-story-implementer": {
+      "file": ".opencode/agents/vnpt-story-implementer.md"
+    }
+  },
+  "commands": {
+    "vnpt-dev-story-loop": {
+      "file": ".opencode/commands/vnpt-dev-story-loop.md"
+    }
+  }
+}

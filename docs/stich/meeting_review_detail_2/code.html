@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Meeting Review | Executive MVA</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e4dfff",
+                        "tertiary": "#adc6ff",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "tertiary-fixed": "#d8e2ff",
+                        "secondary-fixed": "#57fdc8",
+                        "on-surface": "#e4e1e9",
+                        "surface-tint": "#c6bfff",
+                        "surface-container": "#1f1f25",
+                        "background": "#131318",
+                        "on-primary-fixed": "#160066",
+                        "on-background": "#e4e1e9",
+                        "on-primary-container": "#faf6ff",
+                        "on-error": "#690005",
+                        "tertiary-container": "#1a6de0",
+                        "on-tertiary": "#002e6a",
+                        "primary": "#c6bfff",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#2a292f",
+                        "surface-container-lowest": "#0e0e13",
+                        "surface-container-highest": "#35343a",
+                        "secondary-container": "#00d19f",
+                        "inverse-surface": "#e4e1e9",
+                        "on-secondary": "#003828",
+                        "on-secondary-container": "#00543e",
+                        "on-error-container": "#ffdad6",
+                        "secondary": "#44eeba",
+                        "on-secondary-fixed": "#002116",
+                        "on-primary": "#2900a0",
+                        "surface-container-low": "#1b1b20",
+                        "inverse-on-surface": "#303036",
+                        "on-tertiary-fixed": "#001a42",
+                        "primary-fixed-dim": "#c6bfff",
+                        "surface-variant": "#35343a",
+                        "on-surface-variant": "#c8c4d7",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "primary-container": "#6c5ce7",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "outline": "#928ea0",
+                        "surface-dim": "#131318",
+                        "on-tertiary-container": "#f6f6ff",
+                        "inverse-primary": "#5847d2",
+                        "surface-bright": "#39383e",
+                        "outline-variant": "#474554",
+                        "error": "#ffb4ab",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "surface": "#131318"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-effect {
+            background: rgba(31, 31, 37, 0.6);
+            backdrop-filter: blur(20px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #474554;
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body min-h-screen selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-[#0A0A0F] fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16">
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full scale-95 active:duration-100">
+<span class="material-symbols-outlined text-[#C8C4D7]/50" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-['Inter'] font-bold tracking-tight text-[#E4E2EE] text-lg">Meeting Apr 11, 2026</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full scale-95 active:duration-100">
+<span class="material-symbols-outlined text-[#C8C4D7]/50" data-icon="share">share</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/20">
+<img alt="Executive User" class="w-full h-full object-cover" data-alt="Professional portrait of an executive in a dark suit with soft studio lighting and a neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyYgvc7XVm_hNtHSMW36rjxmeQE9RRc5l7FuguBwo9bdiRKragrXIKnn_46EFXFFPPcM0s63f5Ivc_ZkarErddPEeBlQksIMlmES_tQKIVdeo6r5Jv02EiR_ri4Tgr6V2PYN_GiQsGXd-_yHEe0Z9KCdlys3IujG7ZGjwAHi2BLWWaoWj8usDMpt2e-CsyiQ_Tl2n40-RhA9C9H12hRP2viQHvU3fe1rK6a8en-O4aDwc3a8UKQZGjZcOsn-UQLbWwYQFxQMxPrFM"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-3xl mx-auto space-y-8">
+<!-- Summary Dashboard (Bento Grid Style) -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="md:col-span-2 bg-surface-container-low p-6 rounded-xl border-l-4 border-primary-container">
+<div class="flex items-center justify-between mb-4">
+<span class="font-mono text-[10px] uppercase tracking-widest text-outline">Session Duration</span>
+<span class="material-symbols-outlined text-primary text-xl" data-icon="timer">timer</span>
+</div>
+<div class="text-3xl font-black text-on-surface tracking-tighter">1h 15m</div>
+<div class="mt-4 flex gap-2">
+<span class="bg-surface-container-highest px-3 py-1 rounded-full text-[11px] font-mono border border-outline-variant/10">EN 34</span>
+<span class="bg-surface-container-highest px-3 py-1 rounded-full text-[11px] font-mono border border-outline-variant/10">JA 12</span>
+<span class="bg-surface-container-highest px-3 py-1 rounded-full text-[11px] font-mono border border-outline-variant/10">KO 1</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="bg-surface-container p-4 rounded-xl flex items-center justify-between">
+<div>
+<div class="font-mono text-[10px] uppercase tracking-widest text-outline">Utterances</div>
+<div class="text-xl font-bold">47</div>
+</div>
+<span class="material-symbols-outlined text-tertiary" data-icon="forum">forum</span>
+</div>
+<div class="bg-surface-container p-4 rounded-xl flex items-center justify-between border border-error-container/20">
+<div>
+<div class="font-mono text-[10px] uppercase tracking-widest text-outline">AI Suggest</div>
+<div class="text-xl font-bold text-error">8</div>
+</div>
+<span class="material-symbols-outlined text-error" data-icon="auto_awesome">auto_awesome</span>
+</div>
+</div>
+</section>
+<!-- Unified Timeline View -->
+<section class="space-y-6">
+<div class="flex items-center justify-between px-2">
+<h2 class="text-sm font-mono uppercase tracking-widest text-on-surface-variant/70">Conversation Timeline</h2>
+<div class="flex gap-2">
+<button class="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">All</button>
+<button class="text-[10px] text-on-surface-variant/50 px-3 py-1 rounded-full hover:bg-surface-container transition-colors">Markers</button>
+</div>
+</div>
+<div class="space-y-8 relative">
+<!-- Vertical Progress Line -->
+<div class="absolute left-4 top-4 bottom-0 w-[1px] bg-outline-variant/10 -z-10"></div>
+<!-- Timeline Entry 1 -->
+<div class="flex gap-6 group">
+<div class="flex-none">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-mono text-[10px] text-primary border border-primary/20">00</div>
+</div>
+<div class="flex-grow space-y-3">
+<div class="flex items-center gap-3">
+<span class="font-mono text-xs text-on-surface-variant/50">00:04:12</span>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono text-tertiary border border-tertiary/10">EN</span>
+</div>
+<p class="text-on-surface leading-relaxed max-w-prose">Welcome everyone to the Q2 strategy session. We need to focus on our APAC expansion metrics.</p>
+<div class="bg-secondary-container/5 p-4 rounded-xl border-l-2 border-secondary-container/30">
+<p class="text-[#E9C46A] text-sm leading-relaxed italic">Chào mừng mọi người đến với phiên chiến lược quý 2. Chúng ta cần tập trung vào các chỉ số mở rộng khu vực APAC.</p>
+</div>
+</div>
+</div>
+<!-- Timeline Entry 2 (AI Suggestion Card) -->
+<div class="flex gap-6 group">
+<div class="flex-none">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-mono text-[10px] text-on-surface-variant/50">01</div>
+</div>
+<div class="flex-grow space-y-3">
+<div class="flex items-center gap-3">
+<span class="font-mono text-xs text-on-surface-variant/50">00:05:45</span>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono text-[#adc6ff] border border-tertiary/10">JA</span>
+</div>
+<p class="text-on-surface leading-relaxed max-w-prose">来月の予算案については、まだ詳細が確定していません。</p>
+<div class="bg-secondary-container/5 p-4 rounded-xl border-l-2 border-secondary-container/30">
+<p class="text-[#E9C46A] text-sm leading-relaxed italic">Về đề xuất ngân sách cho tháng tới, các chi tiết vẫn chưa được xác định.</p>
+</div>
+<!-- AI Suggestion Sub-card -->
+<div class="bg-error-container/10 border border-error-container/20 rounded-xl p-4 flex gap-4 items-start">
+<span class="material-symbols-outlined text-error text-sm mt-1" data-icon="auto_awesome">auto_awesome</span>
+<div class="flex-grow">
+<div class="text-[10px] font-mono text-error/80 uppercase tracking-tighter mb-1">Context Correction</div>
+<p class="text-sm text-on-surface/90 italic">The speaker implied a delay in 'approval', not just 'details'. Recommended translation: "Việc phê duyệt ngân sách tháng tới đang bị trì hoãn."</p>
+</div>
+<button class="bg-error-container/20 hover:bg-error-container/40 p-2 rounded-lg transition-all">
+<span class="material-symbols-outlined text-error text-base" data-icon="content_copy">content_copy</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Timeline Entry 3 -->
+<div class="flex gap-6 group">
+<div class="flex-none">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-mono text-[10px] text-on-surface-variant/50">02</div>
+</div>
+<div class="flex-grow space-y-3">
+<div class="flex items-center gap-3">
+<span class="font-mono text-xs text-on-surface-variant/50">00:12:30</span>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono text-tertiary border border-tertiary/10">KO</span>
+</div>
+<p class="text-on-surface leading-relaxed max-w-prose">이 부분은 다음 주 회의에서 다시 논의하기로 합시다.</p>
+<div class="bg-secondary-container/5 p-4 rounded-xl border-l-2 border-secondary-container/30">
+<p class="text-[#E9C46A] text-sm leading-relaxed italic">Hãy thảo luận lại vấn đề này trong cuộc họp tuần tới.</p>
+</div>
+</div>
+</div>
+<!-- Timeline Entry 4 -->
+<div class="flex gap-6 group">
+<div class="flex-none">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center font-mono text-[10px] text-on-surface-variant/50">03</div>
+</div>
+<div class="flex-grow space-y-3">
+<div class="flex items-center gap-3">
+<span class="font-mono text-xs text-on-surface-variant/50">00:15:22</span>
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono text-tertiary border border-tertiary/10">EN</span>
+</div>
+<p class="text-on-surface leading-relaxed max-w-prose">Agreed. Let's move on to the performance review for our Singapore hub.</p>
+<div class="bg-secondary-container/5 p-4 rounded-xl border-l-2 border-secondary-container/30">
+<p class="text-[#E9C46A] text-sm leading-relaxed italic">Đồng ý. Hãy chuyển sang phần đánh giá hiệu suất cho trung tâm Singapore của chúng ta.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#0E0E13]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(108,92,231,0.05)] border-t border-[#474554]/15">
+<div class="flex flex-col items-center justify-center text-[#C6BFFF] bg-[#1F1F25] rounded-xl px-4 py-1 transition-all duration-300 ease-out">
+<span class="material-symbols-outlined" data-icon="history" style="font-variation-settings: 'FILL' 1;">history</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Meetings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out">
+<span class="material-symbols-outlined" data-icon="mic">mic</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Live</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out">
+<span class="material-symbols-outlined" data-icon="lan">lan</span>
+<span class="font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">Network</span>
+</div>
+</nav>
+<!-- Floating Action Background Texture -->
+<div class="fixed bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-background to-transparent pointer-events-none -z-20"></div>
+</body></html>

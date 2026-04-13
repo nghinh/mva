@@ -1,0 +1,13 @@
+{
+  "required_reads": [
+    "SKILL.md",
+    "workflow.md"
+  ],
+  "must_check": [
+    "routing",
+    "query-cache",
+    "storage-safety",
+    "mobile-states",
+    "test-coverage"
+  ]
+}

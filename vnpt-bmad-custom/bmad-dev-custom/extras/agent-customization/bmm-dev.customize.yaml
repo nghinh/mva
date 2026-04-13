@@ -1,0 +1,101 @@
+memories:
+  - 'Before coding, identify the dominant stack from the repository, changed files, target modules, runtime, build manifests, framework conventions, and the requested task outcome.'
+  - 'For frontend/UI work, ui-ux-pro-max is mandatory in addition to the framework-specific frontend skill.'
+  - 'Frontend/UI implementation must align with docs/ux-design.md and docs/ui-design/product-concept.html when those artifacts exist.'
+  - 'For C or C++ codebases/tasks, bmad-vnpt-c-cpp is mandatory.'
+  - 'For C# or .NET codebases/tasks, bmad-vnpt-dotnet is mandatory.'
+  - 'For Go codebases/tasks, bmad-vnpt-golang is mandatory.'
+  - 'For Java Spring Boot codebases/tasks, bmad-vnpt-java-springboot is mandatory.'
+  - 'For Node.js backend codebases/tasks, bmad-vnpt-nodejs is mandatory.'
+  - 'For PHP codebases/tasks, bmad-vnpt-php is mandatory.'
+  - 'For Python codebases/tasks, bmad-vnpt-python is mandatory.'
+  - 'For Flutter mobile codebases/tasks, bmad-vnpt-mobile-flutter is mandatory.'
+  - 'For React Native mobile codebases/tasks, bmad-vnpt-mobile-react is mandatory.'
+  - 'For Angular frontend codebases/tasks, bmad-vnpt-web-angular is mandatory.'
+  - 'For React frontend codebases/tasks, bmad-vnpt-web-react is mandatory.'
+  - 'For Vue frontend codebases/tasks, bmad-vnpt-web-vue is mandatory.'
+  - 'When a task spans multiple stacks, all relevant skills are mandatory. Do not proceed with a partial skill set.'
+  - 'When repository evidence and task wording disagree, prefer direct repository evidence and architecture documents. If the task is clearly scoped to a submodule, load skills for that submodule.'
+  - 'Any spawned or requested sub-agent must inherit the same mandatory-skill policy and must load the skill set that matches its assigned code area and task.'
+
+critical_actions:
+  - 'Before implementation, read the current story fully.'
+  - 'Identify the target code area from the task, repository structure, build manifests, lockfiles, framework markers, docs/, and the files being changed.'
+  - 'Map the task to one or more mandatory skills before making changes.'
+  - 'You MUST NOT start coding until every mandatory skill for the target stack has been loaded.'
+  - 'If the current work is frontend/UI related, including page, screen, route, component, layout, styling, design system, accessibility, interaction, responsive behavior, motion, or user-facing visual polish, you MUST load ui-ux-pro-max before making changes.'
+  - 'If the current work is frontend/UI related, you MUST also load the matching framework skill: bmad-vnpt-web-react for React, bmad-vnpt-web-vue for Vue, or bmad-vnpt-web-angular for Angular.'
+  - 'If the current work is frontend/UI related, you MUST read docs/ux-design.md and docs/ui-design/product-concept.html if they exist before coding.'
+  - 'Do not declare frontend/UI work complete if it materially diverges from the approved UX and UI design artifacts.'
+  - 'If the current work targets a Java or Spring Boot backend, including Spring Boot service, REST controller, DTOs, validation, exception handling, persistence, transactions, caching, async processing, scheduler, Kafka/eventing, build config, or Java integration logic, you MUST load bmad-vnpt-java-springboot before making changes.'
+  - 'If the current work targets a .NET backend, API, worker, EF Core, messaging, ASP.NET Core, or shared .NET library, you MUST load bmad-vnpt-dotnet before making changes.'
+  - 'If the current work targets Go services, handlers, middleware, routers, repositories, workers, queue consumers, event processors, goroutine/channel usage, or any Go module/package, you MUST load bmad-vnpt-golang before making changes.'
+  - 'If the current work targets Node.js backend services, APIs, workers, CLI/tools, monorepo packages, Express/Fastify/NestJS modules, or any Node.js runtime code, you MUST load bmad-vnpt-nodejs before making changes.'
+  - 'If the current work targets Python services, APIs, workers, scripts, notebooks promoted into production code, package modules, or Python automation, you MUST load bmad-vnpt-python before making changes.'
+  - 'If the current work targets PHP applications, APIs, services, Laravel/Symfony modules, WordPress/plugin code, or PHP package code, you MUST load bmad-vnpt-php before making changes.'
+  - 'If the current work targets C or C++ applications, libraries, services, embedded modules, build files, toolchains, or native integrations, you MUST load bmad-vnpt-c-cpp before making changes.'
+  - 'If the current work targets Flutter mobile applications, widgets, routes, state management, platform channels, or Dart code in a Flutter app, you MUST load bmad-vnpt-mobile-flutter before making changes.'
+  - 'If the current work targets React Native mobile applications, screens, navigation, hooks, native bridges, metro config, or app modules, you MUST load bmad-vnpt-mobile-react before making changes.'
+  - 'If the current work targets React frontend codebases, components, pages, hooks, routes, state, bundler config, tests, or design-system code, you MUST load bmad-vnpt-web-react and ui-ux-pro-max before making changes when UI is involved.'
+  - 'If the current work targets Vue frontend codebases, SFCs, composables, routes, Pinia/Vuex state, bundler config, tests, or design-system code, you MUST load bmad-vnpt-web-vue and ui-ux-pro-max before making changes when UI is involved.'
+  - 'If the current work targets Angular frontend codebases, modules, standalone components, services, routing, RxJS flows, workspace config, tests, or design-system code, you MUST load bmad-vnpt-web-angular and ui-ux-pro-max before making changes when UI is involved.'
+  - 'If the task spans multiple stacks, such as frontend plus backend, API plus worker, or mobile plus backend contract updates, you MUST load every relevant skill before making changes.'
+  - 'You MUST read relevant architecture, API, operational, and design documents in docs/ before coding when they exist.'
+  - 'Do not declare work complete if it materially diverges from the approved architecture or ignores required stack-specific skill patterns.'
+  - 'Before declaring a story or coding task complete, you MUST run the VNPT review quality gate on the touched scope using /vnpt-review-loop (or the equivalent orchestrated review/fix loop if invoked by the user tooling).'
+  - 'Do not present implementation work as complete until the latest vnpt-review-loop pass reports zero actionable issues for the touched scope, or any waived items are explicitly justified.'
+  - 'When asked to create sub-agents, you MUST assign each sub-agent to a clearly bounded code area and task, and each sub-agent MUST load the mandatory skill set for that code area before starting work.'
+  - 'A frontend sub-agent MUST load ui-ux-pro-max plus the matching frontend framework skill.'
+  - 'A backend or platform sub-agent MUST load the matching backend/native/mobile skill for its assigned area.'
+  - 'A full-stack sub-agent MUST load all skills required by its assigned scope.'
+  - 'Do not assign or approve a sub-agent plan that omits mandatory skills for its scope.'
+
+stack_detection_hints:
+  c_cpp:
+    manifests: ['CMakeLists.txt', 'meson.build', 'Makefile', 'compile_commands.json', 'conanfile.py', 'conanfile.txt', 'vcpkg.json']
+    markers: ['.c', '.cc', '.cpp', '.cxx', '.h', '.hpp', '.hh']
+    skill: 'bmad-vnpt-c-cpp'
+  dotnet:
+    manifests: ['*.sln', '*.csproj', '*.fsproj', 'Directory.Build.props', 'NuGet.config']
+    markers: ['Program.cs', 'appsettings.json', 'Startup.cs']
+    skill: 'bmad-vnpt-dotnet'
+  golang:
+    manifests: ['go.mod', 'go.sum']
+    markers: ['cmd/', 'internal/', 'pkg/']
+    skill: 'bmad-vnpt-golang'
+  java_springboot:
+    manifests: ['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts']
+    markers: ['src/main/java', 'src/main/kotlin', '@SpringBootApplication', 'application.yml', 'application.yaml']
+    skill: 'bmad-vnpt-java-springboot'
+  nodejs:
+    manifests: ['package.json', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'turbo.json', 'nx.json']
+    markers: ['server.js', 'src/main.ts', 'nest-cli.json', 'tsconfig.json']
+    skill: 'bmad-vnpt-nodejs'
+  php:
+    manifests: ['composer.json', 'composer.lock']
+    markers: ['artisan', 'public/index.php', 'bin/console']
+    skill: 'bmad-vnpt-php'
+  python:
+    manifests: ['pyproject.toml', 'requirements.txt', 'poetry.lock', 'Pipfile', 'uv.lock']
+    markers: ['manage.py', 'alembic.ini', 'pytest.ini']
+    skill: 'bmad-vnpt-python'
+  mobile_flutter:
+    manifests: ['pubspec.yaml']
+    markers: ['lib/main.dart', 'android/', 'ios/']
+    skill: 'bmad-vnpt-mobile-flutter'
+  mobile_react:
+    manifests: ['package.json']
+    markers: ['android/', 'ios/', 'metro.config.js', 'react-native.config.js']
+    skill: 'bmad-vnpt-mobile-react'
+  web_react:
+    manifests: ['package.json']
+    markers: ['src/App.tsx', 'src/main.tsx', 'next.config.js', 'next.config.mjs', 'vite.config.ts']
+    skill: 'bmad-vnpt-web-react'
+  web_vue:
+    manifests: ['package.json']
+    markers: ['src/App.vue', 'nuxt.config.ts', 'vite.config.ts']
+    skill: 'bmad-vnpt-web-vue'
+  web_angular:
+    manifests: ['package.json', 'angular.json']
+    markers: ['src/main.ts', 'src/app/', 'projects/']
+    skill: 'bmad-vnpt-web-angular'

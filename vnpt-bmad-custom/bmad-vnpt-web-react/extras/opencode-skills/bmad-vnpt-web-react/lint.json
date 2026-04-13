@@ -1,0 +1,41 @@
+{
+  "skill": "react-component-builder",
+  "version": "1.0.0",
+  "rules": {
+    "structure": {
+      "required_files": [
+        "skill.md",
+        "templates/component.tsx.template",
+        "templates/types.ts.template",
+        "templates/hooks.ts.template",
+        "templates/test.tsx.template",
+        "templates/barrel.ts.template"
+      ],
+      "forbidden_patterns": [
+        "any",
+        "unknown",
+        "class Component"
+      ]
+    },
+    "typescript": {
+      "strict_mode": true,
+      "explicit_types": true,
+      "no_implicit_any": true
+    },
+    "react": {
+      "functional_components": true,
+      "hooks_rule": true,
+      "no_class_components": true
+    },
+    "styling": {
+      "method": "tailwind",
+      "no_css_modules": true,
+      "no_inline_styles": true
+    },
+    "naming": {
+      "folders": "kebab-case",
+      "components": "PascalCase",
+      "hooks": "camelCase with use prefix"
+    }
+  }
+}

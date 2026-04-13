@@ -1,0 +1,59 @@
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { {ComponentName}Props } from './types';
+
+/**
+ * Custom hook for {ComponentName} component logic
+ *
+ * Best practices applied:
+ * - rerender-defer-reads: State not subscribed in callbacks only
+ * - rerender-functional-setState: Functional setState for stability
+ * - rerender-dependencies: Primitive dependencies in effects
+ * - advanced-use-latest: Stable refs for callbacks
+ */
+export const use{ComponentName} = (props: {ComponentName}Props) => {
+  // State management (apply rerender-lazy-state-init for expensive values)
+  const [state, setState] = useState(() => {
+    // Lazy initialization for expensive initial state
+    return initialState;
+  });
+
+  // Stable refs for callbacks (advanced-use-latest)
+  const propsRef = useRef(props);
+  useEffect(() => {
+    propsRef.current = props;
+  }, [props]);
+
+  // Memoized callbacks with functional setState (rerender-functional-setState)
+  const handleClick = useCallback(() => {
+    // Defer state reads - don't use state directly in callback if only for setState
+    setState((prev) => ({
+      ...prev,
+      // Update logic
+    }));
+  }, []); // Empty deps when using functional setState
+
+  // Effects with primitive dependencies (rerender-dependencies)
+  useEffect(() => {
+    // Side effects with primitive dependencies
+    const controller = new AbortController();
+
+    // Cleanup function
+    return () => {
+      controller.abort();
+    };
+  }, [propId, booleanValue]); // Use primitive values
+
+  // Early return pattern (js-early-exit)
+  if (!state.isRequired) {
+    return {
+      state,
+      handleClick: null,
+    };
+  }
+
+  return {
+    state,
+    handleClick,
+    // Other returns
+  };
+};

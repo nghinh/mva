@@ -1,0 +1,7 @@
+name: BMAD VNPT Mobile Flutter Workflow
+code: bmadmobileflutter
+version: 1.0.0
+description: Adds a BMAD-aligned workflow for Flutter mobile implementation using VNPT Flutter standards.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-mobile-flutter/workflow.md

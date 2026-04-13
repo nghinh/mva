@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive Command - Offline State</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "background": "#0A0A0F",
+                        "surface-container-lowest": "#0e0e13",
+                        "surface-container-high": "#2a292f",
+                        "surface-dim": "#131318",
+                        "inverse-surface": "#e4e1e9",
+                        "outline": "#928ea0",
+                        "on-primary-container": "#faf6ff",
+                        "outline-variant": "#474554",
+                        "on-error": "#690005",
+                        "on-secondary": "#003828",
+                        "surface-bright": "#39383e",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "on-primary": "#2900a0",
+                        "surface-container": "#1f1f25",
+                        "primary": "#c6bfff",
+                        "on-background": "#e4e1e9",
+                        "inverse-on-surface": "#303036",
+                        "secondary-container": "#00d19f",
+                        "surface-tint": "#c6bfff",
+                        "on-surface": "#e4e1e9",
+                        "on-secondary-fixed": "#002116",
+                        "tertiary-container": "#1a6de0",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "on-primary-fixed": "#160066",
+                        "secondary": "#44eeba",
+                        "error-container": "#93000a",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "on-tertiary-fixed": "#001a42",
+                        "on-tertiary-container": "#f6f6ff",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary": "#002e6a",
+                        "surface-container-highest": "#35343a",
+                        "secondary-fixed": "#57fdc8",
+                        "primary-fixed-dim": "#c6bfff",
+                        "inverse-primary": "#5847d2",
+                        "tertiary-fixed": "#d8e2ff",
+                        "surface": "#131318",
+                        "on-surface-variant": "#c8c4d7",
+                        "primary-fixed": "#e4dfff",
+                        "primary-container": "#6c5ce7",
+                        "on-secondary-container": "#00543e",
+                        "error": "#ffb4ab",
+                        "surface-variant": "#35343a",
+                        "tertiary": "#adc6ff",
+                        "surface-container-low": "#1b1b20"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #0A0A0F;
+            color: #E4E2EE;
+            font-family: 'Inter', sans-serif;
+        }
+        .mono-technical {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="flex flex-col h-screen overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-6 h-16 bg-[#0E0E13] tonal-shift no-line">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#6C5CE7]" data-icon="signal_cellular_alt">signal_cellular_alt</span>
+<div class="flex flex-col">
+<span class="font-sans tracking-tight font-bold uppercase text-xs text-[#6C5CE7]">Executive Command</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+<span class="mono-technical text-[10px] text-on-surface-variant tracking-wider">Recording 00:15:42</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-[#1F1F25] px-3 py-1.5 rounded-full">
+<span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+<span class="font-sans tracking-tight font-bold uppercase text-[10px] text-yellow-500">Offline</span>
+<span class="material-symbols-outlined text-[#C8C4D7]/50 ml-1 text-sm" data-icon="radio_button_checked">radio_button_checked</span>
+</div>
+</header>
+<!-- Main Content Canvas: Vertical Lanes -->
+<main class="flex-1 mt-16 mb-20 overflow-x-auto no-scrollbar flex p-4 gap-4">
+<!-- Lane 1: Original Transcription (Blue) -->
+<section class="flex-none w-[85vw] md:w-1/3 flex flex-col h-full bg-surface-container-lowest rounded-xl border-l-4 border-tertiary-container shadow-2xl">
+<div class="p-4 flex items-center justify-between">
+<span class="mono-technical text-[10px] uppercase tracking-widest text-tertiary">Original Audio</span>
+<span class="material-symbols-outlined text-tertiary text-lg" data-icon="settings_voice">settings_voice</span>
+</div>
+<div class="flex-1 p-4 space-y-6 overflow-y-auto no-scrollbar">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="mono-technical text-[9px] bg-surface-container-highest px-2 py-0.5 rounded text-on-surface-variant">SPEAKER_01</span>
+<span class="mono-technical text-[9px] text-on-surface-variant/50">14:02:11</span>
+</div>
+<p class="text-on-surface body-md leading-relaxed">The quarterly projections for the APAC region indicate a significant shift in enterprise adoption rates.</p>
+</div>
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="mono-technical text-[9px] bg-surface-container-highest px-2 py-0.5 rounded text-on-surface-variant">SPEAKER_02</span>
+<span class="mono-technical text-[9px] text-on-surface-variant/50">14:02:35</span>
+</div>
+<p class="text-on-surface body-md leading-relaxed">We need to reconcile the local data infrastructure before finalizing the strategy. Is the connection stable enough for the sync?</p>
+</div>
+<div class="space-y-2 border-l-2 border-primary/20 pl-3">
+<div class="flex items-center justify-between">
+<span class="mono-technical text-[9px] bg-surface-container-highest px-2 py-0.5 rounded text-on-surface-variant">SPEAKER_01</span>
+<span class="mono-technical text-[9px] text-on-surface-variant/50">14:02:58</span>
+</div>
+<p class="text-on-surface body-md leading-relaxed italic opacity-80">Buffering local stream...</p>
+</div>
+</div>
+</section>
+<!-- Lane 2: Translation (Amber) -->
+<section class="flex-none w-[85vw] md:w-1/3 flex flex-col h-full bg-surface-container-lowest rounded-xl border-l-4 border-secondary-container shadow-2xl relative overflow-hidden">
+<!-- Offline Banner -->
+<div class="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-yellow-500 text-sm" data-icon="warning">warning</span>
+<span class="mono-technical text-[10px] text-yellow-500 uppercase tracking-tight font-bold">Server offline — translation paused</span>
+</div>
+<div class="p-4 flex items-center justify-between">
+<span class="mono-technical text-[10px] uppercase tracking-widest text-secondary">Target: Mandarin</span>
+<span class="material-symbols-outlined text-secondary text-lg" data-icon="translate">translate</span>
+</div>
+<div class="flex-1 p-4 space-y-6 opacity-40 grayscale">
+<div class="space-y-2">
+<div class="flex items-center justify-between">
+<span class="mono-technical text-[9px] bg-surface-container-highest px-2 py-0.5 rounded text-on-surface-variant">ZH-CN</span>
+<span class="mono-technical text-[9px] text-on-surface-variant/50">14:02:12</span>
+</div>
+<p class="text-on-surface body-md leading-relaxed">亚太季度的预测显示企业采用率发生了显著变化。</p>
+</div>
+</div>
+<!-- Visual masking for inactive state -->
+<div class="absolute inset-0 bg-background/20 pointer-events-none"></div>
+</section>
+<!-- Lane 3: AI Suggestions (Coral) -->
+<section class="flex-none w-[85vw] md:w-1/3 flex flex-col h-full bg-surface-container-lowest rounded-xl border-l-4 border-error shadow-2xl relative overflow-hidden">
+<!-- Offline Banner -->
+<div class="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-3 flex items-center gap-3">
+<span class="material-symbols-outlined text-yellow-500 text-sm" data-icon="report">report</span>
+<span class="mono-technical text-[10px] text-yellow-500 uppercase tracking-tight font-bold">AI suggestions unavailable</span>
+</div>
+<div class="p-4 flex items-center justify-between">
+<span class="mono-technical text-[10px] uppercase tracking-widest text-error">Intelligence</span>
+<span class="material-symbols-outlined text-error text-lg" data-icon="psychology">psychology</span>
+</div>
+<div class="flex-1 flex items-center justify-center p-8 text-center">
+<div class="space-y-4">
+<span class="material-symbols-outlined text-outline-variant text-4xl" data-icon="cloud_off">cloud_off</span>
+<p class="mono-technical text-[11px] text-on-surface-variant uppercase tracking-widest leading-relaxed">Reconnect to utilize<br/>Contextual AI Engine</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex flex-col items-center bg-[#0A0A0F]/80 backdrop-blur-xl border-t border-[#474554]/15 shadow-[0_-4px_40px_rgba(108,92,231,0.05)] pt-4 pb-safe">
+<!-- Status Indicator -->
+<div class="flex items-center gap-3 mb-4">
+<div class="flex items-center gap-1.5">
+<div class="w-1.5 h-1.5 rounded-full bg-[#6C5CE7] animate-ping"></div>
+<span class="mono-technical text-[10px] text-[#6C5CE7] uppercase tracking-[0.2em]">Reconnecting...</span>
+</div>
+<div class="h-0.5 w-12 bg-outline-variant/20 rounded-full overflow-hidden">
+<div class="h-full bg-[#6C5CE7] w-1/3 animate-[shimmer_2s_infinite]"></div>
+</div>
+</div>
+<div class="w-full px-8 pb-4 flex justify-between items-center gap-4">
+<!-- Secondary Navigation Group -->
+<div class="flex gap-2">
+<div class="flex items-center justify-center text-[#C8C4D7] p-3 hover:text-[#6C5CE7] transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+</div>
+<div class="flex items-center justify-center text-[#C8C4D7] p-3 hover:text-[#6C5CE7] transition-all active:scale-90 duration-200">
+<span class="material-symbols-outlined" data-icon="settings_voice">settings_voice</span>
+</div>
+</div>
+<!-- Primary Action -->
+<button class="flex-1 max-w-[200px] border border-red-500/50 text-red-500 py-3 rounded-xl font-sans font-bold uppercase text-[10px] tracking-[0.15em] flex items-center justify-center gap-2 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="stop_circle">stop_circle</span>
+                Stop Meeting
+            </button>
+</div>
+</nav>
+<style>
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(300%); }
+        }
+    </style>
+</body></html>

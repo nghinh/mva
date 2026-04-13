@@ -1,0 +1,9 @@
+name: bmad-vnpt-python
+version: 1.0.0
+description: VNPT Python BMAD custom for AI/ML, web, desktop, and scripts/utilities
+workflows:
+  - bmad-vnpt-python
+commands:
+  - bmad-vnpt-python
+skills:
+  - bmad-vnpt-python

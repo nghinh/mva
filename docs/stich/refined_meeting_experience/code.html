@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive MVA - Active Session</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e4dfff",
+                        "tertiary": "#adc6ff",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "tertiary-fixed": "#d8e2ff",
+                        "secondary-fixed": "#57fdc8",
+                        "on-surface": "#e4e1e9",
+                        "surface-tint": "#c6bfff",
+                        "surface-container": "#1f1f25",
+                        "background": "#131318",
+                        "on-primary-fixed": "#160066",
+                        "on-background": "#e4e1e9",
+                        "on-primary-container": "#faf6ff",
+                        "on-error": "#690005",
+                        "tertiary-container": "#1a6de0",
+                        "on-tertiary": "#002e6a",
+                        "primary": "#c6bfff",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#2a292f",
+                        "surface-container-lowest": "#0e0e13",
+                        "surface-container-highest": "#35343a",
+                        "secondary-container": "#00d19f",
+                        "inverse-surface": "#e4e1e9",
+                        "on-secondary": "#003828",
+                        "on-secondary-container": "#00543e",
+                        "on-error-container": "#ffdad6",
+                        "secondary": "#44eeba",
+                        "on-secondary-fixed": "#002116",
+                        "on-primary": "#2900a0",
+                        "surface-container-low": "#1b1b20",
+                        "inverse-on-surface": "#303036",
+                        "on-tertiary-fixed": "#001a42",
+                        "primary-fixed-dim": "#c6bfff",
+                        "surface-variant": "#35343a",
+                        "on-surface-variant": "#c8c4d7",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "primary-container": "#6c5ce7",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "outline": "#928ea0",
+                        "surface-dim": "#131318",
+                        "on-tertiary-container": "#f6f6ff",
+                        "inverse-primary": "#5847d2",
+                        "surface-bright": "#39383e",
+                        "outline-variant": "#474554",
+                        "error": "#ffb4ab",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "surface": "#131318"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #474554; border-radius: 10px; }
+        .glass-panel {
+            background: rgba(31, 31, 37, 0.6);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-white overflow-hidden h-screen flex flex-col">
+<!-- TopAppBar -->
+<header class="bg-[#0A0A0F] text-[#E4E2EE] docked full-width top-0 z-50">
+<div class="flex justify-between items-center w-full px-6 h-16 bg-[#131318]">
+<!-- Left: Recording Status -->
+<div class="flex items-center gap-3">
+<div class="relative flex items-center justify-center h-4 w-4">
+<span class="absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-error"></span>
+</div>
+<span class="font-label text-[10px] uppercase tracking-widest text-error/80">Recording</span>
+<span class="font-label text-sm text-[#E4E2EE]">00:12:34</span>
+</div>
+<!-- Center: Language Badge -->
+<div class="flex-1 flex justify-center">
+<div class="bg-primary-container/20 border border-primary-container/30 rounded-full px-4 py-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="language">language</span>
+<span class="font-label text-xs font-bold text-primary tracking-tighter">EN</span>
+</div>
+</div>
+<!-- Right: System Status -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-high rounded-lg border border-outline-variant/10">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+</span>
+<span class="material-symbols-outlined text-secondary text-[18px]" data-icon="psychology">psychology</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center overflow-hidden ring-2 ring-outline-variant/20">
+<img alt="User" class="w-full h-full object-cover" data-alt="close-up studio portrait of a corporate executive with minimalist lighting and professional attire" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDS97qal7qpxC8QpU9EhR9SE_aTaCP9wJI1vH2Lvx7HAfkjxhN8454z-EJOR-DSZtzKg1xpOITib9k1NfWeAaScfKcj-UwgV31Abq9s2uLsiB_aAwp_h7lgLDoparjbDwB5qWhCxlLRCSIbdJM2qpF9oAAOUTaKfQGBRx4dC4Qjqtt56_0RBWBECxiw3VQdjKP93Gu7DhQl4_FGlcHoHOuNvkuXJw5jQH6jzVvbA7NqA81Bt36IjBjZNgMTHW7z4jMp_Fl99fqyHfs"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content: Three Vertical Lanes -->
+<main class="flex-1 flex w-full overflow-hidden px-4 gap-4 py-4">
+<!-- Lane 1: Original -->
+<section class="flex-1 flex flex-col bg-[#131318] bg-opacity-[0.03] bg-blue-500/3 rounded-xl overflow-hidden shadow-2xl border-l-[3px] border-tertiary relative">
+<div class="px-5 py-4 flex justify-between items-center bg-surface-container-low/50">
+<h2 class="font-headline font-bold text-xs tracking-widest text-tertiary uppercase">Original</h2>
+<span class="font-label text-[10px] text-on-surface-variant/40">Real-time Feed</span>
+</div>
+<div class="flex-1 overflow-y-auto p-5 space-y-6 pb-20">
+<!-- Utterance 1 -->
+<article class="space-y-2">
+<div class="flex items-center gap-2">
+<span class="bg-tertiary-container text-white px-2 py-0.5 rounded text-[10px] font-bold font-label">EN</span>
+<time class="font-label text-[10px] text-on-surface-variant/50">14:22:01</time>
+</div>
+<p class="text-[15px] leading-relaxed text-on-surface font-medium">So, regarding the quarterly distribution, we need to ensure that the liquidity ratio remains above the 15% threshold mandated by the board.</p>
+</article>
+<!-- New Sample Utterance -->
+<article class="space-y-2">
+<div class="flex items-center gap-2">
+<span class="bg-tertiary-container text-white px-2 py-0.5 rounded text-[10px] font-bold font-label">EN</span>
+<time class="font-label text-[10px] text-on-surface-variant/50">14:35:10</time>
+</div>
+<p class="text-[15px] leading-relaxed text-on-surface font-medium">We need to finalize the Q3 partnership agreement with Softbank by next Friday.</p>
+</article>
+<!-- Utterance 3 (Active/Speculative) -->
+<article class="space-y-2 border-l-2 border-primary/20 pl-3">
+<div class="flex items-center gap-2">
+<span class="bg-primary text-on-primary px-2 py-0.5 rounded text-[10px] font-bold font-label">EN</span>
+<time class="font-label text-[10px] text-on-surface-variant/50 italic">Processing...</time>
+</div>
+<p class="text-[15px] leading-relaxed text-on-surface/80">Next steps include the audit of the ledger and finalizing the...</p>
+</article>
+</div>
+<!-- Jump to latest pill -->
+<button class="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-[#6C5CE7]/80 backdrop-blur-sm rounded-full text-white font-label text-[10px] uppercase tracking-widest shadow-lg hover:bg-[#6C5CE7] transition-all z-10">
+<span class="material-symbols-outlined text-[14px]" data-icon="arrow_downward">arrow_downward</span>
+<span>Latest</span>
+</button>
+</section>
+<!-- Lane 2: Translation -->
+<section class="flex-1 flex flex-col bg-[#131318] bg-opacity-[0.03] bg-amber-500/3 rounded-xl overflow-hidden shadow-2xl border-l-[3px] border-secondary relative">
+<div class="px-5 py-4 flex justify-between items-center bg-surface-container-low/50">
+<h2 class="font-headline font-bold text-xs tracking-widest text-secondary uppercase">Bản Dịch</h2>
+<div class="flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span class="font-label text-[10px] text-secondary/80">Active</span>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-5 space-y-6 pb-20">
+<!-- Translation 1 -->
+<article class="space-y-2">
+<div class="flex items-center gap-2">
+<time class="font-label text-[10px] text-on-surface-variant/50">14:22:01</time>
+</div>
+<p class="text-[15px] leading-relaxed text-[#E4E2EE] font-medium">Vậy, về việc phân phối hàng quý, chúng ta cần đảm bảo rằng tỷ lệ thanh khoản vẫn duy trì trên ngưỡng 15% theo yêu cầu của hội đồng quản trị.</p>
+</article>
+<!-- New Sample Translation -->
+<article class="space-y-2">
+<div class="flex items-center gap-2">
+<time class="font-label text-[10px] text-on-surface-variant/50">14:35:11</time>
+</div>
+<p class="text-[15px] leading-relaxed text-[#E4E2EE] font-medium">Chúng ta cần hoàn tất thỏa thuận đối tác Q3 với Softbank trước thứ Sáu tuần sau.</p>
+</article>
+<!-- Translation 3 (Speculative) -->
+<article class="space-y-2 opacity-50">
+<div class="flex items-center gap-2">
+<time class="font-label text-[10px] text-on-surface-variant/30 italic">Calculating...</time>
+</div>
+<p class="text-[15px] leading-relaxed text-[#E4E2EE] italic">Các bước tiếp theo bao gồm kiểm toán sổ cái và hoàn tất việc...</p>
+</article>
+</div>
+<!-- Jump to latest pill -->
+<button class="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-[#6C5CE7]/80 backdrop-blur-sm rounded-full text-white font-label text-[10px] uppercase tracking-widest shadow-lg hover:bg-[#6C5CE7] transition-all z-10">
+<span class="material-symbols-outlined text-[14px]" data-icon="arrow_downward">arrow_downward</span>
+<span>Latest</span>
+</button>
+</section>
+<!-- Lane 3: AI Suggestions -->
+<section class="flex-1 flex flex-col bg-[#131318] bg-opacity-[0.03] bg-rose-500/3 rounded-xl overflow-hidden shadow-2xl border-l-[3px] border-error relative">
+<div class="px-5 py-4 flex justify-between items-center bg-surface-container-low/50">
+<h2 class="font-headline font-bold text-xs tracking-widest text-error uppercase">Gợi Ý Trả Lời</h2>
+<button class="flex items-center gap-2 px-2 py-1 bg-surface-container-highest rounded text-[10px] font-label text-on-surface-variant">
+                    Auto-Gen
+                    <div class="w-6 h-3 bg-error rounded-full relative">
+<div class="absolute right-0.5 top-0.5 w-2 h-2 bg-white rounded-full"></div>
+</div>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto p-5 space-y-4 pb-20">
+<!-- New Sample AI Suggestion -->
+<div class="group relative bg-surface-container hover:bg-surface-container-high transition-all p-4 rounded-xl border-l-2 border-primary ring-1 ring-inset ring-outline-variant/10">
+<p class="text-[14px] leading-snug text-on-surface mb-3">Tôi đồng ý. Tôi sẽ yêu cầu phòng pháp chế gửi bản dự thảo cuối cùng vào thứ Tư.</p>
+<div class="flex justify-between items-center">
+<span class="font-label text-[9px] text-primary uppercase tracking-tighter">Recommended Action</span>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer text-lg" data-icon="content_copy">content_copy</button>
+</div>
+</div>
+<!-- Suggestion 1 -->
+<div class="group relative bg-surface-container hover:bg-surface-container-high transition-all p-4 rounded-xl border border-outline-variant/10">
+<p class="text-[14px] leading-snug text-on-surface mb-3">Xác nhận rằng báo cáo kiểm toán sẽ sẵn sàng vào thứ Sáu tới.</p>
+<div class="flex justify-between items-center">
+<span class="font-label text-[9px] text-error uppercase tracking-tighter">Confidence: 94%</span>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer text-lg" data-icon="content_copy">content_copy</button>
+</div>
+</div>
+<!-- Suggestion 2 -->
+<div class="group relative bg-surface-container hover:bg-surface-container-high transition-all p-4 rounded-xl border border-outline-variant/10">
+<p class="text-[14px] leading-snug text-on-surface mb-3">Hỏi thêm về các tiêu chuẩn mới của hội đồng quản trị đối với tài sản dài hạn.</p>
+<div class="flex justify-between items-center">
+<span class="font-label text-[9px] text-error uppercase tracking-tighter">Confidence: 81%</span>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors cursor-pointer text-lg" data-icon="content_copy">content_copy</button>
+</div>
+</div>
+</div>
+<!-- Jump to latest pill -->
+<button class="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-[#6C5CE7]/80 backdrop-blur-sm rounded-full text-white font-label text-[10px] uppercase tracking-widest shadow-lg hover:bg-[#6C5CE7] transition-all z-10">
+<span class="material-symbols-outlined text-[14px]" data-icon="arrow_downward">arrow_downward</span>
+<span>Latest</span>
+</button>
+</section>
+</main>
+<!-- BottomNavBar / Status Bar -->
+<footer class="bg-[#0E0E13]/80 backdrop-blur-xl border-t border-[#474554]/15 px-8 py-4 z-50">
+<div class="max-w-7xl mx-auto flex justify-between items-center">
+<!-- Latency Metrics -->
+<div class="flex items-center gap-6">
+<div class="flex flex-col">
+<span class="font-label text-[9px] text-on-surface-variant/40 uppercase tracking-widest">Translation Latency</span>
+<span class="font-label text-xs text-secondary">45ms <span class="text-[9px] opacity-40">● Optimal</span></span>
+</div>
+<div class="flex flex-col">
+<span class="font-label text-[9px] text-on-surface-variant/40 uppercase tracking-widest">AI Context Processing</span>
+<span class="font-label text-xs text-primary">1.2s <span class="text-[9px] opacity-40">● Syncing</span></span>
+</div>
+</div>
+<!-- Stop Action -->
+<button class="flex items-center gap-3 px-8 py-3 rounded-xl border-2 border-error/30 text-error hover:bg-error hover:text-on-error transition-all duration-300 font-headline font-bold uppercase tracking-widest text-xs group">
+<span class="material-symbols-outlined group-hover:fill-current" data-icon="stop_circle">stop_circle</span>
+                Stop Meeting
+            </button>
+<!-- Active User Meta -->
+<div class="flex items-center gap-3 text-right">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-xs text-[#E4E2EE]">Director Level</span>
+<span class="font-label text-[10px] text-secondary/60">Secure Session Active</span>
+</div>
+<div class="w-1.5 h-10 bg-outline-variant/20 rounded-full"></div>
+</div>
+</div>
+</footer>
+<!-- Bottom Navigation (Shared Component Integration - Hidden on Desktop) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-[#0E0E13]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(108,92,231,0.05)] border-t border-[#474554]/15">
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+<span>Meetings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C6BFFF] bg-[#1F1F25] rounded-xl px-4 py-1 font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">
+<span class="material-symbols-outlined" data-icon="mic" style="font-variation-settings: 'FILL' 1;">mic</span>
+<span>Live</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 font-['JetBrains_Mono'] text-[10px] uppercase tracking-widest">
+<span class="material-symbols-outlined" data-icon="lan">lan</span>
+<span>Network</span>
+</div>
+</nav>
+</body></html>

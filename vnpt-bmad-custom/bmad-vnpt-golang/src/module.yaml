@@ -1,0 +1,7 @@
+name: BMAD VNPT Golang
+code: bmadvnptgolang
+version: 1.0.0
+description: Adds a BMAD-aligned workflow and OpenCode skill pack for Go backend implementation and review.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-golang/workflow.md

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive Session - Waiting State</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#160066",
+                        "secondary-container": "#00d19f",
+                        "primary": "#c6bfff",
+                        "error": "#ffb4ab",
+                        "surface-container-low": "#1b1b20",
+                        "primary-fixed-dim": "#c6bfff",
+                        "on-secondary-fixed": "#002116",
+                        "surface": "#131318",
+                        "surface-container-lowest": "#0e0e13",
+                        "on-surface": "#e4e1e9",
+                        "on-tertiary-fixed": "#001a42",
+                        "on-surface-variant": "#c8c4d7",
+                        "tertiary-fixed": "#d8e2ff",
+                        "on-primary-container": "#faf6ff",
+                        "surface-container-highest": "#35343a",
+                        "on-background": "#e4e1e9",
+                        "primary-container": "#6c5ce7",
+                        "tertiary-fixed-dim": "#adc6ff",
+                        "surface-container": "#1f1f25",
+                        "inverse-on-surface": "#303036",
+                        "secondary-fixed": "#57fdc8",
+                        "on-tertiary-fixed-variant": "#004395",
+                        "outline-variant": "#474554",
+                        "on-secondary-container": "#00543e",
+                        "surface-bright": "#39383e",
+                        "on-error-container": "#ffdad6",
+                        "outline": "#928ea0",
+                        "surface-variant": "#35343a",
+                        "primary-fixed": "#e4dfff",
+                        "error-container": "#93000a",
+                        "on-tertiary": "#002e6a",
+                        "tertiary": "#adc6ff",
+                        "on-primary": "#2900a0",
+                        "surface-tint": "#c6bfff",
+                        "background": "#131318",
+                        "inverse-primary": "#5847d2",
+                        "surface-dim": "#131318",
+                        "on-primary-fixed-variant": "#4029ba",
+                        "on-secondary-fixed-variant": "#00513c",
+                        "secondary-fixed-dim": "#2ce0ad",
+                        "inverse-surface": "#e4e1e9",
+                        "tertiary-container": "#1a6de0",
+                        "secondary": "#44eeba",
+                        "on-tertiary-container": "#f6f6ff",
+                        "on-error": "#690005",
+                        "surface-container-high": "#2a292f",
+                        "on-secondary": "#003828"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["JetBrains Mono"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 37, 0.6);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-[#0E0E13] flex justify-between items-center px-6 h-16 w-full">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 bg-error rounded-full animate-pulse"></span>
+<span class="font-label text-sm tracking-widest text-on-surface-variant/80">00:00:00</span>
+</div>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-sm">settings_voice</span>
+<h1 class="text-lg font-bold tracking-tighter text-[#E4E2EE] font-headline">Executive Session</h1>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1.5 px-3 py-1 bg-surface-container rounded-full">
+<span class="w-1.5 h-1.5 bg-secondary rounded-full"></span>
+<span class="font-label text-[10px] uppercase tracking-tighter text-on-surface-variant">Live</span>
+</div>
+<button class="text-on-surface-variant hover:bg-[#1F1F25] p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-20 pb-32 px-6 h-screen flex flex-col gap-8 overflow-y-auto">
+<!-- Center Visualizer State -->
+<section class="flex flex-col items-center justify-center py-12 flex-grow min-h-[300px]">
+<div class="relative w-full max-w-md h-32 flex items-center justify-center gap-1">
+<!-- Visualizer Representation -->
+<div class="w-1 h-8 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-12 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-16 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-20 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-12 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-24 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-14 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-10 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-16 bg-primary-container/30 rounded-full"></div>
+<div class="w-1 h-8 bg-primary-container/30 rounded-full"></div>
+</div>
+<div class="mt-8 text-center space-y-2">
+<p class="text-[18px] text-on-surface-variant font-semibold tracking-tight">Listening...</p>
+<p class="text-[14px] text-on-surface-variant/50">Speak in English, Japanese, or Korean</p>
+<div class="flex items-center justify-center gap-4 pt-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-lg">
+<span class="text-xs">🇬🇧</span>
+<span class="font-label text-[10px] text-on-surface-variant">EN</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-lg">
+<span class="text-xs">🇯🇵</span>
+<span class="font-label text-[10px] text-on-surface-variant">JA</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-high rounded-lg">
+<span class="text-xs">🇰🇷</span>
+<span class="font-label text-[10px] text-on-surface-variant">KO</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Empty Lanes Grid (Asymmetric) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6 pb-12">
+<!-- Original Lane -->
+<div class="md:col-span-4 border-l-2 border-[#3B82F6] pl-4 opacity-40">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-label text-[10px] uppercase tracking-widest text-[#3B82F6]">Original</h3>
+<span class="material-symbols-outlined text-xs text-[#3B82F6]">mic</span>
+</div>
+<div class="h-32 bg-surface-container-low/30 rounded-xl border border-dashed border-outline-variant/20 flex items-center justify-center">
+<span class="font-label text-[10px] text-outline-variant italic">Waiting for input...</span>
+</div>
+</div>
+<!-- Translation Lane -->
+<div class="md:col-span-5 border-l-2 border-[#F59E0B] pl-4 opacity-40">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-label text-[10px] uppercase tracking-widest text-[#F59E0B]">Translation</h3>
+<span class="material-symbols-outlined text-xs text-[#F59E0B]">translate</span>
+</div>
+<div class="h-32 bg-surface-container-low/30 rounded-xl border border-dashed border-outline-variant/20 flex items-center justify-center">
+<span class="font-label text-[10px] text-outline-variant italic">Pending stream...</span>
+</div>
+</div>
+<!-- AI Suggest Lane -->
+<div class="md:col-span-3 border-l-2 border-[#EF4444] pl-4 opacity-40">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-label text-[10px] uppercase tracking-widest text-[#EF4444]">AI Insights</h3>
+<span class="material-symbols-outlined text-xs text-[#EF4444]">auto_awesome</span>
+</div>
+<div class="h-32 bg-surface-container-low/30 rounded-xl border border-dashed border-outline-variant/20 flex items-center justify-center">
+<span class="font-label text-[10px] text-outline-variant italic">Analyzing...</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full bg-[#0E0E13]/80 backdrop-blur-xl shadow-[0_-4px_40px_rgba(108,92,231,0.05)] pb-8 pt-4 px-6 z-50">
+<div class="max-w-screen-xl mx-auto flex flex-col gap-4">
+<button class="w-full flex items-center justify-center gap-3 py-4 border border-error/40 text-error hover:bg-error/5 rounded-xl transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined" data-weight="fill">stop_circle</span>
+<span class="font-headline font-semibold tracking-tight">Stop Meeting</span>
+</button>
+<div class="flex justify-center items-center gap-8 px-8">
+<div class="flex flex-col items-center justify-center text-[#C8C4D7] opacity-60 px-8 py-3 transition-opacity hover:opacity-100">
+<span class="material-symbols-outlined" data-icon="pause_circle">pause_circle</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-gradient-to-br from-[#6C5CE7] to-[#C6BFFF] text-[#0A0A0F] rounded-xl px-8 py-3 scale-[0.98] transition-transform">
+<span class="material-symbols-outlined" data-icon="stop_circle">stop_circle</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

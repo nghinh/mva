@@ -1,0 +1,6 @@
+name: bmad-vnpt-nodejs
+version: 1.0.0
+summary: VNPT BMAD custom Node.js workflow for OpenCode/BMAD.
+author: OpenAI for VNPT custom bundle
+workflows:
+  - path: workflows/bmad-vnpt-nodejs/workflow.md

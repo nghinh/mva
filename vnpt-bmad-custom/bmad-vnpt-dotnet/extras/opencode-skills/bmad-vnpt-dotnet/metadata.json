@@ -1,0 +1,7 @@
+{
+  "name": "bmad-vnpt-dotnet",
+  "version": "1.0.0",
+  "language": ["csharp"],
+  "frameworks": ["dotnet", "aspnetcore", "efcore"],
+  "type": "skill"
+}

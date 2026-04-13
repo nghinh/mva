@@ -1,0 +1,15 @@
+python vnpt-bmad-custom/install_vnpt_bmad_custom_all.py --repo . --skip-gitnexus
+tìm kiếm trên context7 các kiến thức về React Native, Python, Redis, Nginx, Docker, Kubernetes và các công nghệ liên quan để áp dụng vào dự án
+/skills
+bmad-pm bắt đầu đọc tài liệu đầu vào tại @docs/requirements.md  sau đấy chọn các best practices và tạo tài liệu prd chi tiết cho dự án
+/skills
+/bmad-architecture Khởi tạo tài liệu kiến trúc sản phẩm dựa theo các thông tin đã tạo cho dự án
+skills
+/ui-ux-pro-max Dựa trên tài liệu dự án, tạo tài liệu UX spec cho tôi
+skills
+bmad-pm tạo tài liệu epics cho dự án dựa theo các tài liệu đã có
+bmad-sm Spawn multi subagents khởi tạo toàn bộ các story của các epics đã có
+/agents
+vnpt-dev-story-orchestrator
+/vnpt-dev-story-loop thực hiện implement toàn bộ của các story của epic 1 dựa theo mockup giao diện trong @docs/stich/
+thực hiện implement toàn bộ của các story của epic 3 dựa theo mockup giao diện trong @docs/stich/ Lưu ý, backend (mva.vnteki.com) không cần dựng các model AI để dịch và phân tích cầu trả lời  mà sử dụng model AI tôi đã dựng sẵn  thông  qua 9router với địa chỉ API Endpoint: https://9router.vnteki.com/v1, API Key: sk-e7b57dabdeb88b98-3axw1l-ff63342d ,  model để dịch là : mvatranslate, mode để gợi ý trả lời là: flashmodel. 

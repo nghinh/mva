@@ -1,0 +1,14 @@
+default_quality_gate:
+  - ruff format --check .
+  - ruff check .
+  - mypy .
+  - pytest
+domain_overrides:
+  fastapi:
+    - pytest
+  django:
+    - python manage.py test
+  pyside6:
+    - python -m compileall .
+  ml:
+    - pytest

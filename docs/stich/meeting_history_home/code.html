@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Executive MVA - Meeting Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary": "#44eeba",
+                      "outline": "#928ea0",
+                      "on-secondary-fixed-variant": "#00513c",
+                      "background": "#131318",
+                      "surface-container-low": "#1b1b20",
+                      "error": "#ffb4ab",
+                      "inverse-on-surface": "#303036",
+                      "surface-container-lowest": "#0e0e13",
+                      "tertiary": "#adc6ff",
+                      "secondary-fixed": "#57fdc8",
+                      "inverse-primary": "#5847d2",
+                      "on-primary-fixed-variant": "#4029ba",
+                      "on-error": "#690005",
+                      "on-background": "#e4e1e9",
+                      "outline-variant": "#474554",
+                      "secondary-fixed-dim": "#2ce0ad",
+                      "primary": "#c6bfff",
+                      "tertiary-fixed": "#d8e2ff",
+                      "surface-tint": "#c6bfff",
+                      "on-primary-fixed": "#160066",
+                      "tertiary-fixed-dim": "#adc6ff",
+                      "tertiary-container": "#1a6de0",
+                      "surface-bright": "#39383e",
+                      "on-tertiary": "#002e6a",
+                      "surface-container": "#1f1f25",
+                      "surface-dim": "#131318",
+                      "surface-container-high": "#2a292f",
+                      "on-tertiary-fixed-variant": "#004395",
+                      "primary-fixed-dim": "#c6bfff",
+                      "on-error-container": "#ffdad6",
+                      "surface-variant": "#35343a",
+                      "on-secondary-fixed": "#002116",
+                      "surface-container-highest": "#35343a",
+                      "primary-container": "#6c5ce7",
+                      "on-tertiary-fixed": "#001a42",
+                      "on-tertiary-container": "#f6f6ff",
+                      "on-primary-container": "#faf6ff",
+                      "on-surface-variant": "#c8c4d7",
+                      "inverse-surface": "#e4e1e9",
+                      "surface": "#131318",
+                      "on-secondary": "#003828",
+                      "primary-fixed": "#e4dfff",
+                      "secondary-container": "#00d19f",
+                      "on-secondary-container": "#00543e",
+                      "error-container": "#93000a",
+                      "on-surface": "#e4e1e9",
+                      "on-primary": "#2900a0"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "fontFamily": {
+                      "headline": ["Inter"],
+                      "body": ["Inter"],
+                      "label": ["JetBrains Mono"]
+              }
+            },
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 37, 0.6);
+            backdrop-filter: blur(20px);
+        }
+        .text-glow {
+            text-shadow: 0 0 15px rgba(198, 191, 255, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#0A0A0F] text-on-surface font-body min-h-screen">
+<!-- TopAppBar - Predicted Component Mapping -->
+<header class="bg-[#131318] flex justify-between items-center w-full px-6 h-16 fixed top-0 z-50">
+<div class="flex items-center gap-3">
+<span class="text-xl font-black text-[#E4E2EE] tracking-tighter">Executive MVA</span>
+<div class="flex items-center">
+<span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#44eeba] mr-2"></span>
+<span class="font-label text-[10px] uppercase tracking-widest text-secondary">Connected</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hover:bg-[#1F1F25] transition-colors p-2 rounded-full text-on-surface-variant scale-95 active:duration-100">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="Executive Profile" data-alt="High-end professional portrait of an executive with soft studio lighting and dark minimalist background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcdAF20BiCpDepG_T9tYtdZc9FrIIV1KgdkOs0l4__Ait-1HXMgZjkqqUzLC0kpEMqwlE-1D7fOHVYAQX4A6qAGYFrGSlCX47WnT6RkMyau1uenH0llkznZC06c_iA-QULV5a2-nfczCfQJ9nZ6bCxA78JccxzfDHRNTvvHONn_JnLjxqd0RmmQdbJqzVv1LR5iYikDlR8CkIHYLUYkzFR99FhRAti7KDBQGVlDqeozp_aLM1CEjwfuXRVpVJs-mcOvfDyJvvinEU"/>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-32 px-6 max-w-lg mx-auto">
+<!-- Dashboard Header -->
+<div class="mb-8">
+<h1 class="text-3xl font-black text-[#E4E2EE] tracking-tight mb-2">Sessions</h1>
+<p class="text-on-surface-variant font-body text-sm leading-relaxed opacity-60">
+                Archived high-precision board meeting discourse.
+            </p>
+</div>
+<!-- Meeting Feed (Vertical List) -->
+<div class="space-y-6">
+<!-- Session Card 1 -->
+<div class="bg-surface-container rounded-xl p-5 hover:bg-surface-container-high transition-colors cursor-pointer group border border-white/5">
+<div class="flex justify-between items-start mb-4">
+<div class="space-y-1">
+<div class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant/50">Apr 11, 2026 • 14:30–15:45</div>
+<h3 class="text-[#E4E2EE] font-bold text-lg tracking-tight">Q2 Strategic Alignment</h3>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-full border border-outline-variant/15">
+<span class="font-label text-[10px] text-primary">1H 15M</span>
+</div>
+</div>
+<div class="flex gap-2 mb-4">
+<span class="bg-tertiary-container/20 text-tertiary px-2 py-0.5 rounded text-[10px] font-label font-bold">EN</span>
+<span class="bg-error-container/20 text-error px-2 py-0.5 rounded text-[10px] font-label font-bold">JA</span>
+<span class="bg-secondary-container/20 text-secondary px-2 py-0.5 rounded text-[10px] font-label font-bold">KO</span>
+</div>
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">equalizer</span>
+<span class="font-label text-[10px] text-on-surface-variant uppercase tracking-wider">47 Utterances</span>
+</div>
+<div class="border-t border-outline-variant/10 pt-3">
+<p class="text-on-surface-variant/60 text-xs italic line-clamp-1">
+                        "The localization for the Tokyo cluster needs immediate scaling to handle the high latency..."
+                    </p>
+</div>
+</div>
+<!-- Session Card 2 -->
+<div class="bg-surface-container rounded-xl p-5 hover:bg-surface-container-high transition-colors cursor-pointer group border border-white/5">
+<div class="flex justify-between items-start mb-4">
+<div class="space-y-1">
+<div class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant/50">Apr 10, 2026 • 09:00–09:45</div>
+<h3 class="text-[#E4E2EE] font-bold text-lg tracking-tight">System Infrastructure Sync</h3>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-full border border-outline-variant/15">
+<span class="font-label text-[10px] text-primary">45M</span>
+</div>
+</div>
+<div class="flex gap-2 mb-4">
+<span class="bg-tertiary-container/20 text-tertiary px-2 py-0.5 rounded text-[10px] font-label font-bold">EN</span>
+<span class="bg-secondary-container/20 text-secondary px-2 py-0.5 rounded text-[10px] font-label font-bold">DE</span>
+</div>
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">equalizer</span>
+<span class="font-label text-[10px] text-on-surface-variant uppercase tracking-wider">22 Utterances</span>
+</div>
+<div class="border-t border-outline-variant/10 pt-3">
+<p class="text-on-surface-variant/60 text-xs italic line-clamp-1">
+                        "Deployment of the new security key protocol has been finalized across all nodes."
+                    </p>
+</div>
+</div>
+<!-- Session Card 3 -->
+<div class="bg-surface-container rounded-xl p-5 hover:bg-surface-container-high transition-colors cursor-pointer group border border-white/5 opacity-80">
+<div class="flex justify-between items-start mb-4">
+<div class="space-y-1">
+<div class="font-label text-[10px] uppercase tracking-widest text-on-surface-variant/50">Apr 09, 2026 • 18:00–18:30</div>
+<h3 class="text-[#E4E2EE] font-bold text-lg tracking-tight">Late Review: APAC Region</h3>
+</div>
+<div class="bg-surface-container-highest px-3 py-1 rounded-full border border-outline-variant/15">
+<span class="font-label text-[10px] text-primary">30M</span>
+</div>
+</div>
+<div class="flex gap-2 mb-4">
+<span class="bg-tertiary-container/20 text-tertiary px-2 py-0.5 rounded text-[10px] font-label font-bold">EN</span>
+<span class="bg-secondary-container/20 text-secondary px-2 py-0.5 rounded text-[10px] font-label font-bold">ZH</span>
+</div>
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">equalizer</span>
+<span class="font-label text-[10px] text-on-surface-variant uppercase tracking-wider">12 Utterances</span>
+</div>
+<div class="border-t border-outline-variant/10 pt-3">
+<p class="text-on-surface-variant/60 text-xs italic line-clamp-1">
+                        "Confirming the board's decision regarding the Shanghai expansion timeline."
+                    </p>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB - "New Meeting" -->
+<div class="fixed bottom-28 right-6 z-50">
+<button class="bg-gradient-to-br from-primary-container to-primary text-on-primary-container h-16 w-16 rounded-full flex items-center justify-center shadow-[0_4px_40px_rgba(108,92,231,0.4)] hover:scale-105 active:scale-95 transition-all duration-300">
+<span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">mic</span>
+</button>
+<div class="absolute right-20 top-1/2 -translate-y-1/2 bg-surface-container-high px-4 py-2 rounded-xl glass-panel border border-white/5 whitespace-nowrap shadow-2xl">
+<span class="text-primary font-bold text-sm tracking-tight">New Meeting</span>
+</div>
+</div>
+<!-- BottomNavBar - Predicted Component Mapping -->
+<nav class="bg-[#0E0E13]/80 backdrop-blur-xl fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-8 pt-2 shadow-[0_-4px_40px_rgba(108,92,231,0.05)]">
+<div class="flex flex-col items-center justify-center text-[#C6BFFF] bg-[#1F1F25] rounded-xl px-6 py-2 transition-all duration-300 ease-out">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">history</span>
+<span class="font-label text-[10px] uppercase tracking-widest">Meetings</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out">
+<span class="material-symbols-outlined mb-1">mic</span>
+<span class="font-label text-[10px] uppercase tracking-widest">Live</span>
+</div>
+<div class="flex flex-col items-center justify-center text-[#C8C4D7]/40 hover:text-[#E4E2EE] transition-all duration-300 ease-out">
+<span class="material-symbols-outlined mb-1">lan</span>
+<span class="font-label text-[10px] uppercase tracking-widest">Network</span>
+</div>
+</nav>
+</body></html>

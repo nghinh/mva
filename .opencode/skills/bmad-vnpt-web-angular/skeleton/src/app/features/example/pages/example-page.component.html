@@ -1,0 +1,13 @@
+@if (vm().loading) {
+  <app-loading-state />
+} @else if (vm().error) {
+  <p>{{ vm().error }}</p>
+} @else if (!vm().items.length) {
+  <p>No results.</p>
+} @else {
+  <ul>
+    @for (item of vm().items; track item.id) {
+      <li>{{ item.name }}</li>
+    }
+  </ul>
+}

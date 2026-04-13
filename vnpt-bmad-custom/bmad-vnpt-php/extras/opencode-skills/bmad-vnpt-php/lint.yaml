@@ -1,0 +1,4 @@
+checks:
+  - composer-validate
+  - phpstan
+  - phpunit

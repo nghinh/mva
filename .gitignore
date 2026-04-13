@@ -1,0 +1,15 @@
+.DS_Store
+
+# Local tool/runtime caches
+.ruff_cache/
+.serena/
+
+# Python virtual/build caches
+__pycache__/
+*.pyc
+
+# Xcode / build artifacts outside subprojects
+ios/build/
+
+# Tool output
+.local/

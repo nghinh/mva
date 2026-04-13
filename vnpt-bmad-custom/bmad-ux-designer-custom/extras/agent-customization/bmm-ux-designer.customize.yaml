@@ -1,0 +1,9 @@
+memories:
+  - 'This project requires ui-ux-pro-max for all UX design work.'
+  - 'Keep using the standard BMAD UX workflow; do not replace it with a custom UX workflow.'
+  - 'Persist UX outputs under docs/, especially docs/ux-design.md.'
+
+critical_actions:
+  - 'Before producing UX artifacts, load the ui-ux-pro-max skill and use it as mandatory design intelligence.'
+  - 'Always read relevant product docs in docs/ before drafting or revising UX documentation.'
+  - 'If docs/ux-design.md exists, review and refine it instead of drifting into a parallel artifact unless the user explicitly wants a new artifact.'

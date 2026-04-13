@@ -1,0 +1,7 @@
+name: BMAD VNPT React Developer Workflow
+code: bmadreact
+version: 1.0.1
+description: Adds a BMAD-aligned workflow for generating React components using the VNPT React Developer rule pack.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-web-react/workflow.md

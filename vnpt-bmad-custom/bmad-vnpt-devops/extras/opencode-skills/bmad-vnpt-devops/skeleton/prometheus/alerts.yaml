@@ -1,0 +1,11 @@
+groups:
+  - name: app.rules
+    rules:
+      - alert: AppHighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: High 5xx error rate
+          description: Error ratio is above 5% for 10 minutes.

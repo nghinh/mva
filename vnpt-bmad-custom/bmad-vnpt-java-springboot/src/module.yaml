@@ -1,0 +1,7 @@
+name: BMAD VNPT Java Spring Boot Custom Workflow
+code: bmadjavaspring
+version: 1.0.0
+description: Adds a BMAD-aligned workflow and OpenCode skill pack for Java Spring Boot backend implementation.
+items:
+  workflows:
+    - path: workflows/bmad-vnpt-java-springboot/workflow.md

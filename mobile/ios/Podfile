@@ -1,0 +1,87 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, min_ios_version_supported
+ENV['RCT_NEW_ARCH_ENABLED'] = '0'
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'VibeVoiceNative' do
+  config = { reactNativePath: '../node_modules/react-native' }
+  pod 'react-native-safe-area-context', :path => '../node_modules/react-native-safe-area-context'
+  pod 'RNCClipboard', :path => '../node_modules/@react-native-clipboard/clipboard'
+  pod 'ReactNativeFs', :path => '../node_modules/@dr.pogodin/react-native-fs'
+  pod 'SherpaOnnx', :path => '../node_modules/react-native-sherpa-onnx'
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => false,
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    normalize_new_arch_flags = lambda do |value|
+      next value unless value.is_a?(String)
+
+      value
+        .gsub('-DRCT_NEW_ARCH_ENABLED=1', '-DRCT_NEW_ARCH_ENABLED=0')
+        .gsub('-DRCT_NEW_ARCH_ENABLED ', '-DRCT_NEW_ARCH_ENABLED=0 ')
+        .gsub('-DRCT_NEW_ARCH_ENABLED"', '-DRCT_NEW_ARCH_ENABLED=0"')
+        .gsub('-DRCT_NEW_ARCH_ENABLED -Xcc', '-DRCT_NEW_ARCH_ENABLED=0 -Xcc')
+    end
+
+    rewrite_new_arch_text = lambda do |text|
+      text
+        .gsub('-DRCT_NEW_ARCH_ENABLED=1', '-DRCT_NEW_ARCH_ENABLED=0')
+        .gsub('-DRCT_NEW_ARCH_ENABLED  -DRCT_NEW_ARCH_ENABLED=1', '-DRCT_NEW_ARCH_ENABLED=0')
+        .gsub('-DRCT_NEW_ARCH_ENABLED -Xcc', '-DRCT_NEW_ARCH_ENABLED=0 -Xcc')
+        .gsub('-DRCT_NEW_ARCH_ENABLED"', '-DRCT_NEW_ARCH_ENABLED=0"')
+    end
+
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['DEFINES_MODULE'] = 'NO'
+        config.build_settings['OTHER_CFLAGS'] = normalize_new_arch_flags.call(config.build_settings['OTHER_CFLAGS'])
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = normalize_new_arch_flags.call(config.build_settings['OTHER_CPLUSPLUSFLAGS'])
+        config.build_settings['OTHER_SWIFT_FLAGS'] = normalize_new_arch_flags.call(config.build_settings['OTHER_SWIFT_FLAGS'])
+      end
+
+      if target.respond_to?(:source_build_phase) && target.source_build_phase
+        target.source_build_phase.files.each do |build_file|
+          next unless build_file.settings && build_file.settings['COMPILER_FLAGS']
+
+          build_file.settings['COMPILER_FLAGS'] = normalize_new_arch_flags.call(build_file.settings['COMPILER_FLAGS'])
+        end
+      end
+    end
+
+    pods_root = installer.sandbox.root.to_s
+    project_file = File.join(pods_root, 'Pods.xcodeproj', 'project.pbxproj')
+    if File.exist?(project_file)
+      File.write(project_file, rewrite_new_arch_text.call(File.read(project_file)))
+    end
+
+    Dir.glob(File.join(pods_root, 'Target Support Files', '**', '*.xcconfig')).each do |xcconfig_path|
+      File.write(xcconfig_path, rewrite_new_arch_text.call(File.read(xcconfig_path)))
+    end
+  end
+end

@@ -1,0 +1,20 @@
+import React from 'react';
+import { {ComponentName}Props } from './types';
+import { use{ComponentName} } from './hooks';
+
+/**
+ * {ComponentName} Component
+ *
+ * @description {description}
+ */
+export const {ComponentName}: React.FC<{ComponentName}Props> = ({ {props} }) => {
+  const { {hookReturns} } = use{ComponentName}();
+
+  return (
+    <div className="{tailwindClasses}">
+      {children}
+    </div>
+  );
+};
+
+export default {ComponentName};

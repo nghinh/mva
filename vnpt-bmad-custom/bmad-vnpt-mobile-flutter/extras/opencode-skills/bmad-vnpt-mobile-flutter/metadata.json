@@ -1,0 +1,12 @@
+{
+  "name": "bmad-vnpt-mobile-flutter",
+  "version": "1.0.0",
+  "platform": "opencode",
+  "focus": [
+    "flutter",
+    "mobile",
+    "riverpod",
+    "go_router",
+    "testing"
+  ]
+}

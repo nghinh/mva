@@ -1,0 +1,62 @@
+Hãy viết file requirements.md (bằng Tiếng Anh) chi tiết cho dự án "Meeting Voice Assistant" — một ứng dụng mobile giúp người dùng Việt Nam ngồi trong các cuộc họp có người nước ngoài nói tiếng Anh, Nhật, Hàn, thực hiện: (1) nhận diện giọng nói realtime trên điện thoại, (2) dịch sang tiếng Việt, (3) dùng AI gợi ý câu trả lời.
+
+## Bối cảnh sử dụng
+- Người dùng là Director cấp cao tại tập đoàn viễn thông, thường xuyên họp với đối tác Nhật Bản, Hàn Quốc, và quốc tế.
+- App chạy trên điện thoại cá nhân (1 device), đặt trên bàn họp, thu âm giọng nói trong phòng rồi hiển thị bản dịch + gợi ý trả lời lên màn hình.
+- Yêu cầu tốc độ gần realtime: bản dịch hiển thị trong ≤800ms, AI suggest bắt đầu stream trong ≤1.5s tính từ lúc người nói kết thúc câu.
+- Toàn bộ backend self-hosted (không dùng Google Cloud, AWS, hay bất kỳ dịch vụ cloud bên thứ ba nào), đảm bảo privacy và kiểm soát dữ liệu.
+
+## Kiến trúc đã quyết định (KHÔNG thay đổi)
+
+### Client (Mobile)
+- **Framework**: React Native (New Architecture, TurboModules)
+- **On-device STT**: Package `react-native-sherpa-onnx` (XDcobra, v0.3.3+) — TurboModule wrap sherpa-onnx, hỗ trợ streaming STT, VAD, PCM live stream. KHÔNG viết custom native module.
+- **STT Model**: SenseVoice-Small int8 (~234MB) — auto-detect EN/JA/KO, RTF 0.05 trên iPhone 15 Pro.
+- **Audio pipeline**: Hoàn toàn trong native C++ layer (qua react-native-sherpa-onnx). Audio KHÔNG cross React Native bridge. Chỉ text results (partial/final) emit sang JS.
+- **Giao tiếp server**: WebSocket persistent connection (KHÔNG dùng LiveKit, KHÔNG dùng WebRTC).
+- **UI**: 3-lane layout hiển thị song song — (1) Original text streaming từ STT, (2) Bản dịch tiếng Việt, (3) AI suggest streaming. Mỗi lane cập nhật độc lập.
+- **State management**: Zustand
+- **Platforms**: Android + iOS
+
+### Server (Self-hosted)
+- **Gateway**: FastAPI (Python) duy nhất — xử lý WebSocket + routing + orchestration. KHÔNG dùng Node.js gateway riêng.
+- **Translation**: NLLB-200-distilled-1.3B (int8) chạy qua CTranslate2 trên GPU. Language codes: eng_Latn, jpn_Jpan, kor_Hang → vie_Latn. Latency target: 30-80ms/câu.
+- **AI Suggest**: vLLM serve Qwen2.5-7B-Instruct-AWQ (int4). OpenAI-compatible API. Streaming tokens, max_tokens=150, temperature=0.3. TTFT target: 300-500ms.
+- **Session store**: Redis — conversation context sliding window (10 turns), session management qua WebSocket reconnect.
+- **Deployment**: Docker Compose (FastAPI gateway + vLLM server + Redis + Nginx TLS proxy).
+- **GPU**: Minimum 1x RTX 4090 (24GB). Recommended: 2 GPU tách NLLB và LLM.
+
+### Kỹ thuật tối ưu latency (phải mô tả trong requirements)
+1. **Speculative Translation**: Khi STT emit partial result ≥5 từ → gửi dịch ngay, không chờ final. Khi final đến → chỉ dịch phần delta. Tiết kiệm 1-1.5s cho câu dài.
+2. **Concurrent execution**: Khi có STT final → fire Translation + AI Suggest đồng thời qua asyncio.gather(). Bản dịch trả về trước (~50ms), AI stream sau (~300ms TTFT).
+3. **Smart AI Trigger**: Không phải câu nào cũng cần AI suggest. Rules: min 8 từ, ưu tiên câu hỏi (?/か/까), cooldown 5s, manual mode.
+4. **Pre-warm**: Load sherpa-onnx model khi app start (splash screen), chạy dummy inference để warm up.
+5. **Connection pooling**: WebSocket persistent, HTTP/2 multiplexing internal giữa FastAPI ↔ vLLM.
+
+### WebSocket Protocol
+- Client → Server: `stt_partial` (text, lang, ts), `stt_final` (text, lang, utterance_id), `config` (ai_suggest on/off, ai_mode, target_lang)
+- Server → Client: `translation` (text, is_final, latency_ms), `ai_suggest` (delta, done, full_text khi done=true), `status` (gpu_util, llm_queue)
+
+## Yêu cầu cho file requirements.md
+
+Viết file requirements.md với cấu trúc sau, mỗi section phải chi tiết, có acceptance criteria cụ thể, đo lường được:
+
+1. **Project Overview** — Tên dự án, mục tiêu, target user, use case chính.
+2. **Functional Requirements** — Liệt kê từng tính năng (FR-001, FR-002...) với mô tả, input/output, acceptance criteria. Bao gồm: audio capture, STT streaming, language detection, translation, AI suggest, UI 3-lane, conversation history, settings, model download/management.
+3. **Non-Functional Requirements** — Latency targets (với con số cụ thể từ kiến trúc trên), performance benchmarks, concurrency (5-20 users), availability, security/privacy, offline capability (STT vẫn hoạt động khi mất mạng).
+4. **Technical Constraints** — Tech stack cố định (liệt kê chính xác package, model, version). Những gì KHÔNG được dùng (cloud APIs, LiveKit, SeamlessStreaming, custom native modules).
+5. **System Architecture Summary** — Tóm tắt kiến trúc client-server, data flow diagram (mermaid), component diagram.
+6. **API Specification** — WebSocket protocol messages (client→server, server→client) với JSON schema.
+7. **Data Models** — Conversation, Utterance, Translation, AISuggestion, Session, UserConfig.
+8. **Deployment Requirements** — Docker services, GPU requirements, network topology (LAN), TLS, health checks.
+9. **Testing Requirements** — Unit test, integration test, latency benchmark test, STT accuracy test cho từng ngôn ngữ.
+10. **Development Milestones** — 7-week timeline với deliverables cụ thể mỗi tuần.
+11. **Risks & Mitigations** — Rủi ro kỹ thuật (STT accuracy, GPU contention, NLLB quality cho KO→VI...) và cách giảm thiểu.
+12. **Glossary** — Giải thích các thuật ngữ kỹ thuật (TTFT, RTF, VAD, speculative translation...).
+
+Viết bằng tiếng Anh, format Markdown chuẩn, dùng tables cho requirement IDs, mermaid cho diagrams. Mỗi functional requirement phải có: ID, Title, Description, Priority (Must/Should/Could), Acceptance Criteria (Given/When/Then format).
+```
+
+---
+
+**Cách dùng**: Copy toàn bộ nội dung trong block ``` ở trên, paste vào Claude hoặc bất kỳ LLM nào. Output sẽ là file `requirements.md` hoàn chỉnh.

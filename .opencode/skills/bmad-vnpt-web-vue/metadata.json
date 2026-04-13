@@ -1,0 +1,14 @@
+{
+  "name": "bmad-vnpt-web-vue",
+  "version": "1.0.0",
+  "framework": "vue",
+  "stack": [
+    "vue3",
+    "vite",
+    "typescript",
+    "pinia",
+    "vue-router",
+    "vitest"
+  ],
+  "entrypoint": "SKILL.md"
+}
