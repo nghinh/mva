@@ -11,6 +11,9 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		6D14921E44AAAF50791C5192 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		76D7A0032DBB9101006654EE /* NllbTranslatorHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D7A0022DBB9101006654EE /* NllbTranslatorHelper.swift */; };
+		76D7A0052DBB9102006654EE /* SentencePieceTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D7A0042DBB9102006654EE /* SentencePieceTokenizer.swift */; };
+		76D7A0072DBB9103006654EE /* NllbTranslatorModule.mm in Sources */ = {isa = PBXBuildFile; fileRef = 76D7A0062DBB9103006654EE /* NllbTranslatorModule.mm */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +26,9 @@
 		5709B34CF0A7D63546082F79 /* Pods-VibeVoiceClean.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VibeVoiceClean.release.xcconfig"; path = "Target Support Files/Pods-VibeVoiceClean/Pods-VibeVoiceClean.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-VibeVoiceClean.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VibeVoiceClean.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = VibeVoiceClean/AppDelegate.swift; sourceTree = "<group>"; };
+		76D7A0022DBB9101006654EE /* NllbTranslatorHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NllbTranslatorHelper.swift; sourceTree = "<group>"; };
+		76D7A0042DBB9102006654EE /* SentencePieceTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentencePieceTokenizer.swift; sourceTree = "<group>"; };
+		76D7A0062DBB9103006654EE /* NllbTranslatorModule.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NllbTranslatorModule.mm; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = VibeVoiceClean/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -44,6 +50,9 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				76D7A0022DBB9101006654EE /* NllbTranslatorHelper.swift */,
+				76D7A0042DBB9102006654EE /* SentencePieceTokenizer.swift */,
+				76D7A0062DBB9103006654EE /* NllbTranslatorModule.mm */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -247,6 +256,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				76D7A0032DBB9101006654EE /* NllbTranslatorHelper.swift in Sources */,
+				76D7A0052DBB9102006654EE /* SentencePieceTokenizer.swift in Sources */,
+				76D7A0072DBB9103006654EE /* NllbTranslatorModule.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
