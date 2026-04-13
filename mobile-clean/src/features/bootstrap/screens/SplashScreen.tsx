@@ -10,8 +10,6 @@ import {ModelInfo} from '@shared/types';
 import type {RootStackParamList} from '../../../app/navigation/router';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
 import {warnLog} from '../../../shared/utils/logger';
-import {getOnDeviceTranslator} from '../../../services/OnDeviceTranslator';
-import {getNllbModelDir} from '../../../native/nllb/modelPaths';
 
 const MOCK_MODEL: ModelInfo = {
   id: 'sensevoice-small',
@@ -21,17 +19,6 @@ const MOCK_MODEL: ModelInfo = {
   diskFootprintMB: 234,
   languages: ['EN', 'JA', 'KO', 'ZH'],
   inferenceSpeedRTF: 0.05,
-  isOptimizedFor: ['iPhone 15 Pro'],
-};
-
-const MOCK_TRANSLATOR_MODEL: ModelInfo = {
-  id: 'nllb-600m-mobile',
-  name: 'NLLB-600M Mobile',
-  version: '0.1.0-alpha',
-  quality: 'int8',
-  diskFootprintMB: 780,
-  languages: ['EN', 'JA', 'KO', 'ZH', 'VI'],
-  inferenceSpeedRTF: 0.4,
   isOptimizedFor: ['iPhone 15 Pro'],
 };
 
@@ -46,9 +33,6 @@ export const SplashScreen: React.FC = () => {
     setModelDownloading,
     setModelDownloadProgress,
     setModelReady,
-    setTranslatorModelDownloading,
-    setTranslatorModelDownloadProgress,
-    setTranslatorModelReady,
     startPrewarm,
     completePrewarm,
     initialize,
@@ -64,10 +48,6 @@ export const SplashScreen: React.FC = () => {
       await simulateProgress((p) => setModelDownloadProgress(p), 67);
       await getSTTProcessorInstance().loadModel();
       setModelReady(MOCK_MODEL);
-      setTranslatorModelDownloading(MOCK_TRANSLATOR_MODEL);
-      await simulateProgress((p) => setTranslatorModelDownloadProgress(p), 100);
-      await getOnDeviceTranslator().initialize(getNllbModelDir());
-      setTranslatorModelReady(MOCK_TRANSLATOR_MODEL);
       startPrewarm();
       await delay(1500);
       completePrewarm();
@@ -76,7 +56,7 @@ export const SplashScreen: React.FC = () => {
       warnLog('[SplashScreen] Bootstrap sequence failed:', error);
       return 'error';
     }
-  }, [completePrewarm, initialize, setModelDownloadProgress, setModelDownloading, setModelReady, setTranslatorModelDownloadProgress, setTranslatorModelDownloading, setTranslatorModelReady, startPrewarm]);
+  }, [completePrewarm, initialize, setModelDownloadProgress, setModelDownloading, setModelReady, startPrewarm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,10 +117,10 @@ export const SplashScreen: React.FC = () => {
         </View>
 
         <View style={styles.statusSection}>
-          {isInitializing || modelState.status === 'downloading' || useBootstrapStore.getState().state.translatorModel.status === 'downloading' ? (
+          {isInitializing || modelState.status === 'downloading' ? (
             <ProgressCard
-              title="Loading on-device models..."
-              subtitle={`${MOCK_MODEL.name} + ${MOCK_TRANSLATOR_MODEL.name}`}
+              title="Loading on-device model..."
+              subtitle={`${MOCK_MODEL.name} • ${MOCK_MODEL.languages.join(' / ')}`}
               progress={getProgressPercentage()}
               bytesDownloaded={modelState.downloadProgress?.bytesDownloaded ?? 0}
               totalBytes={modelState.downloadProgress?.totalBytes ?? MOCK_MODEL.diskFootprintMB * 1024 * 1024}
@@ -153,12 +133,6 @@ export const SplashScreen: React.FC = () => {
                 status={modelState.status}
                 label="AI Model"
                 description={modelState.currentModel ? `${modelState.currentModel.name} loaded` : undefined}
-              />
-              <ReadinessStatus
-                domain="model"
-                status={useBootstrapStore.getState().state.translatorModel.status}
-                label="Translation Model"
-                description={useBootstrapStore.getState().state.translatorModel.currentModel ? `${useBootstrapStore.getState().state.translatorModel.currentModel?.name} loaded` : undefined}
               />
               <ReadinessStatus
                 domain="prewarm"
