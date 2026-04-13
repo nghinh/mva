@@ -56,7 +56,7 @@
     "type": "modules",
     "jsSrcsDir": "src/native",
     "android": {
-      "javaPackageName": "com.vibevoicenative.nllb"
+      "javaPackageName": "com.vibevoiceclean.nllb"
     },
     "ios": {
       "modules": {
