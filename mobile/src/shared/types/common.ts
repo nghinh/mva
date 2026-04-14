@@ -20,7 +20,7 @@ export type SourceLanguage = 'en' | 'ja' | 'ko' | 'zh';
  * 3. Update mapSourceLanguageToNllb in OnDeviceTranslator if NLLB codes differ
  * 4. Update SettingsScreen language selector UI
  */
-export type TargetLanguage = 'vi' | 'zh' | 'ko' | 'ja';
+export type TargetLanguage = 'en' | 'vi' | 'zh' | 'ko' | 'ja';
 
 // ============================================================================
 // Meeting Session State Types

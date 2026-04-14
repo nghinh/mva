@@ -13,7 +13,7 @@ import {createJSONStorage, persist} from 'zustand/middleware';
  * 3. Update mapSourceLanguageToNllb in OnDeviceTranslator if NLLB codes differ
  * 4. Update SettingsScreen language selector UI
  */
-export type SupportedTargetLanguage = 'vi' | 'zh' | 'ko' | 'ja';
+export type SupportedTargetLanguage = 'en' | 'vi' | 'zh' | 'ko' | 'ja';
 
 export interface LanguageOption {
   code: SupportedTargetLanguage;
@@ -28,6 +28,7 @@ export interface LanguageOption {
  * Expansion: add more languages here as NLLB models are validated.
  */
 export const TARGET_LANGUAGE_OPTIONS: LanguageOption[] = [
+  {code: 'en', label: 'English', nativeLabel: 'English', nllbCode: 'eng_Latn'},
   {code: 'vi', label: 'Vietnamese', nativeLabel: 'Tiếng Việt', nllbCode: 'vie_Latn'},
   {code: 'zh', label: 'Chinese', nativeLabel: '中文', nllbCode: 'zho_Hans'},
   {code: 'ko', label: 'Korean', nativeLabel: '한국어', nllbCode: 'kor_Hang'},

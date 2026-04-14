@@ -43,6 +43,7 @@ const TOTAL_MODELS_SIZE_MB = SENSEVOICE_SIZE_MB + NLLB_SIZE_MB;
 
 // Language flag emojis for selector
 const LANGUAGE_FLAGS: Record<string, string> = {
+  en: '🇬🇧',
   vi: '🇻🇳',
   zh: '🇨🇳',
   ko: '🇰🇷',
@@ -281,9 +282,19 @@ export function SettingsScreen(): React.JSX.Element {
             <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
             <View style={styles.aboutRow}>
               <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Target</Text>
-              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>
+              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}> 
                 {currentLangOption.nativeLabel} ({currentLangOption.label})
               </Text>
+            </View>
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+            <View style={styles.aboutRow}>
+              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Developer</Text>
+              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>Nghi Nguyen</Text>
+            </View>
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+            <View style={styles.aboutRow}>
+              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Contact</Text>
+              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>nghinh@gmail.com</Text>
             </View>
           </View>
         </View>

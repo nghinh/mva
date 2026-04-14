@@ -2,7 +2,7 @@ import {TargetLanguage} from '../shared/types';
 import {getNativeNllbTranslator} from '../native/NativeNllbTranslator';
 
 export type TranslationSourceLanguage = 'eng_Latn' | 'jpn_Jpan' | 'kor_Hang' | 'zho_Hans';
-export type TranslationTargetLanguage = 'vie_Latn' | 'zho_Hans' | 'kor_Hang' | 'jpn_Jpan';
+export type TranslationTargetLanguage = 'eng_Latn' | 'vie_Latn' | 'zho_Hans' | 'kor_Hang' | 'jpn_Jpan';
 
 export function mapSourceLanguageToNllb(source: 'en' | 'ja' | 'ko' | 'zh'): TranslationSourceLanguage {
   switch (source) {
@@ -20,6 +20,8 @@ export function mapSourceLanguageToNllb(source: 'en' | 'ja' | 'ko' | 'zh'): Tran
 
 export function mapTargetLanguageToNllb(target: TargetLanguage): TranslationTargetLanguage {
   switch (target) {
+    case 'en':
+      return 'eng_Latn';
     case 'zh':
       return 'zho_Hans';
     case 'ko':
