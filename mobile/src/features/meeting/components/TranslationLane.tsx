@@ -163,7 +163,7 @@ function OfflineState(): React.JSX.Element {
   return (
     <View
       style={styles.offlineContainer}
-      accessibilityLabel="Translation paused - server offline"
+      accessibilityLabel="Translation paused"
       accessibilityRole="alert">
       <View
         style={[styles.offlineIconContainer, {backgroundColor: theme.colors.surface.secondary}]}>
@@ -172,8 +172,8 @@ function OfflineState(): React.JSX.Element {
       <Text style={[styles.offlineTitle, {color: theme.colors.text.secondary}]}>
         Translation Paused
       </Text>
-      <Text style={[styles.offlineDescription, {color: theme.colors.text.tertiary}]}>
-        Server offline. Translation will resume when connection is restored.
+      <Text style={[styles.offlineDescription, {color: theme.colors.text.tertiary}]}> 
+        Translation is temporarily unavailable. On-device translation will resume automatically.
       </Text>
     </View>
   );
@@ -185,16 +185,16 @@ function DegradedState({translationAvailable = false, message}: {translationAvai
   return (
     <View
       style={styles.degradedContainer}
-      accessibilityLabel="Translation temporarily unavailable due to server load"
+      accessibilityLabel="Translation temporarily unavailable"
       accessibilityRole="alert">
       <AppIcon name="warning" size={20} color={theme.colors.warning} />
-      <Text style={[styles.degradedTitle, {color: theme.colors.text.secondary}]}>
-        {translationAvailable ? 'AI Suggestions Limited' : 'Translation Unavailable'}
+      <Text style={[styles.degradedTitle, {color: theme.colors.text.secondary}]}> 
+        {translationAvailable ? 'Optional Processing Limited' : 'Translation Unavailable'}
       </Text>
-      <Text style={[styles.degradedDescription, {color: theme.colors.text.tertiary}]}>
+      <Text style={[styles.degradedDescription, {color: theme.colors.text.tertiary}]}> 
         {message ?? (translationAvailable
-          ? 'AI suggestions are temporarily limited. Translation continues normally.'
-          : 'Server is under load. Translation will resume shortly.')}
+          ? 'Some optional processing is temporarily limited. Translation continues normally.'
+          : 'Translation is temporarily unavailable. Please wait a moment and try again.')}
       </Text>
     </View>
   );
@@ -368,8 +368,8 @@ export function TranslationLane({
       {isOffline && (
         <View style={[styles.offlineBanner, {backgroundColor: theme.colors.warning + '15'}]}>
           <AppIcon name="warning" size={14} color={theme.colors.warning} />
-          <Text style={[styles.offlineBannerText, {color: theme.colors.warning}]}>
-            Server offline — translation paused
+          <Text style={[styles.offlineBannerText, {color: theme.colors.warning}]}> 
+            Translation paused
           </Text>
         </View>
       )}
@@ -378,10 +378,10 @@ export function TranslationLane({
       {isDegraded && !isOffline && (
         <View style={[styles.degradedBanner, {backgroundColor: theme.colors.warning + '10'}]}>
           <AppIcon name="warning" size={14} color={theme.colors.warning} />
-          <Text style={[styles.degradedBannerText, {color: theme.colors.warning}]}>
+          <Text style={[styles.degradedBannerText, {color: theme.colors.warning}]}> 
             {degradedMessage ?? (translationAvailable
-              ? 'AI suggestions temporarily unavailable'
-              : 'Translation service temporarily degraded')}
+              ? 'Optional processing temporarily unavailable'
+              : 'Translation temporarily unavailable')}
           </Text>
         </View>
       )}

@@ -18,10 +18,12 @@ import {
 import {SourceLanguage, TargetLanguage, SessionId, UtteranceId} from '../../../shared/types';
 import type {MeetingPipelineEvent} from '../../../shared/types/meeting';
 import {debugLog, errorLog, warnLog} from '../../../shared/utils/logger';
+import {useDeveloperMetricsStore} from '@features/meeting/store/developerMetricsStore';
 import {
   getOnDeviceTranslator,
   isTranslationCancelledError,
   mapSourceLanguageToNllb,
+  mapTargetLanguageToNllb,
 } from '../../../services/OnDeviceTranslator';
 import {getNllbModelDir} from '../../../native/nllb/modelPaths';
 import {
@@ -30,6 +32,7 @@ import {
   releaseMeetingPipelineInstance,
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
+import {useTargetLanguage} from '../../../shared/store';
 
 export interface UseMeetingSessionReturn {
   isActive: boolean;
@@ -65,6 +68,7 @@ function getPersistenceService(): PersistenceService {
 
 export function useMeetingSession(): UseMeetingSessionReturn {
   const store = useMeetingStore();
+  const preferredTargetLanguage = useTargetLanguage();
   const session = store.session;
   const pipelineRef = useRef<MeetingPipeline | null>(null);
   const realRecognizerRef = useRef<RealSpeechRecognizer | null>(null);
@@ -86,11 +90,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       translationVersionRef.current.set(event.utterance_id, nextVersion);
       translator.cancelPending();
 
-      translator.translate({
-        text: event.text,
-        sourceLanguage: mapSourceLanguageToNllb(event.language),
-        requestId: nextVersion,
-      }).then((result) => {
+        translator.translate({
+          text: event.text,
+          sourceLanguage: mapSourceLanguageToNllb(event.language),
+          targetLanguage: mapTargetLanguageToNllb(preferredTargetLanguage),
+          requestId: nextVersion,
+        }).then((result) => {
         const activeVersion = translationVersionRef.current.get(event.utterance_id);
         if (activeVersion !== result.version) return;
         useMeetingStore.getState().handleTranslationMessage(
@@ -118,9 +123,21 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     if (event.type === 'stt_partial') {
       // Draft translation disabled: NLLB inference on every partial starves STT CPU.
       // Translation runs only on stt_final below.
+
+      // Record STT latency proxy: time from event timestamp to JS receipt.
+      // architecture.md §5.1 targets STT partial ~200ms. This is the best available
+      // proxy since exact per-chunk processing time is not surfaced by sherpa-onnx.
+      const eventTime = event.timestamp_ms ?? Date.now();
+      const processingLatencyMs = Math.max(1, Date.now() - eventTime);
+      useDeveloperMetricsStore.getState().recordSttLatency(processingLatencyMs);
     }
 
     if (event.type === 'stt_final') {
+      // Record STT latency for final emissions as well
+      const eventTime = event.timestamp_ms ?? Date.now();
+      const processingLatencyMs = Math.max(1, Date.now() - eventTime);
+      useDeveloperMetricsStore.getState().recordSttLatency(processingLatencyMs);
+
       const dispatchFinalTranslation = async () => {
         const translator = getOnDeviceTranslator();
         if (!(await translator.isLoaded())) {
@@ -135,6 +152,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           .translate({
             text: event.text,
             sourceLanguage: mapSourceLanguageToNllb(event.language),
+            targetLanguage: mapTargetLanguageToNllb(preferredTargetLanguage),
             requestId: nextVersion,
           })
           .then((result) => {
@@ -155,6 +173,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
             // Persist utterance + translation atomically within 100ms of translation ready (AC: 1)
             // Using runInBatch would defer writes; direct call ensures immediate persistence.
             const latencyMs = Date.now() - startedAt;
+
+            // Record translation latency for developer metrics overlay
+            useDeveloperMetricsStore.getState().recordTranslationLatency(latencyMs);
+
             const persistence = getPersistenceService();
             const sessionId = useMeetingStore.getState().session.id ?? event.session_id;
             const utteranceData: UtteranceData = {
@@ -165,7 +187,6 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               sourceText: event.text,
               sourceLanguage: event.language,
               translatedText: result.text,
-              suggestionText: null,
               translationLatencyMs: latencyMs,
               revision: event.revision,
             };
@@ -206,7 +227,6 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               sourceText: event.text,
               sourceLanguage: event.language,
               translatedText: null,
-              suggestionText: null,
               translationLatencyMs: null,
               revision: event.revision,
             };
@@ -220,7 +240,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         warnLog('[useMeetingSession] Final translation dispatch failed:', error);
       });
     }
-  }, [maybeTranslateDraft]);
+  }, [maybeTranslateDraft, preferredTargetLanguage]);
 
   useEffect(() => {
     meetingPipeline = getMeetingPipelineInstance();
@@ -380,7 +400,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       await persistence.saveSession(sessionData);
       debugLog('[useMeetingSession] Meeting started:', currentSession.id);
     },
-    [handleIncomingPipelineEvent, store]
+    [handleIncomingPipelineEvent, preferredTargetLanguage, store]
   );
 
   const stopMeeting = useCallback(async () => {
@@ -422,7 +442,6 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           sourceText: entry.sourceText,
           sourceLanguage: entry.sourceLanguage,
           translatedText: entry.translatedText,
-          suggestionText: null,
           translationLatencyMs:
             currentSession.translations.find((translation) => translation.utteranceId === entry.id)?.latencyMs ?? null,
         }));

@@ -110,7 +110,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: null,
-        suggestionText: null,
       };
 
       await persistence.saveSession(session);
@@ -149,7 +148,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: null,
-        suggestionText: null,
       };
       const utterance2: UtteranceData = {
         id: 'utterance_all_2',
@@ -159,7 +157,6 @@ describe('Persistence Service', () => {
         sourceText: 'Konnichiwa',
         sourceLanguage: 'ja',
         translatedText: null,
-        suggestionText: null,
       };
 
       await persistence.saveSession(session1);
@@ -225,7 +222,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: 'Xin chào',
-        suggestionText: null,
         revision: 1,
       };
 
@@ -262,7 +258,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: 'Xin chào',
-        suggestionText: null,
       };
 
       await persistence.saveSession(session);
@@ -316,7 +311,6 @@ describe('Persistence Service', () => {
           sourceText: 'Hello',
           sourceLanguage: 'en',
           translatedText: 'Xin chào',
-          suggestionText: null,
         });
       });
 
@@ -335,7 +329,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello world',
         sourceLanguage: 'en',
         translatedText: 'Xin chào thế giới',
-        suggestionText: null,
       };
 
       await persistence.saveUtterance(utterance);
@@ -355,7 +348,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: null,
-        suggestionText: null,
       };
 
       await persistence.saveUtterance(utterance);
@@ -506,7 +498,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello world',
         sourceLanguage: 'en',
         translatedText: 'Xin chào thế giới',
-        suggestionText: null,
         translationLatencyMs: 150,
         revision: 1,
       };
@@ -547,7 +538,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: null,
-        suggestionText: null,
         translationLatencyMs: null,
         revision: 1,
       };
@@ -579,7 +569,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello',
         sourceLanguage: 'en',
         translatedText: null,
-        suggestionText: null,
         revision: 1,
       };
       const finalUtterance: UtteranceData = {
@@ -590,7 +579,6 @@ describe('Persistence Service', () => {
         sourceText: 'Hello world complete',
         sourceLanguage: 'en',
         translatedText: 'Xin chào thế giới',
-        suggestionText: null,
         translationLatencyMs: 100,
         revision: 2,
       };

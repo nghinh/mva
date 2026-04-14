@@ -17,6 +17,7 @@ end
 
 target 'VibeVoiceNative' do
   config = { reactNativePath: '../node_modules/react-native' }
+  pod 'RNCAsyncStorage', :path => '../node_modules/@react-native-async-storage/async-storage'
   pod 'react-native-safe-area-context', :path => '../node_modules/react-native-safe-area-context'
   pod 'RNCClipboard', :path => '../node_modules/@react-native-clipboard/clipboard'
   pod 'ReactNativeFs', :path => '../node_modules/@dr.pogodin/react-native-fs'

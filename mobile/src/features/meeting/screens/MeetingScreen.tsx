@@ -28,7 +28,9 @@ import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {AppIcon} from '../../../shared/components/ui';
 import {useBootstrapOverallStatus, useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
+import {useDeveloperMode, useTargetLanguage} from '../../../shared/store/settingsStore';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
+import {DeveloperMetricsOverlay} from '../components/DeveloperMetricsOverlay/DeveloperMetricsOverlay';
 import {TranscriptLane} from '../components/TranscriptLane';
 import {TranslationLane} from '../components/TranslationLane';
 import {useMeetingSession} from '../hooks/useMeetingSession';
@@ -178,6 +180,8 @@ export function MeetingScreen(): React.JSX.Element {
   const translatorModelState = useTranslatorModelState();
   const prewarmState = usePrewarmState();
   const {startPrewarm, completePrewarm} = useBootstrapStore();
+  const developerMode = useDeveloperMode();
+  const targetLanguage = useTargetLanguage();
 
   const {
     session,
@@ -233,8 +237,9 @@ export function MeetingScreen(): React.JSX.Element {
   const showWaiting = status === 'idle' || (isRecording && transcript.length === 0 && !partialTranscript);
 
   const handleStartMeeting = useCallback(() => {
-    startMeeting('en', 'vi');
-  }, [startMeeting]);
+    // Use target language from user preferences (defaults to Vietnamese)
+    startMeeting('en', targetLanguage);
+  }, [startMeeting, targetLanguage]);
 
   const handleStopMeeting = useCallback(async () => {
     await stopMeeting();
@@ -413,6 +418,9 @@ export function MeetingScreen(): React.JSX.Element {
             </Text>
           </View>
         </TouchableOpacity>
+
+        {/* Developer Metrics Overlay — visible only when dev mode is on */}
+        {developerMode && isActive && <DeveloperMetricsOverlay />}
       </View>
     </SafeAreaView>
   );

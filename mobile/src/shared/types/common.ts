@@ -8,7 +8,19 @@
 export type SessionId = string;
 export type UtteranceId = string;
 export type SourceLanguage = 'en' | 'ja' | 'ko' | 'zh';
-export type TargetLanguage = 'vi';
+
+/**
+ * Target translation language.
+ * Expandable: add 'zh', 'ko', 'ja' as NLLB models are validated.
+ * Default is Vietnamese ('vi').
+ *
+ * @note When adding languages:
+ * 1. Add to this union type
+ * 2. Update TARGET_LANGUAGE_OPTIONS in settingsStore
+ * 3. Update mapSourceLanguageToNllb in OnDeviceTranslator if NLLB codes differ
+ * 4. Update SettingsScreen language selector UI
+ */
+export type TargetLanguage = 'vi' | 'zh' | 'ko' | 'ja';
 
 // ============================================================================
 // Meeting Session State Types

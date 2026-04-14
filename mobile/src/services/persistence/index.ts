@@ -4,10 +4,45 @@
  * Local session and utterance storage using an in-memory store backed by
  * AsyncStorage when the native module is available.
  *
- * ## SQLite Schema (Future Migration)
+ * =============================================================================
+ * PRIVACY & SECURITY CHARACTERISTICS
+ * =============================================================================
+ *
+ * Storage Location: App-Private Sandbox
+ * - All data is stored in the app's private sandbox directory.
+ * - Data is automatically deleted when the app is uninstalled.
+ * - Other apps cannot access this data (unless device is rooted/jailbroken).
+ * - NO data is written to external storage, shared directories, or cloud backup.
+ *
+ * Encryption Status: ENCRYPTED AT REST
+ * - Payloads written through `shared/utils/localStorage` are encrypted before
+ *   AsyncStorage persistence using a device-bound native key.
+ * - iOS: AES-GCM key material is stored in Keychain with
+ *   `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`.
+ * - Android: AES-GCM key material is stored in Android Keystore.
+ * - A rooted/jailbroken device with full runtime compromise could still attack
+ *   the process at runtime, but raw storage files are no longer plain JSON.
+ * - SQLCipher is still a future option if true encrypted SQLite is required.
+ *
+ * Data Isolation:
+ * - No network transmission of any meeting data (100% offline).
+ * - No telemetry, analytics, or crash reporting that sends meeting content.
+ * - All AI inference (STT, translation) runs entirely on-device.
+ *
+ * Uninstall Behavior:
+ * - When the app is uninstalled, iOS/Android automatically deletes the
+ *   app-private sandbox, including all session data, models, and settings.
+ * - No residual data remains after uninstall (unlike external storage).
+ *
+ * =============================================================================
+ * SQLite Schema (Future Migration)
+ * =============================================================================
  *
  * This service is designed to migrate to op-sqlite or expo-sqlite.
  * The SQLite schema below documents the target tables.
+ *
+ * NOTE: If migrating to SQLite, consider enabling SQLCipher for table-level
+ * encrypted storage with the same device-bound key strategy.
  *
  * ```sql
  * -- WAL mode for concurrent read/write safety
@@ -47,12 +82,13 @@
  *   WHERE status = 'live' AND ended_at IS NULL;
  * ```
  *
- * Migration plan:
- * 1. Install op-sqlite or expo-sqlite as a dependency
- * 2. Run CREATE TABLE statements with IF NOT EXISTS on app start
- * 3. Backfill existing AsyncStorage data into SQLite
- * 4. Replace safeGetItem/safeSetItem calls with direct SQLite queries
- * 5. Enable WAL mode via PRAGMA journal_mode=WAL
+ * Migration plan (if SQLCipher encryption is needed):
+ * 1. Install expo-sqlite with SQLCipher support
+ * 2. Generate encryption key, store in iOS Keychain / Android Keystore
+ * 3. Run CREATE TABLE statements with IF NOT EXISTS on app start
+ * 4. Backfill existing AsyncStorage data into encrypted SQLite
+ * 5. Replace safeGetItem/safeSetItem calls with encrypted SQLite queries
+ * 6. Enable WAL mode via PRAGMA journal_mode=WAL
  */
 
 import {localStorage as AsyncStorage} from '../../shared/utils/localStorage';
@@ -76,7 +112,6 @@ export interface UtteranceData {
   sourceText: string;
   sourceLanguage: string;
   translatedText: string | null;
-  suggestionText: string | null;
   translationLatencyMs?: number | null;
   revision?: number;
 }

@@ -1,13 +1,11 @@
 /**
  * ModelRepositoryScreen
  *
- * Displays available AI models with download/delete functionality.
- * Shows model status, storage state, and availability.
- *
- * Story 1-3: Add model download cache and local lifecycle management
+ * Bundled model management UI for offline-only mode.
+ * No network download, no AI-analysis settings, no server dependency.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
   View,
   Text,
@@ -20,21 +18,30 @@ import {
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {RootStackParamList} from '../../../app/navigation/router';
-import { colors, spacing, typography, borderRadius } from '@shared/constants';
-import { AppIcon, ModelCard, ProgressCard } from '@shared/components/ui';
-import { useBootstrapStore, useModelState, useTranslatorModelState } from '@shared/store';
-import { ModelInfo, ModelStatus } from '@shared/types';
+import {AppIcon} from '../../../shared/components/ui';
+import {useTheme} from '../../../shared/hooks/useTheme';
+import {useBootstrapStore, useModelState, useTranslatorModelState} from '../../../shared/store';
+import {ModelInfo, ModelStatus} from '../../../shared/types';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
-import {ensureBundledModelInstalled} from '../../../native/models/BundledModelInstaller';
-import {deleteInstalledModelFiles} from '../../../native/models/BundledModelInstaller';
+import {
+  areBundledAssetsAvailable,
+  areInstalledModelFilesPresent,
+  deleteInstalledModelFiles,
+  ensureBundledModelInstalled,
+} from '../../../native/models/BundledModelInstaller';
 import {getOnDeviceTranslator} from '../../../services/OnDeviceTranslator';
 
-// Mock data for available models
-const AVAILABLE_MODELS: ModelInfo[] = [
+type ModelRepositoryNavigationProp = StackNavigationProp<RootStackParamList, 'ModelRepository'>;
+
+interface ModelRepositoryScreenProps {
+  onNavigateBack?: () => void;
+}
+
+const BUNDLED_MODELS: ModelInfo[] = [
   {
     id: 'sensevoice-small',
     name: 'SenseVoice-Small',
-    version: '1.2.4-stable',
+    version: '1.2.4-bundled',
     quality: 'int8',
     diskFootprintMB: 234,
     languages: ['EN', 'JA', 'KO', 'ZH'],
@@ -43,574 +50,313 @@ const AVAILABLE_MODELS: ModelInfo[] = [
   },
   {
     id: 'nllb-600m-mobile',
-    name: 'NLLB-600M Mobile',
-    version: '0.1.0-alpha',
+    name: 'NLLB-600M',
+    version: '0.1.0-bundled',
     quality: 'int8',
     diskFootprintMB: 780,
     languages: ['EN', 'JA', 'KO', 'ZH', 'VI'],
     inferenceSpeedRTF: 0.4,
     isOptimizedFor: ['iPhone 15 Pro'],
   },
-  {
-    id: 'whisper-small',
-    name: 'Whisper-Small',
-    version: '2.0.0-beta',
-    quality: 'float16',
-    diskFootprintMB: 456,
-    languages: ['EN', 'ES', 'FR', 'DE', 'ZH', 'JA', 'KO'],
-    inferenceSpeedRTF: 0.08,
-    isOptimizedFor: ['Various devices'],
-  },
 ];
 
-const TOTAL_STORAGE_MB = 512;
-const USED_STORAGE_MB = 234;
-
-interface ModelRepositoryScreenProps {
-  onNavigateBack?: () => void;
-  onManageModels?: () => void;
+function getStatusMeta(status: ModelStatus, colors: ReturnType<typeof useTheme>['theme']['colors']) {
+  switch (status) {
+    case 'cached-ready':
+      return {label: 'Ready', color: colors.secondary, icon: 'check-circle'};
+    case 'downloading':
+      return {label: 'Preparing', color: colors.primary, icon: 'download'};
+    case 'deleting':
+      return {label: 'Removing', color: colors.error, icon: 'delete'};
+    case 'invalid':
+      return {label: 'Invalid', color: colors.error, icon: 'error'};
+    case 'missing':
+    default:
+      return {label: 'Missing', color: colors.text.tertiary, icon: 'cloud-off'};
+  }
 }
 
-type ModelRepositoryNavigationProp = StackNavigationProp<RootStackParamList, 'ModelRepository'>;
-
-/**
- * ModelRepositoryScreen - Main model management UI
- */
-export const ModelRepositoryScreen: React.FC<ModelRepositoryScreenProps> = ({
-  onNavigateBack,
-}) => {
+export function ModelRepositoryScreen({onNavigateBack}: ModelRepositoryScreenProps): React.JSX.Element {
+  const {theme} = useTheme();
+  const navigation = useNavigation<ModelRepositoryNavigationProp>();
   const modelState = useModelState();
   const translatorModelState = useTranslatorModelState();
-  const navigation = useNavigation<ModelRepositoryNavigationProp>();
-  const { setModelDownloading, setModelDownloadProgress, setModelReady, setModelDeleting, setModelDeleted, setTranslatorModelDownloading, setTranslatorModelDownloadProgress, setTranslatorModelReady, setTranslatorModelDeleting, setTranslatorModelDeleted } =
-    useBootstrapStore();
+  const {
+    setModelDownloading,
+    setModelDownloadProgress,
+    setModelReady,
+    setModelError,
+    setModelDeleting,
+    setModelDeleted,
+    setTranslatorModelDownloading,
+    setTranslatorModelDownloadProgress,
+    setTranslatorModelReady,
+    setTranslatorModelError,
+    setTranslatorModelDeleting,
+    setTranslatorModelDeleted,
+  } = useBootstrapStore();
 
-  const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [busyModelId, setBusyModelId] = useState<string | null>(null);
+  const [assetAvailability, setAssetAvailability] = useState<Record<string, boolean>>({});
 
-  const currentModelId = modelState.currentModel?.id ?? null;
-  const currentModelStatus = modelState.status;
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      const [sttAvailable, nllbAvailable, sttInstalled, nllbInstalled] = await Promise.all([
+        areBundledAssetsAvailable('stt'),
+        areBundledAssetsAvailable('nllb'),
+        areInstalledModelFilesPresent('stt'),
+        areInstalledModelFilesPresent('nllb'),
+      ]);
+      if (!mounted) return;
+      setAssetAvailability({
+        'sensevoice-small': sttAvailable && sttInstalled,
+        'nllb-600m-mobile': nllbAvailable && nllbInstalled,
+      });
+    };
+    load().catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-  /**
-   * Handle model download with simulated progress
-   */
-  const handleDownload = useCallback(async (model: ModelInfo) => {
+  const handlePrepare = useCallback(async (model: ModelInfo) => {
+    const isTranslator = model.id === 'nllb-600m-mobile';
+    const totalBytes = model.diskFootprintMB * 1024 * 1024;
+    setBusyModelId(model.id);
+
     try {
-      setDownloadingModelId(model.id);
-      setDownloadProgress(0);
-
-      const totalBytes = model.diskFootprintMB * 1024 * 1024;
-      let downloadedBytes = 0;
-
-      const isTranslatorModel = model.id === 'nllb-600m-mobile';
-      if (isTranslatorModel) {
+      if (isTranslator) {
         setTranslatorModelDownloading(model);
-      } else {
-        setModelDownloading(model);
-      }
-
-      if (isTranslatorModel) {
         await ensureBundledModelInstalled('nllb', (completed, total) => {
-          const progress = Math.min((completed / total) * 100, 100);
-          setDownloadProgress(progress);
+          const percentage = Math.round((completed / total) * 100);
           setTranslatorModelDownloadProgress({
-            bytesDownloaded: Math.round((totalBytes * progress) / 100),
+            bytesDownloaded: Math.round((totalBytes * percentage) / 100),
             totalBytes,
-            percentage: progress,
+            percentage,
           });
         });
         setTranslatorModelReady(model);
       } else {
+        setModelDownloading(model);
         await ensureBundledModelInstalled('stt', (completed, total) => {
-          const progress = Math.min((completed / total) * 100, 100);
-          setDownloadProgress(progress);
+          const percentage = Math.round((completed / total) * 100);
           setModelDownloadProgress({
-            bytesDownloaded: Math.round((totalBytes * progress) / 100),
+            bytesDownloaded: Math.round((totalBytes * percentage) / 100),
             totalBytes,
-            percentage: progress,
+            percentage,
           });
         });
         await getSTTProcessorInstance().loadModel();
         setModelReady(model);
       }
-    } catch (error) {
-      Alert.alert(
-        'Model download failed',
-        model.id === 'nllb-600m-mobile'
-          ? 'Unable to install the bundled translation model. Add the NLLB files into mobile/assets/models/nllb-600m-mobile and try again.'
-          : 'Unable to install the bundled speech model. Please verify the bundled model files are present and try again.',
-      );
-      if (model.id === 'nllb-600m-mobile') {
-        setTranslatorModelDeleted();
-      } else {
-        setModelDeleted();
-      }
-      console.warn('[ModelRepositoryScreen] Failed to download/load model:', error);
-    } finally {
-      setDownloadingModelId(null);
-      setDownloadProgress(0);
-    }
-  }, [setModelDeleted, setModelDownloading, setModelDownloadProgress, setModelReady, setTranslatorModelDeleted, setTranslatorModelDownloading, setTranslatorModelDownloadProgress, setTranslatorModelReady]);
 
-  /**
-   * Handle model deletion with confirmation
-   */
-  const handleDelete = useCallback(
-    (model: ModelInfo) => {
-      Alert.alert(
-        'Delete Model',
-        `Are you sure you want to delete ${model.name}? This will free up ${model.diskFootprintMB} MB of storage.`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
+      setAssetAvailability((prev) => ({...prev, [model.id]: true}));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Bundled model preparation failed.';
+      if (isTranslator) {
+        setTranslatorModelError(message);
+      } else {
+        setModelError(message);
+      }
+      Alert.alert('Preparation failed', message);
+    } finally {
+      setBusyModelId(null);
+    }
+  }, [setModelDownloadProgress, setModelDownloading, setModelError, setModelReady, setTranslatorModelDownloadProgress, setTranslatorModelDownloading, setTranslatorModelError, setTranslatorModelReady]);
+
+  const handleRemove = useCallback((model: ModelInfo) => {
+    Alert.alert(
+      'Remove bundled model',
+      `Remove ${model.name} from local prepared storage? Bundled app resources remain available for preparing again later.`,
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const isTranslator = model.id === 'nllb-600m-mobile';
+            setBusyModelId(model.id);
+            try {
+              if (isTranslator) {
+                setTranslatorModelDeleting();
+                await deleteInstalledModelFiles('nllb');
+                await getOnDeviceTranslator().unload();
+                setTranslatorModelDeleted();
+              } else {
+                setModelDeleting();
+                await deleteInstalledModelFiles('stt');
+                getSTTProcessorInstance().unloadModel();
+                setModelDeleted();
+              }
+              setAssetAvailability((prev) => ({...prev, [model.id]: false}));
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unable to remove local model files.';
+              Alert.alert('Remove failed', message);
+              if (isTranslator) {
+                setTranslatorModelReady(model);
+              } else {
+                setModelReady(model);
+              }
+            } finally {
+              setBusyModelId(null);
+            }
           },
-          {
-            text: 'Delete',
-            style: 'destructive',
-             onPress: async () => {
-                if (model.id === 'nllb-600m-mobile') {
-                  setTranslatorModelDeleting();
-                } else {
-                  setModelDeleting();
-                }
-                try {
-                  await deleteInstalledModelFiles(model.id === 'nllb-600m-mobile' ? 'nllb' : 'stt');
-                  if (model.id === 'nllb-600m-mobile') {
-                    await getOnDeviceTranslator().unload();
-                    setTranslatorModelDeleted();
-                  } else {
-                    getSTTProcessorInstance().unloadModel();
-                    setModelDeleted();
-                  }
-                } catch (error) {
-                  if (model.id === 'nllb-600m-mobile') {
-                    setTranslatorModelReady(model);
-                  } else {
-                    setModelReady(model);
-                  }
-                  Alert.alert('Delete failed', 'Unable to remove the installed model files.');
-                  console.warn('[ModelRepositoryScreen] Failed to delete installed model:', error);
-                }
-              },
-          },
-        ],
-        { cancelable: true }
-      );
-    },
-    [setModelDeleting, setModelDeleted, setTranslatorModelDeleting, setTranslatorModelDeleted]
+        },
+      ],
+    );
+  }, [setModelDeleted, setModelDeleting, setModelReady, setTranslatorModelDeleted, setTranslatorModelDeleting, setTranslatorModelReady]);
+
+  const usedStorageMB = useMemo(
+    () => BUNDLED_MODELS.reduce((sum, model) => sum + (assetAvailability[model.id] ? model.diskFootprintMB : 0), 0),
+    [assetAvailability],
   );
 
-  const usedStoragePercent = (USED_STORAGE_MB / TOTAL_STORAGE_MB) * 100;
+  const totalStorageMB = useMemo(() => BUNDLED_MODELS.reduce((sum, model) => sum + model.diskFootprintMB, 0), []);
+
+  const renderCard = (model: ModelInfo) => {
+    const state = model.id === 'nllb-600m-mobile' ? translatorModelState : modelState;
+    const statusMeta = getStatusMeta(state.status, theme.colors);
+    const prepared = assetAvailability[model.id] || state.status === 'cached-ready';
+    const canManage = busyModelId == null;
+
+    return (
+      <View key={model.id} style={[styles.card, {backgroundColor: theme.colors.surface.primary, borderColor: theme.colors.border.subtle}]}> 
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleWrap}>
+            <AppIcon name="memory" size={18} color={theme.colors.primary} />
+            <View style={styles.cardTitleTextWrap}>
+              <Text style={[styles.cardTitle, {color: theme.colors.text.primary}]}>{model.name}</Text>
+              <Text style={[styles.cardVersion, {color: theme.colors.text.tertiary}]}>v{model.version}</Text>
+            </View>
+          </View>
+          <View style={[styles.badge, {backgroundColor: `${statusMeta.color}18`, borderColor: `${statusMeta.color}33`}]}> 
+            <AppIcon name={statusMeta.icon as never} size={12} color={statusMeta.color} />
+            <Text style={[styles.badgeText, {color: statusMeta.color}]}>{statusMeta.label}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.cardSubtext, {color: theme.colors.text.tertiary}]}>
+          {model.id === 'sensevoice-small' ? 'Bundled speech-to-text model' : 'Bundled offline translation model'}
+        </Text>
+
+        <View style={styles.statsRow}>
+          <View>
+            <Text style={[styles.statLabel, {color: theme.colors.text.tertiary}]}>Size</Text>
+            <Text style={[styles.statValue, {color: theme.colors.text.primary}]}>{model.diskFootprintMB} MB</Text>
+          </View>
+          <View>
+            <Text style={[styles.statLabel, {color: theme.colors.text.tertiary}]}>Speed</Text>
+            <Text style={[styles.statValue, {color: theme.colors.secondary}]}>RTF {model.inferenceSpeedRTF.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.languageRow}>
+          {model.languages.map((lang) => (
+            <View key={lang} style={[styles.langChip, {backgroundColor: theme.colors.surface.secondary}]}> 
+              <Text style={[styles.langChipText, {color: theme.colors.text.secondary}]}>{lang}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.footerRow}>
+          <Text style={[styles.optimizedText, {color: theme.colors.text.tertiary}]}>Optimized for {model.isOptimizedFor.join(', ')}</Text>
+          {prepared ? (
+            <Pressable onPress={() => handleRemove(model)} disabled={!canManage} style={styles.actionButton}>
+              <AppIcon name="delete" size={16} color={theme.colors.error} />
+              <Text style={[styles.actionDanger, {color: theme.colors.error}]}>Remove</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => handlePrepare(model)} disabled={!canManage} style={styles.actionButton}>
+              <AppIcon name="download" size={16} color={theme.colors.primary} />
+              <Text style={[styles.actionPrimary, {color: theme.colors.primary}]}>{busyModelId === model.id ? 'Preparing…' : 'Prepare'}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          style={styles.backButton}
-          onPress={onNavigateBack ?? (() => navigation.goBack())}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-        >
-          <AppIcon name="back" size={24} color={colors['on-surface']} />
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.secondary}]}> 
+      <View style={[styles.header, {backgroundColor: theme.colors.surface.primary}]}> 
+        <Pressable onPress={onNavigateBack ?? (() => navigation.goBack())} style={styles.backButton}>
+          <AppIcon name="back" size={24} color={theme.colors.text.primary} />
         </Pressable>
-        <Text style={styles.headerTitle}>AI Models</Text>
+        <Text style={[styles.headerTitle, {color: theme.colors.text.primary}]}>AI Models</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header Section */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.titleSection}>
-          <Text style={styles.sectionLabel}>Repository Status</Text>
-          <Text style={styles.sectionTitle}>Available Models</Text>
+          <Text style={[styles.eyebrow, {color: theme.colors.text.tertiary}]}>Bundled Models</Text>
+          <Text style={[styles.title, {color: theme.colors.text.primary}]}>On-device AI</Text>
+          <Text style={[styles.subtitle, {color: theme.colors.text.tertiary}]}>Models ship with the app and are prepared locally when needed. No network download. No AI analysis lane.</Text>
         </View>
 
-        {/* Model Cards */}
-        <View style={styles.modelCards}>
-          {AVAILABLE_MODELS.map((model) => {
-            const isDownloading = downloadingModelId === model.id;
-            const isCurrentModel = currentModelId === model.id || translatorModelState.currentModel?.id === model.id;
-            const status: ModelStatus = isDownloading
-              ? 'downloading'
-              : isCurrentModel
-              ? (model.id === 'nllb-600m-mobile' ? translatorModelState.status : currentModelStatus)
-              : 'missing';
+        <View style={styles.cardList}>{BUNDLED_MODELS.map(renderCard)}</View>
 
-            return (
-              <View key={model.id}>
-                {isDownloading && (
-                  <View style={styles.downloadingCard}>
-                    <ProgressCard
-                      title={`Downloading ${model.name}...`}
-                      subtitle={`${model.languages.join(' / ')}`}
-                      progress={downloadProgress}
-                      bytesDownloaded={Math.round(
-                        (downloadProgress / 100) * model.diskFootprintMB * 1024 * 1024
-                      )}
-                      totalBytes={model.diskFootprintMB * 1024 * 1024}
-                      status="downloading"
-                    />
-                  </View>
-                )}
-                {!isDownloading && (
-                  <ModelCard
-                    model={model}
-                    status={status}
-                    onDownload={() => handleDownload(model)}
-                    onDelete={isCurrentModel ? () => handleDelete(model) : undefined}
-                    disabled={modelState.status === 'deleting'}
-                  />
-                )}
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Coming Soon Card */}
-        <View style={styles.comingSoonCard}>
-          <View style={styles.comingSoonHeader}>
-            <View style={styles.comingSoonTitle}>
-              <AppIcon
-                name="cloud-off"
-                size={20}
-                color={colors['on-surface-variant']}
-              />
-              <Text style={styles.comingSoonModelName}>Whisper-Small</Text>
-            </View>
-            <View style={styles.comingSoonBadge}>
-              <Text style={styles.comingSoonBadgeText}>Coming Soon</Text>
-            </View>
+        <View style={[styles.storageCard, {backgroundColor: theme.colors.surface.primary, borderColor: theme.colors.border.subtle}]}> 
+          <View style={styles.storageHeader}>
+            <Text style={[styles.storageTitle, {color: theme.colors.text.primary}]}>On-device storage</Text>
+            <Text style={[styles.storageValuePrimary, {color: theme.colors.primary}]}>{usedStorageMB} MB / {totalStorageMB} MB</Text>
           </View>
-          <Text style={styles.comingSoonVersion}>v2.0.0-beta</Text>
-          <View style={styles.comingSoonProgress}>
-            <View style={styles.progressBarBackground}>
-              <View style={styles.progressBarFill} />
-            </View>
-            <Text style={styles.comingSoonProgressText}>
-              Model weights being processed for NPU...
-            </Text>
+          <View style={[styles.progressTrack, {backgroundColor: theme.colors.surface.secondary}]}> 
+            <View style={[styles.progressFill, {backgroundColor: theme.colors.primary, width: `${Math.min(100, Math.round((usedStorageMB / totalStorageMB) * 100))}%`}]} />
           </View>
-          <Pressable style={styles.preRegisterButton} disabled>
-            <Text style={styles.preRegisterButtonText}>Pre-register Model</Text>
-          </Pressable>
-        </View>
-
-        {/* Storage Section */}
-        <View style={styles.storageSection}>
-          <View style={styles.storageCard}>
-            <View style={styles.storageHeader}>
-              <Text style={styles.storageTitle}>On-Device Storage</Text>
-              <View style={styles.storageStats}>
-                <Text style={styles.storageUsed}>{USED_STORAGE_MB} MB</Text>
-                <Text style={styles.storageTotal}>/ {TOTAL_STORAGE_MB} MB</Text>
-              </View>
-            </View>
-
-            <View style={styles.storageBar}>
-              <View
-                style={[
-                  styles.storageBarFill,
-                  { width: `${usedStoragePercent}%` },
-                ]}
-              />
-            </View>
-
-            <Text style={styles.storagePercentText}>{usedStoragePercent.toFixed(0)}% Used</Text>
-
-            <Text style={styles.storageDescription}>
-              Local models ensure zero-latency transcription and absolute privacy.
-              Meetings are never sent to the cloud.
-            </Text>
-          </View>
+          <Text style={[styles.storageBody, {color: theme.colors.text.tertiary}]}>Local model preparation preserves absolute privacy: transcript, translation, and model inference stay inside the app sandbox.</Text>
         </View>
       </ScrollView>
-
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <NavItem icon="forum" label="Meetings" active={false} onPress={() => {}} />
-        <NavItem icon="memory" label="Models" active={true} onPress={() => {}} />
-        <NavItem icon="insights" label="Intelligence" active={false} onPress={() => {}} />
-        <NavItem icon="settings" label="Settings" active={false} onPress={() => {}} />
-      </View>
     </SafeAreaView>
   );
-};
-
-// ============================================================================
-// NavItem Component
-// ============================================================================
-
-interface NavItemProps {
-  icon: 'forum' | 'memory' | 'insights' | 'settings';
-  label: string;
-  active: boolean;
-  onPress: () => void;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onPress }) => (
-  <Pressable
-    style={styles.navItem}
-    onPress={onPress}
-    accessibilityLabel={label}
-    accessibilityRole="button"
-  >
-    <AppIcon
-      name={icon}
-      size={24}
-      color={active ? colors.primary : colors['on-surface-variant']}
-    />
-    <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
-  </Pressable>
-);
-
-// ============================================================================
-// Styles
-// ============================================================================
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors['surface-dim'],
-  },
+  container: {flex: 1},
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors['surface-container'],
-    borderBottomWidth: 1,
-    borderBottomColor: colors['outline-variant'],
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontFamily: typography.fontFamily.headline,
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors['on-surface'],
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: 120, // Space for bottom nav
-  },
-  titleSection: {
-    marginBottom: spacing.lg,
-  },
-  sectionLabel: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-    textTransform: 'uppercase',
-    letterSpacing: typography.letterSpacing.widest,
-    marginBottom: spacing.xs,
-  },
-  sectionTitle: {
-    fontFamily: typography.fontFamily.headline,
-    fontSize: typography.fontSize['3xl'],
-    fontWeight: typography.fontWeight.extrabold,
-    color: colors['on-surface'],
-    letterSpacing: typography.letterSpacing.tight,
-  },
-  modelCards: {
-    gap: spacing.lg,
-  },
-  downloadingCard: {
-    marginBottom: spacing.sm,
-  },
-  comingSoonCard: {
-    backgroundColor: colors['surface-container-lowest'],
-    borderRadius: borderRadius.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors['outline-variant'],
-    opacity: 0.6,
-    marginTop: spacing.lg,
-  },
-  comingSoonHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  comingSoonTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  comingSoonModelName: {
-    fontFamily: typography.fontFamily.headline,
-    fontSize: typography.fontSize.lg,
-    fontWeight: typography.fontWeight.bold,
-    color: colors['on-surface-variant'],
-  },
-  comingSoonBadge: {
-    backgroundColor: colors['surface-container-highest'],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-  },
-  comingSoonBadgeText: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-  },
-  comingSoonVersion: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-    marginTop: spacing.xxs,
-    marginLeft: 28,
-  },
-  comingSoonProgress: {
-    marginTop: spacing.md,
-  },
-  progressBarBackground: {
-    height: 6,
-    backgroundColor: colors['surface-container-highest'],
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    width: '0%',
-    backgroundColor: colors['outline-variant'],
-  },
-  comingSoonProgressText: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  preRegisterButton: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors['outline-variant'],
-    alignItems: 'center',
-  },
-  preRegisterButtonText: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.bold,
-    color: colors['on-surface-variant'],
-  },
-  storageSection: {
-    marginTop: spacing.xl,
-  },
-  storageCard: {
-    backgroundColor: colors['surface-container-low'],
-    borderRadius: borderRadius.xl,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors['outline-variant'],
-  },
-  storageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  storageTitle: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.bold,
-    color: colors['on-surface'],
-    textTransform: 'uppercase',
-    letterSpacing: typography.letterSpacing.wider,
-  },
-  storageStats: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  storageUsed: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    color: colors.primary,
-  },
-  storageTotal: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.md,
-    color: colors['on-surface-variant'],
-    marginLeft: spacing.xs,
-  },
-  storageBar: {
-    height: 8,
-    backgroundColor: colors['surface-container-highest'],
-    borderRadius: 4,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-  storageBarFill: {
-    height: '100%',
-    backgroundColor: colors['primary-container'],
-    borderRadius: 4,
-  },
-  storagePercentText: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-    marginTop: spacing.sm,
-    textAlign: 'right',
-  },
-  storageDescription: {
-    fontFamily: typography.fontFamily.body,
-    fontSize: typography.fontSize.sm,
-    color: colors['on-surface-variant'],
-    marginTop: spacing.md,
-    lineHeight: typography.fontSize.sm * typography.lineHeight.relaxed,
-  },
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    height: 80,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    backgroundColor: colors['surface-container-lowest'],
-    borderTopWidth: 1,
-    borderTopColor: colors['outline-variant'],
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  navLabel: {
-    fontFamily: typography.fontFamily.label,
-    fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
-    marginTop: spacing.xs,
-    letterSpacing: typography.letterSpacing.widest,
-    textTransform: 'uppercase',
-  },
-  navLabelActive: {
-    color: colors.primary,
-  },
+  backButton: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
+  headerTitle: {fontSize: 20, fontWeight: '700'},
+  headerSpacer: {width: 40},
+  scrollView: {flex: 1},
+  scrollContent: {padding: 16, paddingBottom: 40, gap: 16},
+  titleSection: {gap: 6},
+  eyebrow: {fontSize: 10, fontWeight: '700', letterSpacing: 1.4, textTransform: 'uppercase'},
+  title: {fontSize: 30, fontWeight: '800', letterSpacing: -0.6},
+  subtitle: {fontSize: 14, lineHeight: 20},
+  cardList: {gap: 16},
+  card: {borderWidth: 1, borderRadius: 20, padding: 16, gap: 12},
+  cardHeader: {flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12},
+  cardTitleWrap: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1},
+  cardTitleTextWrap: {flex: 1},
+  cardTitle: {fontSize: 18, fontWeight: '700'},
+  cardVersion: {fontSize: 11},
+  badge: {flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999},
+  badgeText: {fontSize: 11, fontWeight: '700'},
+  cardSubtext: {fontSize: 13, lineHeight: 18},
+  statsRow: {flexDirection: 'row', justifyContent: 'space-between'},
+  statLabel: {fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8},
+  statValue: {fontSize: 14, fontWeight: '700', marginTop: 2},
+  languageRow: {flexDirection: 'row', gap: 8, flexWrap: 'wrap'},
+  langChip: {paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10},
+  langChipText: {fontSize: 11, fontWeight: '700'},
+  footerRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12},
+  optimizedText: {fontSize: 11, flex: 1},
+  actionButton: {flexDirection: 'row', alignItems: 'center', gap: 6},
+  actionPrimary: {fontSize: 13, fontWeight: '700'},
+  actionDanger: {fontSize: 13, fontWeight: '700'},
+  storageCard: {borderWidth: 1, borderRadius: 20, padding: 16, gap: 12},
+  storageHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12},
+  storageTitle: {fontSize: 16, fontWeight: '700'},
+  storageValuePrimary: {fontSize: 14, fontWeight: '700'},
+  progressTrack: {height: 8, borderRadius: 999, overflow: 'hidden'},
+  progressFill: {height: '100%', borderRadius: 999},
+  storageBody: {fontSize: 13, lineHeight: 18},
 });
 
 export default ModelRepositoryScreen;
