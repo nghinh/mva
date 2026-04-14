@@ -23,3 +23,13 @@ mobile/android/.gradle/
 mobile/android/app/.cxx/
 mobile/android/build/
 mobile/android/app/src/main/assets/index.android.bundle
+
+# Local packaged archives / embedded debug bundles
+mobile.zip
+mobile/ios/main.jsbundle
+
+# Large bundled model binaries (keep folder docs only)
+mobile/assets/models/**/*.onnx
+mobile/assets/models/**/*.model
+mobile/assets/models/**/vocab.json
+!mobile/assets/models/**/README.md
