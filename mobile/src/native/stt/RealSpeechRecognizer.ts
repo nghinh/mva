@@ -1,21 +1,14 @@
 import {fileModelPath} from 'react-native-sherpa-onnx';
 import {createPcmLiveStream} from 'react-native-sherpa-onnx/audio';
 import {createSTT} from 'react-native-sherpa-onnx/stt';
-import {
-  MainBundlePath,
-  DocumentDirectoryPath,
-  copyFile,
-  exists,
-  mkdir,
-  readDir,
-} from '@dr.pogodin/react-native-fs';
+import {DocumentDirectoryPath} from '@dr.pogodin/react-native-fs';
 import type {PcmLiveStreamHandle} from 'react-native-sherpa-onnx/audio';
 import type {SttEngine} from 'react-native-sherpa-onnx/stt';
 import type {SessionId, SourceLanguage, UtteranceId} from '../../shared/types/common';
 import type {MeetingPipelineEvent} from '../../shared/types/meeting';
 import {LanguageDetector} from './LanguageDetector';
+import {ensureBundledModelInstalled} from '../models/BundledModelInstaller';
 
-const LOCAL_MODEL_FOLDER = 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17';
 const SAMPLE_RATE = 16000;
 const SPEECH_THRESHOLD = 0.02;
 const SILENCE_END_MS = 600;
@@ -185,46 +178,15 @@ export class RealSpeechRecognizer {
   }
 
   private async prepareModelDirectory(emit: (event: MeetingPipelineEvent) => void): Promise<string> {
-    if (!MainBundlePath) {
-      throw new Error('MainBundlePath unavailable on iOS; cannot resolve bundled SenseVoice model');
-    }
-    const bundleModelDir = `${MainBundlePath}/models/${LOCAL_MODEL_FOLDER}`;
-    const bundleExists = await exists(bundleModelDir);
-
-    emit({
-      type: 'pipeline_status',
-      session_id: this.sessionId!,
-      status: 'processing',
-      timestamp_ms: Date.now(),
-      details: `Bundle model exists: ${bundleExists ? 'yes' : 'no'}`,
+    const localModelDir = await ensureBundledModelInstalled('stt', (completed, total, file) => {
+      emit({
+        type: 'pipeline_status',
+        session_id: this.sessionId!,
+        status: 'processing',
+        timestamp_ms: Date.now(),
+        details: `Installing bundled SenseVoice (${completed}/${total}): ${file}`,
+      });
     });
-
-    if (!bundleExists) {
-      throw new Error(`Bundled model directory not found at ${bundleModelDir}`);
-    }
-
-    const bundleEntries = await readDir(bundleModelDir);
-    const modelFile = bundleEntries.find(file => file.name.startsWith('model') && file.name.endsWith('.onnx'))?.name;
-    const tokens = bundleEntries.find(file => file.name === 'tokens.txt')?.name;
-
-    if (!modelFile) throw new Error('Bundled SenseVoice model file missing: model*.onnx');
-    if (!tokens) throw new Error('Bundled SenseVoice model file missing: tokens.txt');
-
-    const requiredFiles = [modelFile, tokens];
-
-    const localBase = `${DocumentDirectoryPath}/models`;
-    const localModelDir = `${localBase}/${LOCAL_MODEL_FOLDER}`;
-    await mkdir(localBase, {NSURLIsExcludedFromBackupKey: true});
-    await mkdir(localModelDir, {NSURLIsExcludedFromBackupKey: true});
-
-    const currentFiles = await readDir(localModelDir).catch(() => []);
-    const currentNames = new Set(currentFiles.map(file => file.name));
-
-    for (const file of requiredFiles) {
-      if (!currentNames.has(file)) {
-        await copyFile(`${bundleModelDir}/${file}`, `${localModelDir}/${file}`);
-      }
-    }
 
     emit({
       type: 'pipeline_status',

@@ -65,6 +65,7 @@ interface BootstrapStore {
   setTranslatorModelDownloading: (model: ModelInfo) => void;
   setTranslatorModelDownloadProgress: (progress: ModelDownloadProgress) => void;
   setTranslatorModelReady: (model: ModelInfo) => void;
+  setTranslatorModelError: (error: string) => void;
   setTranslatorModelDeleting: () => void;
   setTranslatorModelDeleted: () => void;
   startPrewarm: () => void;
@@ -172,7 +173,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
           const newState: BootstrapState = {
             ...store.state,
             model: initialModelState,
-            translatorModel: initialModelState,
             prewarm: initialPrewarmState,
           };
           return {state: {...newState, overallStatus: calculateOverallStatus(newState)}};
@@ -217,6 +217,21 @@ export const useBootstrapStore = create<BootstrapStore>()(
               currentModel: model,
               downloadProgress: null,
               error: null,
+            },
+          };
+          return {state: {...newState, overallStatus: calculateOverallStatus(newState)}};
+        });
+      },
+
+      setTranslatorModelError: (error) => {
+        set((store) => {
+          const newState: BootstrapState = {
+            ...store.state,
+            translatorModel: {
+              ...store.state.translatorModel,
+              status: 'invalid',
+              error,
+              downloadProgress: null,
             },
           };
           return {state: {...newState, overallStatus: calculateOverallStatus(newState)}};

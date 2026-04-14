@@ -14,6 +14,7 @@ type IconName =
   | 'expand-more'
   | 'open-in-new'
   | 'forum'
+  | 'history'
   | 'insights'
   | 'check-circle'
   | 'warning'
@@ -32,7 +33,9 @@ type IconName =
   | 'block'
   | 'bolt'
   | 'cloud_off'
-  | 'signal_disconnected';
+  | 'signal_disconnected'
+  | 'chevron-down'
+  | 'chevron_down';
 
 const glyphMap: Record<IconName, string> = {
   menu: '≡',
@@ -47,6 +50,7 @@ const glyphMap: Record<IconName, string> = {
   'expand-more': '⌄',
   'open-in-new': '↗',
   forum: '◫',
+  history: '◫',
   insights: '◭',
   'check-circle': '●',
   warning: '▲',
@@ -65,6 +69,8 @@ const glyphMap: Record<IconName, string> = {
   block: '⊘',
   bolt: '⚡',
   'signal_disconnected': '⛁',
+  'chevron-down': '⌄',
+  'chevron_down': '⌄',
 };
 
 interface AppIconProps {

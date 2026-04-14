@@ -1,14 +1,24 @@
 /**
  * Theme Context and Provider
- * Provides dark-first theme tokens to the app
+ * Provides theme tokens with dynamic dark/light mode switching
+ * Listens to system Appearance changes and reduced motion preferences
  */
 
-import React, {createContext, useContext, useMemo} from 'react';
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
+import {Appearance, AccessibilityInfo} from 'react-native';
+import type {ColorMode} from '../theme/colors';
 import {
   ThemeTokens,
   ThemeMode,
   defaultThemeMode,
-  colors,
+  getColorsForMode,
   typography,
   spacing,
   borderRadius,
@@ -19,6 +29,7 @@ interface ThemeContextValue {
   theme: ThemeTokens;
   mode: ThemeMode;
   isDark: boolean;
+  isReduceMotionEnabled: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -28,10 +39,57 @@ interface ThemeProviderProps {
   mode?: ThemeMode;
 }
 
-export function ThemeProvider({children, mode = defaultThemeMode}: ThemeProviderProps) {
+/**
+ * Hook to track system theme and reduced-motion preferences
+ */
+function useSystemPreferences() {
+  const [systemColorMode, setSystemColorMode] = useState<ColorMode>(() => {
+    const scheme = Appearance.getColorScheme();
+    return scheme === 'light' ? 'light' : 'dark';
+  });
+  const [isReduceMotionEnabled, setIsReduceMotionEnabled] = useState(false);
+
+  useEffect(() => {
+    // Listen for system color scheme changes
+    const subscription = Appearance.addChangeListener(({colorScheme}) => {
+      setSystemColorMode(colorScheme === 'light' ? 'light' : 'dark');
+    });
+
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    // Check reduced motion preference
+    const checkReduceMotion = async () => {
+      const enabled = await AccessibilityInfo.isReduceMotionEnabled();
+      setIsReduceMotionEnabled(enabled);
+    };
+    checkReduceMotion();
+
+    // Listen for reduced motion changes
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      (enabled) => {
+        setIsReduceMotionEnabled(enabled);
+      },
+    );
+
+    return () => subscription.remove();
+  }, []);
+
+  return {systemColorMode, isReduceMotionEnabled};
+}
+
+export function ThemeProvider({children, mode}: ThemeProviderProps): React.JSX.Element {
+  const {systemColorMode, isReduceMotionEnabled} = useSystemPreferences();
+
+  // Use explicit mode prop if provided, otherwise fall back to system preference
+  const resolvedMode: ThemeMode = mode ?? systemColorMode;
+
   const value = useMemo<ThemeContextValue>(() => {
+    const modeColors = getColorsForMode(resolvedMode);
     const theme: ThemeTokens = {
-      colors,
+      colors: modeColors,
       typography,
       spacing,
       borderRadius,
@@ -40,10 +98,11 @@ export function ThemeProvider({children, mode = defaultThemeMode}: ThemeProvider
 
     return {
       theme,
-      mode,
-      isDark: mode === 'dark',
+      mode: resolvedMode,
+      isDark: resolvedMode === 'dark',
+      isReduceMotionEnabled,
     };
-  }, [mode]);
+  }, [resolvedMode, isReduceMotionEnabled]);
 
   return (
     <ThemeContext.Provider value={value}>

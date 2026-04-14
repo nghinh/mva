@@ -107,6 +107,17 @@ android {
     }
 }
 
+def bundledModelsSrc = file("$rootDir/../assets/models")
+def bundledModelsDst = file("$projectDir/src/main/assets/models")
+
+tasks.register("copyBundledModelsToAndroidAssets", Copy) {
+    onlyIf { bundledModelsSrc.exists() }
+    from(bundledModelsSrc)
+    into(bundledModelsDst)
+}
+
+preBuild.dependsOn("copyBundledModelsToAndroidAssets")
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")

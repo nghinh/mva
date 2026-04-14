@@ -12,6 +12,7 @@ import {
   createPersistenceService,
   PersistenceService,
   SessionData,
+  TranslationData,
   UtteranceData,
 } from '../../../services/persistence';
 import {SourceLanguage, TargetLanguage, SessionId, UtteranceId} from '../../../shared/types';
@@ -57,7 +58,7 @@ let realSpeechRecognizer: RealSpeechRecognizer | null = null;
 function getPersistenceService(): PersistenceService {
   if (!persistenceService) {
     persistenceService = createPersistenceService();
-    persistenceService.initialize();
+    persistenceService.ensureInitialized();
   }
   return persistenceService;
 }
@@ -149,8 +150,36 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               event.revision,
               event.text,
               event.timestamp_ms,
-              Date.now() - startedAt,
             );
+
+            // Persist utterance + translation atomically within 100ms of translation ready (AC: 1)
+            // Using runInBatch would defer writes; direct call ensures immediate persistence.
+            const latencyMs = Date.now() - startedAt;
+            const persistence = getPersistenceService();
+            const sessionId = useMeetingStore.getState().session.id ?? event.session_id;
+            const utteranceData: UtteranceData = {
+              id: event.utterance_id,
+              sessionId,
+              timestamp: event.timestamp_ms,
+              isFinal: true,
+              sourceText: event.text,
+              sourceLanguage: event.language,
+              translatedText: result.text,
+              suggestionText: null,
+              translationLatencyMs: latencyMs,
+              revision: event.revision,
+            };
+            const translationId = `trans_${event.utterance_id}_final`;
+            const translationData: TranslationData = {
+              id: translationId,
+              utteranceId: event.utterance_id,
+              text: result.text,
+              latencyMs,
+              createdAt: Date.now(),
+            };
+            persistence
+              .saveFinalUtteranceWithTranslation(utteranceData, translationData)
+              .catch((err) => warnLog('[useMeetingSession] Failed to persist final utterance+translation:', err));
           })
           .catch((error) => {
             if (isTranslationCancelledError(error)) {
@@ -165,6 +194,25 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               event.text,
               event.timestamp_ms,
             );
+
+            // Persist utterance even when translation fails (AC: 2 — crash recovery still needs the utterance)
+            const persistence = getPersistenceService();
+            const sessionId = useMeetingStore.getState().session.id ?? event.session_id;
+            const utteranceData: UtteranceData = {
+              id: event.utterance_id,
+              sessionId,
+              timestamp: event.timestamp_ms,
+              isFinal: true,
+              sourceText: event.text,
+              sourceLanguage: event.language,
+              translatedText: null,
+              suggestionText: null,
+              translationLatencyMs: null,
+              revision: event.revision,
+            };
+            persistence
+              .saveFinalUtteranceWithTranslation(utteranceData, null)
+              .catch((err) => warnLog('[useMeetingSession] Failed to persist utterance after translation failure:', err));
           });
       };
 

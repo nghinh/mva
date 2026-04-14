@@ -1,6 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {View, Text, StyleSheet, Pressable, ActivityIndicator, Platform} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, SafeAreaView} from 'react-native';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {colors, spacing, typography, borderRadius, shadows} from '@shared/constants';

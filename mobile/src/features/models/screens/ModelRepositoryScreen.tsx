@@ -15,8 +15,8 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {RootStackParamList} from '../../../app/navigation/router';
@@ -25,6 +25,9 @@ import { AppIcon, ModelCard, ProgressCard } from '@shared/components/ui';
 import { useBootstrapStore, useModelState, useTranslatorModelState } from '@shared/store';
 import { ModelInfo, ModelStatus } from '@shared/types';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
+import {ensureBundledModelInstalled} from '../../../native/models/BundledModelInstaller';
+import {deleteInstalledModelFiles} from '../../../native/models/BundledModelInstaller';
+import {getOnDeviceTranslator} from '../../../services/OnDeviceTranslator';
 
 // Mock data for available models
 const AVAILABLE_MODELS: ModelInfo[] = [
@@ -106,36 +109,37 @@ export const ModelRepositoryScreen: React.FC<ModelRepositoryScreenProps> = ({
         setModelDownloading(model);
       }
 
-      const simulateDownload = () => {
-        return new Promise<void>((resolve) => {
-          const interval = setInterval(() => {
-            downloadedBytes += totalBytes * 0.1;
-            const progress = Math.min((downloadedBytes / totalBytes) * 100, 100);
-
-            setDownloadProgress(progress);
-            (isTranslatorModel ? setTranslatorModelDownloadProgress : setModelDownloadProgress)({
-              bytesDownloaded: Math.round(downloadedBytes),
-              totalBytes,
-              percentage: progress,
-            });
-
-            if (progress >= 100) {
-              clearInterval(interval);
-              resolve();
-            }
-          }, 300);
-        });
-      };
-
-      await simulateDownload();
       if (isTranslatorModel) {
+        await ensureBundledModelInstalled('nllb', (completed, total) => {
+          const progress = Math.min((completed / total) * 100, 100);
+          setDownloadProgress(progress);
+          setTranslatorModelDownloadProgress({
+            bytesDownloaded: Math.round((totalBytes * progress) / 100),
+            totalBytes,
+            percentage: progress,
+          });
+        });
         setTranslatorModelReady(model);
       } else {
+        await ensureBundledModelInstalled('stt', (completed, total) => {
+          const progress = Math.min((completed / total) * 100, 100);
+          setDownloadProgress(progress);
+          setModelDownloadProgress({
+            bytesDownloaded: Math.round((totalBytes * progress) / 100),
+            totalBytes,
+            percentage: progress,
+          });
+        });
         await getSTTProcessorInstance().loadModel();
         setModelReady(model);
       }
     } catch (error) {
-      Alert.alert('Model download failed', 'Unable to prepare the speech model. Please try again.');
+      Alert.alert(
+        'Model download failed',
+        model.id === 'nllb-600m-mobile'
+          ? 'Unable to install the bundled translation model. Add the NLLB files into mobile/assets/models/nllb-600m-mobile and try again.'
+          : 'Unable to install the bundled speech model. Please verify the bundled model files are present and try again.',
+      );
       if (model.id === 'nllb-600m-mobile') {
         setTranslatorModelDeleted();
       } else {
@@ -164,21 +168,31 @@ export const ModelRepositoryScreen: React.FC<ModelRepositoryScreenProps> = ({
           {
             text: 'Delete',
             style: 'destructive',
-            onPress: async () => {
-               if (model.id === 'nllb-600m-mobile') {
-                 setTranslatorModelDeleting();
-               } else {
-                 setModelDeleting();
-               }
-               // Simulate deletion delay
-               await new Promise((resolve) => setTimeout(resolve, 1000));
-               if (model.id === 'nllb-600m-mobile') {
-                 setTranslatorModelDeleted();
-               } else {
-                 getSTTProcessorInstance().unloadModel();
-                 setModelDeleted();
-               }
-            },
+             onPress: async () => {
+                if (model.id === 'nllb-600m-mobile') {
+                  setTranslatorModelDeleting();
+                } else {
+                  setModelDeleting();
+                }
+                try {
+                  await deleteInstalledModelFiles(model.id === 'nllb-600m-mobile' ? 'nllb' : 'stt');
+                  if (model.id === 'nllb-600m-mobile') {
+                    await getOnDeviceTranslator().unload();
+                    setTranslatorModelDeleted();
+                  } else {
+                    getSTTProcessorInstance().unloadModel();
+                    setModelDeleted();
+                  }
+                } catch (error) {
+                  if (model.id === 'nllb-600m-mobile') {
+                    setTranslatorModelReady(model);
+                  } else {
+                    setModelReady(model);
+                  }
+                  Alert.alert('Delete failed', 'Unable to remove the installed model files.');
+                  console.warn('[ModelRepositoryScreen] Failed to delete installed model:', error);
+                }
+              },
           },
         ],
         { cancelable: true }

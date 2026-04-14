@@ -1,23 +1,20 @@
 /**
  * MeetingStatusBar Component
+ *
+ * Top status bar showing recording state, elapsed time, detected language, and connectivity.
+ * Features pulsing red dot when recording (respects reduced motion).
  */
 
 import React, {useEffect, useState, useRef} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
+import {View, Text, StyleSheet, TouchableOpacity, Animated, AccessibilityInfo} from 'react-native';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {AppIcon} from '../../../shared/components/ui';
 import type {IconName} from '../../../shared/components/ui/AppIcon';
 import {SessionStatus, ConnectivityStatus} from '../state/meetingStore';
 
-interface MeetingStatusBarProps {
-  sessionStatus: SessionStatus;
-  connectivity: ConnectivityStatus;
-  startedAt: number | null;
-  latencyMs?: number | null;
-  onStopMeeting?: () => void;
-  pipelineStatus?: string;
-  pipelineError?: string | null;
-}
+// =============================================================================
+// Helpers
+// =============================================================================
 
 function formatTime(startedAt: number | null): string {
   if (!startedAt) return '00:00:00';
@@ -29,39 +26,137 @@ function formatTime(startedAt: number | null): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-function getStatusConfig(
-  sessionStatus: SessionStatus,
-  connectivity: ConnectivityStatus,
-  palette: {idle: string; error: string; warning: string},
-): {dotColor: string; statusText: string; statusDescription: string} {
-  if (sessionStatus === 'idle') {
-    return {dotColor: palette.idle, statusText: 'Ready', statusDescription: 'waiting for speech'};
+// Language badge colors: EN=blue, JA=red, KO=green
+function getLanguageBadgeStyle(
+  language: string,
+  palette: {en: string; ja: string; ko: string},
+): {backgroundColor: string; textColor: string} {
+  switch (language.toLowerCase()) {
+    case 'en':
+      return {backgroundColor: palette.en, textColor: '#FFFFFF'};
+    case 'ja':
+      return {backgroundColor: palette.ja, textColor: '#FFFFFF'};
+    case 'ko':
+      return {backgroundColor: palette.ko, textColor: '#FFFFFF'};
+    default:
+      return {backgroundColor: palette.en, textColor: '#FFFFFF'};
   }
-  if (sessionStatus === 'recording' && connectivity === 'online') {
-    return {dotColor: palette.error, statusText: 'Recording', statusDescription: 'live session active'};
-  }
-  if (sessionStatus === 'stopping' || sessionStatus === 'complete') {
-    return {dotColor: palette.idle, statusText: sessionStatus === 'stopping' ? 'Stopping' : 'Complete', statusDescription: 'session ended'};
-  }
-  if (sessionStatus === 'interrupted') {
-    return {dotColor: palette.error, statusText: 'Interrupted', statusDescription: 'session interrupted'};
-  }
-  return {dotColor: palette.idle, statusText: 'Ready', statusDescription: 'waiting for speech'};
 }
 
-function ConnectivityIndicator({connectivity}: {connectivity: ConnectivityStatus}) {
+// =============================================================================
+// Sub-components
+// =============================================================================
+
+interface PulsingDotProps {
+  isRecording: boolean;
+  reducedMotion: boolean;
+}
+
+function PulsingDot({isRecording, reducedMotion}: PulsingDotProps): React.JSX.Element {
+  const {theme} = useTheme();
+  const pulseAnim = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    if (!isRecording || reducedMotion) {
+      pulseAnim.setValue(1);
+      return;
+    }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.6,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    pulse.start();
+
+    return () => {
+      pulse.stop();
+      pulseAnim.setValue(0.6);
+    };
+  }, [isRecording, reducedMotion, pulseAnim]);
+
+  if (!isRecording) {
+    return (
+      <View
+        style={[
+          styles.recordingIndicator,
+          {backgroundColor: theme.colors.text.tertiary},
+        ]}
+      />
+    );
+  }
+
+  return (
+    <Animated.View
+      style={[
+        styles.recordingIndicator,
+        {
+          backgroundColor: theme.colors.error,
+          opacity: reducedMotion ? 1 : pulseAnim,
+        },
+      ]}
+    />
+  );
+}
+
+interface LanguageBadgeProps {
+  language: string;
+}
+
+function LanguageBadge({language}: LanguageBadgeProps): React.JSX.Element {
+  const badgeStyle = getLanguageBadgeStyle(language, {
+    en: '#3B82F6', // blue
+    ja: '#EF4444', // red
+    ko: '#16A34A', // green
+  });
+
+  return (
+    <View style={[styles.languageBadge, {backgroundColor: badgeStyle.backgroundColor}]}>
+      <Text style={[styles.languageText, {color: badgeStyle.textColor}]}>
+        {language.toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+function ConnectivityIndicator({connectivity}: {connectivity: ConnectivityStatus}): React.JSX.Element {
   const {theme} = useTheme();
   const dotColor: string = theme.colors.success;
   const label = connectivity === 'online' ? 'On Device' : 'Connected';
   const icon: IconName = 'check-circle';
 
   return (
-    <View style={[styles.connectivityBadge, {backgroundColor: theme.colors.surface.secondary}]}> 
+    <View style={[styles.connectivityBadge, {backgroundColor: theme.colors.surface.secondary}]}>
       <View style={[styles.connectivityDot, {backgroundColor: dotColor}]} />
       <AppIcon name={icon} size={12} color={dotColor} />
       <Text style={[styles.connectivityText, {color: theme.colors.text.secondary}]}>{label}</Text>
     </View>
   );
+}
+
+// =============================================================================
+// Main Component
+// =============================================================================
+
+export interface MeetingStatusBarProps {
+  sessionStatus: SessionStatus;
+  connectivity: ConnectivityStatus;
+  startedAt: number | null;
+  latencyMs?: number | null;
+  onStopMeeting?: () => void;
+  pipelineStatus?: string;
+  pipelineError?: string | null;
+  currentLanguage?: string;
 }
 
 export function MeetingStatusBar({
@@ -72,16 +167,27 @@ export function MeetingStatusBar({
   onStopMeeting,
   pipelineStatus,
   pipelineError,
+  currentLanguage = 'EN',
 }: MeetingStatusBarProps): React.JSX.Element {
   const {theme} = useTheme();
-  const config = getStatusConfig(sessionStatus, connectivity, {
-    idle: theme.colors.text.tertiary,
-    error: theme.colors.error,
-    warning: theme.colors.warning,
-  });
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
+  // Check for reduced motion preference
+  useEffect(() => {
+    const checkReducedMotion = async () => {
+      try {
+        const result = await AccessibilityInfo.isReduceMotionEnabled();
+        setReducedMotion(result);
+      } catch {
+        setReducedMotion(false);
+      }
+    };
+    checkReducedMotion();
+  }, []);
+
+  // Timer update
   useEffect(() => {
     if (sessionStatus === 'recording' && startedAt) {
       const updateTime = () => setElapsedTime(formatTime(startedAt));
@@ -97,19 +203,39 @@ export function MeetingStatusBar({
   const isRecording = sessionStatus === 'recording';
   const canStop = isRecording && onStopMeeting;
 
+  const getStatusText = (): string => {
+    if (sessionStatus === 'idle') return 'Ready';
+    if (sessionStatus === 'recording') return 'Recording';
+    if (sessionStatus === 'stopping') return 'Stopping';
+    if (sessionStatus === 'complete') return 'Complete';
+    if (sessionStatus === 'interrupted') return 'Interrupted';
+    return 'Ready';
+  };
+
   return (
-    <View style={[styles.container, {backgroundColor: theme.colors.surface.primary}]}> 
+    <View style={[styles.container, {backgroundColor: theme.colors.surface.primary}]}>
       <View style={styles.topRow}>
+        {/* Left: Pulsing dot + status + timer */}
         <View style={styles.leftSection}>
-          <View style={[styles.recordingIndicator, {backgroundColor: config.dotColor}]} />
-          <Text style={[styles.recordingLabel, {color: isRecording ? theme.colors.error : theme.colors.text.secondary}]}> 
-            {config.statusText}
+          <PulsingDot isRecording={isRecording} reducedMotion={reducedMotion} />
+          <Text
+            style={[
+              styles.recordingLabel,
+              {color: isRecording ? theme.colors.error : theme.colors.text.secondary},
+            ]}>
+            {getStatusText()}
           </Text>
-          <Text style={[styles.timerPill, {color: theme.colors.text.primary, backgroundColor: theme.colors.surface.secondary}]}> 
+          <Text
+            style={[
+              styles.timerPill,
+              {color: theme.colors.text.primary, backgroundColor: theme.colors.surface.secondary},
+            ]}>
             {elapsedTime}
           </Text>
+          {isRecording && <LanguageBadge language={currentLanguage} />}
         </View>
 
+        {/* Right: Connectivity + stop button */}
         <View style={styles.rightSection}>
           <ConnectivityIndicator connectivity={connectivity} />
           {canStop && (
@@ -124,18 +250,26 @@ export function MeetingStatusBar({
       </View>
 
       {!!(pipelineStatus || pipelineError) && (
-        <Text style={[styles.pipelineText, {color: pipelineError ? theme.colors.error : theme.colors.text.tertiary}]}> 
+        <Text
+          style={[
+            styles.pipelineText,
+            {color: pipelineError ? theme.colors.error : theme.colors.text.tertiary},
+          ]}>
           {pipelineError ?? pipelineStatus}
         </Text>
       )}
       {latencyMs != null && (
-        <Text style={[styles.metaText, {color: theme.colors.text.tertiary}]}> 
+        <Text style={[styles.metaText, {color: theme.colors.text.tertiary}]}>
           {`${latencyMs}ms`}
         </Text>
       )}
     </View>
   );
 }
+
+// =============================================================================
+// Styles
+// =============================================================================
 
 const styles = StyleSheet.create({
   container: {
@@ -158,12 +292,14 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 1,
     minWidth: 0,
+    flexWrap: 'wrap',
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     flexShrink: 0,
+    marginLeft: 8,
   },
   recordingIndicator: {
     width: 8,
@@ -184,6 +320,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     overflow: 'hidden',
+    flexShrink: 0,
+  },
+  languageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  languageText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   pipelineText: {
     fontSize: 10,

@@ -3,7 +3,12 @@
  * Exports all theme tokens and types
  */
 
-export {colors, type ColorTokens} from './colors';
+export {
+  colors,
+  getColorsForMode,
+  type ColorMode,
+  type ColorTokens,
+} from './colors';
 export {typography, type TypographyTokens} from './typography';
 export {
   spacing,

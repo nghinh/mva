@@ -37,7 +37,7 @@ type RouterContextValue = {
 const RouterContext = createContext<RouterContextValue | null>(null);
 
 export function AppRouterProvider({children}: {children: React.ReactNode}) {
-  const [stack, setStack] = useState<RouteState[]>([{name: 'Bootstrap', params: undefined}]);
+  const [stack, setStack] = useState<RouteState[]>([{name: 'History', params: undefined}]);
 
   const navigate = useCallback(<T extends RouteName>(name: T, ...args: RootStackParamList[T] extends undefined ? [] : [params: RootStackParamList[T]]) => {
     const params = (args[0] ?? undefined) as RootStackParamList[T];

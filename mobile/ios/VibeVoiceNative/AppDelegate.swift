@@ -14,7 +14,12 @@ class AppDelegate: RCTAppDelegate {
 
   override func bundleURL() -> URL? {
     #if DEBUG
-    return URL(string: "http://192.168.1.69:8081/index.bundle?platform=ios")
+    #if targetEnvironment(simulator)
+    return URL(string: "http://localhost:8081/index.bundle?platform=ios")
+    #else
+    let metroHost = Bundle.main.object(forInfoDictionaryKey: "MetroHost") as? String ?? "localhost"
+    return URL(string: "http://\(metroHost):8081/index.bundle?platform=ios")
+    #endif
     #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
     #endif

@@ -12,13 +12,15 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
+  SafeAreaView,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {useDeveloperMode, useSettingsStore} from '../../../shared/store';
+import {getPersistenceService} from '../../../services/persistence';
 
 type SettingsNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'>;
 
@@ -104,6 +106,44 @@ export function SettingsScreen(): React.JSX.Element {
               />,
             )}
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, theme.typography.sectionTitle, {color: theme.colors.text.primary}]}> 
+            Data Management
+          </Text>
+          <TouchableOpacity
+            style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}
+            onPress={() => {
+              Alert.alert(
+                'Delete All Sessions',
+                'Delete all meeting data? This cannot be undone.',
+                [
+                  {text: 'Cancel', style: 'cancel'},
+                  {
+                    text: 'Delete All',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const persistence = getPersistenceService();
+                        await persistence.deleteAllSessions();
+                      } catch (error) {
+                        console.warn('[SettingsScreen] Failed to delete all sessions:', error);
+                        Alert.alert('Error', 'Failed to delete all sessions. Please try again.');
+                      }
+                    },
+                  },
+                ],
+              );
+            }}
+            activeOpacity={0.8}>
+            <Text style={[theme.typography.lanePrimary, {color: theme.colors.error}]}> 
+              Delete All Sessions
+            </Text>
+            <Text style={[theme.typography.caption, {color: theme.colors.text.tertiary}]}> 
+              Permanently remove all meeting sessions and transcripts.
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>

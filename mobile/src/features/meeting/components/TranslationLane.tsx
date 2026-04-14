@@ -4,14 +4,24 @@
  * Displays Vietnamese translation with draft/final states.
  * Draft translation renders with lighter opacity and badge.
  * Final translation replaces in-place with no layout shift.
- * Auto-scroll is stable and respects reduced-motion preferences.
+ * Features independent scrolling with auto-scroll and jump-to-latest pill.
  *
+ * @see Story 4-1: Two-lane layout
+ * @see Story 4-3: Auto-scroll + jump-to-latest
  * @see Stories 3.2, 3.3, 3.4 - Translation lane and degraded states
- * @see docs/stich/active_meeting, docs/stich/meeting_offline_state
  */
 
-import React, {useRef, useEffect, useCallback} from 'react';
-import {View, Text, StyleSheet, ScrollView} from 'react-native';
+import React, {useRef, useState, useCallback, useEffect} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Animated,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {AppIcon} from '../../../shared/components/ui';
 import {TranslationEntry} from '../state/meetingStore';
@@ -24,6 +34,42 @@ interface TranslationLaneProps {
   degradedMessage?: string | null;
   isActive: boolean;
   isRecording: boolean;
+  suppressPlaceholder?: boolean;
+}
+
+// =============================================================================
+// JumpToLatestPill Component
+// =============================================================================
+
+function JumpToLatestPill({
+  opacity,
+  onPress,
+  visible,
+}: {
+  opacity: Animated.Value;
+  onPress: () => void;
+  visible: boolean;
+}): React.JSX.Element {
+  const {theme} = useTheme();
+
+  return (
+    <Animated.View
+      style={[
+        styles.jumpPillContainer,
+        {opacity},
+      ]}
+      pointerEvents={visible ? 'box-none' : 'none'}>
+      <TouchableOpacity
+        style={styles.jumpPillTouchable}
+        onPress={onPress}
+        activeOpacity={0.8}>
+        <AppIcon name="chevron-down" size={14} color={theme.colors.jumpPill.text} />
+        <Text style={[styles.jumpPillText, {color: theme.colors.jumpPill.text}]}>
+          Latest
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 }
 
 // =============================================================================
@@ -142,10 +188,10 @@ function DegradedState({translationAvailable = false, message}: {translationAvai
       accessibilityLabel="Translation temporarily unavailable due to server load"
       accessibilityRole="alert">
       <AppIcon name="warning" size={20} color={theme.colors.warning} />
-      <Text style={[styles.degradedTitle, {color: theme.colors.text.secondary}]}> 
+      <Text style={[styles.degradedTitle, {color: theme.colors.text.secondary}]}>
         {translationAvailable ? 'AI Suggestions Limited' : 'Translation Unavailable'}
       </Text>
-      <Text style={[styles.degradedDescription, {color: theme.colors.text.tertiary}]}> 
+      <Text style={[styles.degradedDescription, {color: theme.colors.text.tertiary}]}>
         {message ?? (translationAvailable
           ? 'AI suggestions are temporarily limited. Translation continues normally.'
           : 'Server is under load. Translation will resume shortly.')}
@@ -205,41 +251,14 @@ export function TranslationLane({
   degradedMessage,
   isActive: _isActive,
   isRecording,
+  suppressPlaceholder = false,
 }: TranslationLaneProps): React.JSX.Element {
   const {theme} = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
+  const pillOpacity = useRef(new Animated.Value(0)).current;
+  const [isAtBottom, setIsAtBottom] = useState(true);
   const lastEntryCountRef = useRef(0);
   const lastFinalCountRef = useRef(0);
-
-  // Stable auto-scroll: only scroll when genuinely new content arrives
-  // Avoids layout thrashing during live updates
-  const stableScrollToEnd = useCallback(() => {
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollToEnd({
-        animated: true,
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    // Only scroll on genuinely new entries, not on update to existing
-    const currentCount = entries.length;
-    const finalCount = entries.filter(e => e.isFinal).length;
-
-    if (currentCount > lastEntryCountRef.current) {
-      // New entry added - scroll to show it
-      lastEntryCountRef.current = currentCount;
-      lastFinalCountRef.current = finalCount;
-      // Use a brief delay to allow layout to settle
-      const timer = setTimeout(stableScrollToEnd, 100);
-      return () => clearTimeout(timer);
-    } else if (finalCount > lastFinalCountRef.current) {
-      // A provisional was promoted to final - scroll
-      lastFinalCountRef.current = finalCount;
-      const timer = setTimeout(stableScrollToEnd, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [entries, stableScrollToEnd]);
 
   // Show all entries including provisional (per story 3.2)
   const sortedEntries = [...entries].sort((a, b) => {
@@ -254,6 +273,68 @@ export function TranslationLane({
   const hasEntries = sortedEntries.length > 0;
   const showTranslationDegradedState = isDegraded && !isOffline && !translationAvailable;
 
+  // Auto-scroll: only if already at bottom
+  const scrollToEnd = useCallback(() => {
+    if (isAtBottom && scrollViewRef.current) {
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollToEnd({animated: true});
+      });
+    }
+  }, [isAtBottom]);
+
+  // Auto-scroll on new content only if at bottom
+  useEffect(() => {
+    const currentCount = entries.length;
+    const finalCount = entries.filter(e => e.isFinal).length;
+
+    if (currentCount > lastEntryCountRef.current) {
+      lastEntryCountRef.current = currentCount;
+      lastFinalCountRef.current = finalCount;
+      const timer = setTimeout(scrollToEnd, 100);
+      return () => clearTimeout(timer);
+    } else if (finalCount > lastFinalCountRef.current) {
+      lastFinalCountRef.current = finalCount;
+      const timer = setTimeout(scrollToEnd, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [entries, scrollToEnd]);
+
+  // Handle scroll events to track position
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const {contentOffset, contentSize, layoutMeasurement} = event.nativeEvent;
+    const scrollableHeight = contentSize.height - layoutMeasurement.height;
+    const currentScrollY = contentOffset.y;
+
+    // Consider "at bottom" if within 50px of the end
+    const atBottom = scrollableHeight - currentScrollY < 50;
+    const wasAtBottom = isAtBottom;
+
+    if (atBottom !== wasAtBottom) {
+      setIsAtBottom(atBottom);
+
+      // Animate pill visibility
+      Animated.timing(pillOpacity, {
+        toValue: atBottom ? 0 : 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isAtBottom, pillOpacity]);
+
+  // Jump to latest and re-enable auto-scroll
+  const handleJumpToLatest = useCallback(() => {
+    setIsAtBottom(true);
+    Animated.timing(pillOpacity, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      scrollViewRef.current?.scrollToEnd({animated: true});
+    });
+  }, [pillOpacity]);
+
+  const showPill = !isAtBottom && hasEntries;
+
   return (
     <View
       style={[
@@ -261,17 +342,23 @@ export function TranslationLane({
         {backgroundColor: theme.colors.surface.primary},
         isOffline && styles.offlineContainerStyle,
         isDegraded && styles.degradedContainerStyle,
-      ]}>
+      ]}
+      accessibilityLiveRegion="polite">
       {/* Lane Header */}
       <View style={styles.header}>
-        <View style={[styles.headerLeft, {borderLeftColor: theme.colors.secondary}]}>
-          <Text style={[styles.headerLabel, {color: theme.colors.secondary}]}>Bản Dịch</Text>
+        <View style={[styles.headerLeft, {borderLeftColor: theme.colors.lane.translation}]}>
+          <View style={styles.headerTitleRow}>
+            <Text style={[styles.headerLabel, {color: theme.colors.lane.translation}]}>BẢN DỊCH</Text>
+          </View>
+          <Text style={[styles.headerSubtitle, {color: theme.colors.text.tertiary}]}>
+            Active
+          </Text>
         </View>
         {hasEntries && (
           <View style={styles.headerRight}>
             <View style={styles.activeIndicator}>
-              <View style={[styles.activeDot, {backgroundColor: theme.colors.secondary}]} />
-              <Text style={[styles.activeText, {color: theme.colors.secondary}]}>Active</Text>
+              <View style={[styles.activeDot, {backgroundColor: theme.colors.lane.translation}]} />
+              <Text style={[styles.activeText, {color: theme.colors.lane.translation}]}>Active</Text>
             </View>
           </View>
         )}
@@ -288,16 +375,16 @@ export function TranslationLane({
       )}
 
       {/* Degraded Banner */}
-        {isDegraded && !isOffline && (
-          <View style={[styles.degradedBanner, {backgroundColor: theme.colors.warning + '10'}]}>
-            <AppIcon name="warning" size={14} color={theme.colors.warning} />
-            <Text style={[styles.degradedBannerText, {color: theme.colors.warning}]}> 
+      {isDegraded && !isOffline && (
+        <View style={[styles.degradedBanner, {backgroundColor: theme.colors.warning + '10'}]}>
+          <AppIcon name="warning" size={14} color={theme.colors.warning} />
+          <Text style={[styles.degradedBannerText, {color: theme.colors.warning}]}>
             {degradedMessage ?? (translationAvailable
               ? 'AI suggestions temporarily unavailable'
               : 'Translation service temporarily degraded')}
-            </Text>
-          </View>
-        )}
+          </Text>
+        </View>
+      )}
 
       {/* Lane Content */}
       <View style={styles.content}>
@@ -306,19 +393,26 @@ export function TranslationLane({
         ) : showTranslationDegradedState ? (
           <DegradedState translationAvailable={translationAvailable} message={degradedMessage} />
         ) : !hasEntries ? (
-          <WaitingState isRecording={isRecording} />
+          suppressPlaceholder ? <View style={styles.placeholderSpacer} /> : <WaitingState isRecording={isRecording} />
         ) : (
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContentContainer}
-            // Respect reduced motion for scrolling
-            scrollEventThrottle={16}>
-            {sortedEntries.map((entry) => (
-              <TranslationEntryItem key={entry.id} entry={entry} isActive={false} />
-            ))}
-          </ScrollView>
+          <View style={styles.scrollWrapper}>
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContentContainer}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}>
+              {sortedEntries.map((entry) => (
+                <TranslationEntryItem key={entry.id} entry={entry} isActive={false} />
+              ))}
+            </ScrollView>
+
+            {/* Jump to Latest Pill */}
+            {showPill && (
+              <JumpToLatestPill opacity={pillOpacity} onPress={handleJumpToLatest} visible={showPill} />
+            )}
+          </View>
         )}
       </View>
     </View>
@@ -332,6 +426,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
+    // Subtle amber background tint from mockup
+    backgroundColor: 'rgba(68, 238, 186, 0.03)',
   },
   offlineContainerStyle: {
     opacity: 0.7,
@@ -355,11 +451,19 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
     borderLeftWidth: 2,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerLabel: {
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  headerSubtitle: {
+    fontSize: 10,
+    marginLeft: 8,
   },
   headerRight: {
     flexDirection: 'row',
@@ -408,12 +512,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
   scrollContent: {
     flex: 1,
   },
   scrollContentContainer: {
     padding: 16,
     gap: 16,
+    paddingBottom: 48,
   },
   entryContainer: {
     gap: 4,
@@ -571,6 +680,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  placeholderSpacer: {
+    flex: 1,
+  },
+  // Jump to Latest Pill
+  jumpPillContainer: {
+    position: 'absolute',
+    bottom: 16,
+    alignSelf: 'center',
+  },
+  jumpPillTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(108, 92, 231, 0.8)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  jumpPillText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

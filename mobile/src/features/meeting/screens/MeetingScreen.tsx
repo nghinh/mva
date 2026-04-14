@@ -3,20 +3,31 @@
  *
  * Main meeting screen with start/stop controls and live two-lane transcript/translation UI.
  *
- * @see Stories 2.1, 2.4, 2.5, 2.6
- * @see docs/stich/active_meeting, core_meeting_experience, meeting_waiting_state_1,
- *      meeting_waiting_state_2, meeting_offline_state, meeting_resilience_state_offline_v2
+ * @see Stories 4-1, 4-2, 4-3, 4-4, 4-5, 4-6
+ * @see docs/implementation-artifacts/4-1-build-meeting-screen-with-two-lane-layout.md
+ * @see docs/implementation-artifacts/4-2-implement-recording-indicator-and-session-timer.md
+ * @see docs/implementation-artifacts/4-3-implement-auto-scroll-and-jump-to-latest.md
+ * @see docs/implementation-artifacts/4-4-implement-stop-meeting-and-session-save-flow.md
+ * @see docs/implementation-artifacts/4-5-build-waiting-state-before-speech-detected.md
+ * @see docs/implementation-artifacts/4-6-deliver-accessibility-and-dark-mode-for-meeting-screen.md
  */
 
-import React, {useCallback, useState} from 'react';
-import {View, Text, StyleSheet, TouchableOpacity} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import React, {useCallback, useState, useRef, useEffect} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  AccessibilityInfo,
+  SafeAreaView,
+} from 'react-native';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {AppIcon} from '../../../shared/components/ui';
-import {useBootstrapOverallStatus, useModelState, usePrewarmState} from '../../../shared/store';
+import {useBootstrapOverallStatus, useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
 import {TranscriptLane} from '../components/TranscriptLane';
 import {TranslationLane} from '../components/TranslationLane';
@@ -27,12 +38,146 @@ type MeetingNavigationProp = StackNavigationProp<RootStackParamList, 'Meeting'>;
 
 const APP_NAME = 'Executive MVA';
 
+// =============================================================================
+// WaitingStateOverlay
+// Shown when meeting starts but before any speech is detected.
+// Calm, non-distracting visual with sound wave animation.
+// =============================================================================
+
+function SoundWaveBar({
+  index,
+  baseHeight,
+}: {
+  index: number;
+  baseHeight: number;
+}): React.JSX.Element {
+  const {theme, isReduceMotionEnabled} = useTheme();
+  const anim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    if (isReduceMotionEnabled) {
+      // Static bar when reduced motion is enabled
+      anim.setValue(1);
+      return undefined;
+    }
+    // Animate from 0.3 → 1 with staggered timing per bar index
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 600 + index * 150,
+          useNativeDriver: false,
+        }),
+        Animated.timing(anim, {
+          toValue: 0.3,
+          duration: 600 + index * 150,
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [anim, index, isReduceMotionEnabled]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.soundWaveBar,
+        {
+          backgroundColor: theme.colors.primary,
+          opacity: anim,
+          height: baseHeight,
+        },
+      ]}
+    />
+  );
+}
+
+function WaitingStateOverlay({
+  opacity,
+  isRecording,
+}: {
+  opacity: Animated.Value;
+  isRecording: boolean;
+}): React.JSX.Element {
+  const {theme} = useTheme();
+  const waveHeights = [12, 20, 14, 24, 16, 22, 10];
+
+  return (
+    <Animated.View
+      style={[styles.waitingOverlay, {opacity}]}
+      pointerEvents="box-none"
+      accessibilityLabel="Waiting for speech. Speak in English, Japanese, or Korean."
+      accessibilityLiveRegion="polite">
+      <View style={styles.waitingContent}>
+        {/* Sound wave animation */}
+        <View style={styles.soundWaveContainer}>
+          {waveHeights.map((h, i) => (
+            <SoundWaveBar key={i} index={i} baseHeight={h} />
+          ))}
+        </View>
+
+        {/* Listening text */}
+        <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}>
+          Listening...
+        </Text>
+        <Text style={[styles.waitingHint, {color: theme.colors.text.tertiary}]}>
+          Speak in English, Japanese, or Korean
+        </Text>
+
+        {/* Language hint pills */}
+        <View style={styles.languageHintRow}>
+          <View
+            style={[
+              styles.languageHintPill,
+              {backgroundColor: theme.colors.surface.secondary},
+            ]}>
+            <Text style={[styles.languageHintFlag]}>🇬🇧</Text>
+            <Text
+              style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}>
+              EN
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.languageHintPill,
+              {backgroundColor: theme.colors.surface.secondary},
+            ]}>
+            <Text style={[styles.languageHintFlag]}>🇯🇵</Text>
+            <Text
+              style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}>
+              JA
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.languageHintPill,
+              {backgroundColor: theme.colors.surface.secondary},
+            ]}>
+            <Text style={[styles.languageHintFlag]}>🇰🇷</Text>
+            <Text
+              style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}>
+              KO
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// =============================================================================
+// Main MeetingScreen
+// =============================================================================
+
 export function MeetingScreen(): React.JSX.Element {
   const {theme} = useTheme();
   const navigation = useNavigation<MeetingNavigationProp>();
   const bootstrapStatus = useBootstrapOverallStatus();
   const modelState = useModelState();
+  const translatorModelState = useTranslatorModelState();
   const prewarmState = usePrewarmState();
+  const {startPrewarm, completePrewarm} = useBootstrapStore();
 
   const {
     session,
@@ -52,6 +197,40 @@ export function MeetingScreen(): React.JSX.Element {
   } = useMeetingSession();
 
   const [latencyMs] = useState<number | null>(45);
+  const waitingOpacity = useRef(new Animated.Value(1)).current;
+  const hasShownFirstSpeech = useRef(false);
+
+  // Transition out waiting overlay when first speech is detected
+  useEffect(() => {
+    const hasSpeech = partialTranscript.length > 0 || transcript.length > 0;
+    if (hasSpeech && !hasShownFirstSpeech.current) {
+      hasShownFirstSpeech.current = true;
+      Animated.timing(waitingOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+    if (!hasSpeech && hasShownFirstSpeech.current) {
+      hasShownFirstSpeech.current = false;
+      waitingOpacity.setValue(1);
+    }
+  }, [partialTranscript, transcript, waitingOpacity]);
+
+  useEffect(() => {
+    const modelsReady = modelState.status === 'cached-ready';
+
+    if (modelsReady && prewarmState.status === 'pending') {
+      startPrewarm();
+      const timer = setTimeout(() => {
+        completePrewarm();
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [modelState.status, prewarmState.status, startPrewarm, completePrewarm]);
+
+  // Show waiting state when: idle, or recording but no speech yet
+  const showWaiting = status === 'idle' || (isRecording && transcript.length === 0 && !partialTranscript);
 
   const handleStartMeeting = useCallback(() => {
     startMeeting('en', 'vi');
@@ -61,7 +240,9 @@ export function MeetingScreen(): React.JSX.Element {
     await stopMeeting();
   }, [stopMeeting]);
 
-  const canStartCapture = bootstrapStatus === 'ready';
+  const sttReady = modelState.status === 'cached-ready';
+  const translatorInstalled = translatorModelState.status === 'cached-ready';
+  const canStartCapture = sttReady && prewarmState.status !== 'failed';
 
   const handlePrimaryButtonPress = useCallback(async () => {
     if (isActive) {
@@ -69,7 +250,7 @@ export function MeetingScreen(): React.JSX.Element {
       return;
     }
 
-    if (!canStartCapture) {
+    if (!sttReady) {
       navigation.navigate('Settings');
       return;
     }
@@ -80,24 +261,35 @@ export function MeetingScreen(): React.JSX.Element {
   const getButtonLabel = (): string => {
     if (status === 'stopping') return 'Stopping...';
     if (isActive) return 'Stop Meeting';
-    if (!canStartCapture) return 'Open Settings';
+    if (!sttReady) return 'Open Settings';
     return 'Start Meeting';
   };
 
   const isButtonDisabled = status === 'stopping';
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.primary}]}>
+    <SafeAreaView
+      style={[styles.container, {backgroundColor: theme.colors.background.primary}]}
+      accessibilityLabel="Meeting screen"
+      accessibilityRole="none">
       {/* Ambient Top Glow */}
       <View style={styles.ambientTopGlow} />
 
       {/* Header */}
-      <View style={[styles.header, {backgroundColor: theme.colors.surface.primary}]}>
+      <View
+        style={[styles.header, {backgroundColor: theme.colors.surface.primary}]}
+        accessibilityLabel="Header">
         <View style={styles.headerLeft}>
-          <Text style={[styles.headerEyebrow, {color: theme.colors.text.tertiary}]}>
+          <Text
+            style={[styles.headerEyebrow, {color: theme.colors.text.tertiary}]}>
             {isRecording ? 'LIVE SESSION' : 'READY'}
           </Text>
-          <Text style={[styles.headerTitle, theme.typography.screenTitle, {color: theme.colors.text.primary}]}>
+          <Text
+            style={[
+              styles.headerTitle,
+              theme.typography.screenTitle,
+              {color: theme.colors.text.primary},
+            ]}>
             {APP_NAME}
           </Text>
         </View>
@@ -106,28 +298,41 @@ export function MeetingScreen(): React.JSX.Element {
             style={[styles.headerButton, {backgroundColor: theme.colors.surface.secondary}]}
             onPress={() => navigation.navigate('History')}
             activeOpacity={0.7}
-            disabled={isActive}>
+            disabled={isActive}
+            accessibilityLabel="View meeting history"
+            accessibilityHint="Shows past meeting transcripts and translations">
             <AppIcon name="forum" size={18} color={theme.colors.text.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.headerButton, {backgroundColor: theme.colors.surface.secondary}]}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
-            disabled={isActive}>
+            disabled={isActive}
+            accessibilityLabel="Open settings"
+            accessibilityHint="Configure model downloads and meeting preferences">
             <AppIcon name="settings" size={18} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
       {!canStartCapture && (
-        <View style={[styles.readinessWarning, {backgroundColor: theme.colors.surface.secondary}]}>
-          <Text style={[styles.readinessTitle, {color: theme.colors.text.primary}]}>Meeting setup incomplete</Text>
+        <View
+          style={[styles.readinessWarning, {backgroundColor: theme.colors.surface.secondary}]}
+          accessibilityLabel="Meeting setup incomplete"
+          accessibilityRole="alert">
+          <Text style={[styles.readinessTitle, {color: theme.colors.text.primary}]}>
+            Meeting setup incomplete
+          </Text>
           <Text style={[styles.readinessCopy, {color: theme.colors.text.tertiary}]}>
             {modelState.status !== 'cached-ready'
               ? 'Download a valid on-device model before recording.'
+              : translatorModelState.status !== 'cached-ready'
+                ? 'Translation model is optional. Install it to enable in-meeting translation.'
               : prewarmState.status !== 'ready'
-                ? 'Complete speech recognition warm-up before recording.'
-                : 'Translation model is not ready yet. Open settings to review model readiness.'}
+                ? 'Finalizing speech recognition warm-up...'
+                : (!translatorInstalled
+                    ? 'Translation may take a moment to initialize when the meeting starts.'
+                    : 'Translation model will initialize when the meeting starts.')}
           </Text>
         </View>
       )}
@@ -145,14 +350,17 @@ export function MeetingScreen(): React.JSX.Element {
         />
       </View>
 
-      {/* Two-Lane Content */}
-      <View style={styles.lanesContainer}>
+      {/* Two-Lane Content - Each lane independently scrollable */}
+      <View
+        style={[styles.lanesContainer, {backgroundColor: theme.colors.surface.primary}]}
+        accessibilityLabel="Meeting content">
         <TranscriptLane
           entries={transcript}
           partialTranscript={partialTranscript}
           currentUtteranceId={currentUtteranceId}
           isRecording={isRecording}
           isOffline={isOffline}
+          suppressPlaceholder={showWaiting}
         />
         <TranslationLane
           entries={session.translations}
@@ -162,11 +370,17 @@ export function MeetingScreen(): React.JSX.Element {
           degradedMessage={null}
           isActive={isActive}
           isRecording={isRecording}
+          suppressPlaceholder={showWaiting}
         />
+
+        {/* Waiting State Overlay */}
+        {showWaiting && (
+          <WaitingStateOverlay opacity={waitingOpacity} isRecording={isRecording} />
+        )}
       </View>
 
       {/* Footer with Controls */}
-      <View style={[styles.footer, {backgroundColor: theme.colors.surface.primary}]}> 
+      <View style={[styles.footer, {backgroundColor: theme.colors.surface.primary}]}>
         {/* Primary Start/Stop Button */}
         <TouchableOpacity
           style={[
@@ -179,7 +393,15 @@ export function MeetingScreen(): React.JSX.Element {
           ]}
           onPress={handlePrimaryButtonPress}
           activeOpacity={0.85}
-          disabled={isButtonDisabled}>
+          disabled={isButtonDisabled}
+          accessibilityLabel={isActive ? 'Stop meeting' : 'Start meeting'}
+          accessibilityHint={
+            isActive
+              ? 'Ends the current recording session'
+              : canStartCapture
+                ? 'Begins a new recording session'
+                : 'Navigate to settings to configure models'
+          }>
           <View style={styles.primaryButtonContent}>
             <AppIcon
               name={isActive ? 'stop' : 'mic'}
@@ -247,7 +469,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 12,
   },
   readinessWarning: {
     marginHorizontal: 16,
@@ -275,21 +496,6 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.06)',
     gap: 12,
   },
-  debugRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  debugButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  debugButtonText: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
   primaryButton: {
     height: 56,
     borderRadius: 14,
@@ -309,6 +515,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  // Waiting state overlay styles
+  waitingOverlay: {
+    position: 'absolute',
+    top: 40,
+    left: 0,
+    right: 0,
+    bottom: '50%',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    zIndex: 10,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+  },
+  waitingContent: {
+    alignItems: 'center',
+    gap: 14,
+    width: '100%',
+    maxWidth: 320,
+  },
+  soundWaveContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    height: 40,
+  },
+  soundWaveBar: {
+    width: 3,
+    borderRadius: 2,
+  },
+  waitingTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  waitingHint: {
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 260,
+  },
+  languageHintRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+  },
+  languageHintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  languageHintFlag: {
+    fontSize: 12,
+  },
+  languageHintText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 

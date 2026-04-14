@@ -1,13 +1,7 @@
 import {DocumentDirectoryPath} from '@dr.pogodin/react-native-fs';
+import {NLLB_MODEL_FOLDER, NLLB_REQUIRED_FILES} from '../models/bundledModels';
 
-export const NLLB_MODEL_FOLDER = 'nllb-600m-mobile';
-export const NLLB_REQUIRED_FILES = [
-  'encoder_model_quantized.onnx',
-  'decoder_model_quantized.onnx',
-  'decoder_with_past_model_quantized.onnx',
-  'sentencepiece.bpe.model',
-  'vocab.json',
-] as const;
+export {NLLB_MODEL_FOLDER, NLLB_REQUIRED_FILES};
 
 export function getNllbModelDir(): string {
   return `${DocumentDirectoryPath}/models/${NLLB_MODEL_FOLDER}`;

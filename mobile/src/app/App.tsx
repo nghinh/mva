@@ -5,20 +5,22 @@
 
 import React from 'react';
 import {StatusBar, StyleSheet, View, Text} from 'react-native';
+import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 export function App(): React.JSX.Element {
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#7F1D1D" />
-      <View style={styles.debugCard}>
-        <Text style={styles.errorTitle}>Render Path OK</Text>
-        <Text style={styles.errorMessage}>Native startup + JS bundle loaded successfully.</Text>
-        <Text style={styles.errorMessage}>The black screen is inside a non-core provider/module.</Text>
-      </View>
-      <View style={styles.debugStrip}>
-        <Text style={styles.debugStripText}>Core RN only test screen</Text>
-      </View>
-    </View>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#7F1D1D" />
+        <View style={styles.debugCard}>
+          <Text style={styles.errorTitle}>SafeArea Test OK</Text>
+          <Text style={styles.errorMessage}>If this renders, SafeAreaProvider is not the culprit.</Text>
+        </View>
+        <View style={styles.debugStrip}>
+          <Text style={styles.debugStripText}>SafeAreaProvider + SafeAreaView only</Text>
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
