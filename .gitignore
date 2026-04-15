@@ -34,3 +34,7 @@ mobile/assets/models/**/*.onnx
 mobile/assets/models/**/*.model
 mobile/assets/models/**/vocab.json
 !mobile/assets/models/**/README.md
+
+# Temporary extracted speaker diarization archives
+mobile/assets/models/speaker-diarization/*.tar.bz2
+mobile/assets/models/speaker-diarization/sherpa-onnx-pyannote-segmentation-3-0/
