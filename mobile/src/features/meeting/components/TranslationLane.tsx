@@ -11,7 +11,7 @@
  * @see Stories 3.2, 3.3, 3.4 - Translation lane and degraded states
  */
 
-import React, {useRef, useState, useCallback, useEffect} from 'react';
+import React, {useRef, useState, useCallback} from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import {useTheme} from '../../../shared/hooks/useTheme';
-import {AppIcon} from '../../../shared/components/ui';
+import {AppIcon, SpeakerBadge} from '../../../shared/components/ui';
 import {TranslationEntry} from '../state/meetingStore';
 
 interface TranslationLaneProps {
@@ -109,6 +109,8 @@ function TranslationEntryItem({
       accessibilityLabel={`${isProvisional ? 'Provisional translation' : 'Translation'}: ${entry.translatedText}`}
       accessibilityRole="text">
       <View style={styles.entryHeader}>
+        {/* Speaker badge - shown before timestamp if available */}
+        <SpeakerBadge speakerId={entry.speakerId} label={entry.speakerId} size="small" />
         <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}>
           {new Date(entry.timestamp).toLocaleTimeString('en-US', {
             hour12: false,
@@ -257,8 +259,6 @@ export function TranslationLane({
   const scrollViewRef = useRef<ScrollView>(null);
   const pillOpacity = useRef(new Animated.Value(0)).current;
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const lastEntryCountRef = useRef(0);
-  const lastFinalCountRef = useRef(0);
 
   // Show all entries including provisional (per story 3.2)
   const sortedEntries = [...entries].sort((a, b) => {
@@ -282,22 +282,10 @@ export function TranslationLane({
     }
   }, [isAtBottom]);
 
-  // Auto-scroll on new content only if at bottom
-  useEffect(() => {
-    const currentCount = entries.length;
-    const finalCount = entries.filter(e => e.isFinal).length;
-
-    if (currentCount > lastEntryCountRef.current) {
-      lastEntryCountRef.current = currentCount;
-      lastFinalCountRef.current = finalCount;
-      const timer = setTimeout(scrollToEnd, 100);
-      return () => clearTimeout(timer);
-    } else if (finalCount > lastFinalCountRef.current) {
-      lastFinalCountRef.current = finalCount;
-      const timer = setTimeout(scrollToEnd, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [entries, scrollToEnd]);
+  // Auto-scroll whenever content size changes (new entry, text update, draft→final)
+  const handleContentSizeChange = useCallback((_w: number, _h: number) => {
+    scrollToEnd();
+  }, [scrollToEnd]);
 
   // Handle scroll events to track position
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -402,6 +390,7 @@ export function TranslationLane({
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollContentContainer}
               onScroll={handleScroll}
+              onContentSizeChange={handleContentSizeChange}
               scrollEventThrottle={16}>
               {sortedEntries.map((entry) => (
                 <TranslationEntryItem key={entry.id} entry={entry} isActive={false} />

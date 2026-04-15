@@ -20,6 +20,9 @@ interface DeveloperMetrics {
   lastSttAt: number | null;
   /** Timestamp of the last translation event. Used to age out stale values. */
   lastTranslationAt: number | null;
+  /** Latest speaker diarization debug summary. */
+  speakerDebug: string | null;
+  lastSpeakerDebugAt: number | null;
 }
 
 interface DeveloperMetricsStore extends DeveloperMetrics {
@@ -29,6 +32,7 @@ interface DeveloperMetricsStore extends DeveloperMetrics {
   recordTranslationLatency: (latencyMs: number) => void;
   /** Reset all metrics to initial state */
   reset: () => void;
+  recordSpeakerDebug: (summary: string) => void;
 }
 
 const STALE_TIMEOUT_MS = 5000;
@@ -39,6 +43,8 @@ const initialMetrics: DeveloperMetrics = {
   translationLatencyMs: null,
   lastSttAt: null,
   lastTranslationAt: null,
+  speakerDebug: null,
+  lastSpeakerDebugAt: null,
 };
 
 export const useDeveloperMetricsStore = create<DeveloperMetricsStore>((set) => ({
@@ -58,6 +64,13 @@ export const useDeveloperMetricsStore = create<DeveloperMetricsStore>((set) => (
     });
   },
 
+  recordSpeakerDebug: (summary: string) => {
+    set({
+      speakerDebug: summary,
+      lastSpeakerDebugAt: Date.now(),
+    });
+  },
+
   reset: () => set(initialMetrics),
 }));
 
@@ -68,8 +81,9 @@ export const useDeveloperMetricsStore = create<DeveloperMetricsStore>((set) => (
 export function useDeveloperMetrics(): {
   sttLatencyMs: number | null;
   translationLatencyMs: number | null;
+  speakerDebug: string | null;
 } {
-  const {sttLatencyMs, lastSttAt, translationLatencyMs, lastTranslationAt} =
+  const {sttLatencyMs, lastSttAt, translationLatencyMs, lastTranslationAt, speakerDebug, lastSpeakerDebugAt} =
     useDeveloperMetricsStore();
 
   const now = Date.now();
@@ -80,9 +94,14 @@ export function useDeveloperMetrics(): {
     lastTranslationAt && now - lastTranslationAt > STALE_TIMEOUT_MS
       ? null
       : translationLatencyMs;
+  const displaySpeakerDebug =
+    lastSpeakerDebugAt && now - lastSpeakerDebugAt > STALE_TIMEOUT_MS
+      ? null
+      : speakerDebug;
 
   return {
     sttLatencyMs: displaySttLatency,
     translationLatencyMs: displayTranslationLatency,
+    speakerDebug: displaySpeakerDebug,
   };
 }

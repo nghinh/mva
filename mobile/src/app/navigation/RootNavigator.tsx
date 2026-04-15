@@ -14,6 +14,7 @@ import {AppRouterProvider, useRoute} from './router';
 import {ThemeProvider} from '../../shared/hooks/useTheme';
 import {useBootstrapStore} from '../../shared/store';
 import {areBundledAssetsAvailable, ensureBundledModelInstalled} from '../../native/models/BundledModelInstaller';
+import {getSpeakerEmbeddingService} from '../../native/speaker/SpeakerEmbeddingService';
 
 const STT_MODEL_INFO = {
   id: 'sensevoice-small',
@@ -86,6 +87,16 @@ function BundledModelsInitializer(): null {
         }
       } else if (!cancelled) {
         setTranslatorModelError('Bundled NLLB model files are missing from mobile/assets/models/nllb-600m-mobile.');
+      }
+
+      const hasBundledDiarization = await areBundledAssetsAvailable('diarization');
+      if (hasBundledDiarization) {
+        try {
+          await ensureBundledModelInstalled('diarization');
+          await getSpeakerEmbeddingService().initialize();
+        } catch {
+          // Non-fatal: meeting flow still works without speaker labels.
+        }
       }
 
       if (!cancelled && hasBundledStt && translatorReady) {

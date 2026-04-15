@@ -105,6 +105,13 @@ export interface STTFinalEvent {
   start_ms: number;
   end_ms: number;
   revision: number;
+  /**
+   * Raw audio samples for this utterance (Float32Array as number array).
+   * Used for speaker embedding extraction during finalization.
+   * Memory-only: not persisted to disk.
+   */
+  audio_samples?: number[];
+  sample_rate?: number;
 }
 
 export type STTEvent = STTPartialEvent | STTFinalEvent;

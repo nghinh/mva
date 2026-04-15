@@ -35,6 +35,7 @@ import {TranscriptLane} from '../components/TranscriptLane';
 import {TranslationLane} from '../components/TranslationLane';
 import {useMeetingSession} from '../hooks/useMeetingSession';
 import type {SessionStatus, ConnectivityStatus} from '../state/meetingStore';
+import {useDeveloperMetrics} from '../store/developerMetricsStore';
 
 type MeetingNavigationProp = StackNavigationProp<RootStackParamList, 'Meeting'>;
 
@@ -181,6 +182,7 @@ export function MeetingScreen(): React.JSX.Element {
   const prewarmState = usePrewarmState();
   const {startPrewarm, completePrewarm} = useBootstrapStore();
   const developerMode = useDeveloperMode();
+  const {speakerDebug} = useDeveloperMetrics();
   const targetLanguage = useTargetLanguage();
 
   const {
@@ -314,7 +316,7 @@ export function MeetingScreen(): React.JSX.Element {
             activeOpacity={0.7}
             disabled={isActive}
             accessibilityLabel="Open settings"
-            accessibilityHint="Configure model downloads and meeting preferences">
+            accessibilityHint="Configure bundled models and meeting preferences">
             <AppIcon name="settings" size={18} color={theme.colors.text.primary} />
           </TouchableOpacity>
         </View>
@@ -330,7 +332,7 @@ export function MeetingScreen(): React.JSX.Element {
           </Text>
           <Text style={[styles.readinessCopy, {color: theme.colors.text.tertiary}]}>
             {modelState.status !== 'cached-ready'
-              ? 'Download a valid on-device model before recording.'
+              ? 'Speech recognition model not ready. Please wait for preparation to complete.'
               : translatorModelState.status !== 'cached-ready'
                 ? 'Translation model is optional. Install it to enable in-meeting translation.'
               : prewarmState.status !== 'ready'
@@ -352,6 +354,9 @@ export function MeetingScreen(): React.JSX.Element {
           onStopMeeting={handleStopMeeting}
           pipelineStatus={pipelineStatus}
           pipelineError={pipelineError}
+          currentLanguage={session.sourceLanguage}
+          developerMode={developerMode}
+          speakerDebug={speakerDebug}
         />
       </View>
 

@@ -27,10 +27,19 @@ import {
   useModelState,
   useTranslatorModelState,
   useTargetLanguage,
+  useDiarizationThreshold,
   TARGET_LANGUAGE_OPTIONS,
   getLanguageOption,
 } from '../../../shared/store';
+import {
+  formatDiarizationThreshold,
+  getDiarizationThresholdLabel,
+  getDiarizationThresholdDescription,
+  DIARIZATION_THRESHOLD_MIN,
+  DIARIZATION_THRESHOLD_MAX,
+} from '../../../shared/config/runtimeConfig';
 import {getPersistenceService} from '../../../services/persistence';
+import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
 import {spacing, borderRadius, typography} from '../../../shared/constants';
 import {AppIcon} from '../../../shared/components/ui';
 
@@ -39,7 +48,8 @@ type SettingsNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'
 // Bundled model info (sizes are fixed for bundled models)
 const SENSEVOICE_SIZE_MB = 234;
 const NLLB_SIZE_MB = 780;
-const TOTAL_MODELS_SIZE_MB = SENSEVOICE_SIZE_MB + NLLB_SIZE_MB;
+const DIARIZATION_SIZE_MB = 35;
+const TOTAL_MODELS_SIZE_MB = SENSEVOICE_SIZE_MB + NLLB_SIZE_MB + DIARIZATION_SIZE_MB;
 
 // Language flag emojis for selector
 const LANGUAGE_FLAGS: Record<string, string> = {
@@ -60,10 +70,52 @@ export function SettingsScreen(): React.JSX.Element {
   const targetLanguage = useTargetLanguage();
   const {setTargetLanguage} = useSettingsStore();
   const currentLangOption = getLanguageOption(targetLanguage);
+  const diarizationThreshold = useDiarizationThreshold();
+  const {setDiarizationThreshold} = useSettingsStore();
 
   // Session data size estimation (would be derived from persistence in production)
   const [sessionDataSizeMB] = useState<number>(0);
   const [langSelectorVisible, setLangSelectorVisible] = useState(false);
+
+  // Diarization tuning state (dev mode only)
+  const [clusterConfig, setClusterConfig] = useState<SpeakerClusterConfig>(() => getSpeakerClusterService().getConfig());
+  const updateClusterParam = useCallback(<K extends keyof SpeakerClusterConfig>(key: K, value: SpeakerClusterConfig[K]) => {
+    const updated = {...clusterConfig, [key]: value};
+    setClusterConfig(updated);
+    getSpeakerClusterService().setConfig({[key]: value});
+  }, [clusterConfig]);
+  const resetClusterDefaults = useCallback(() => {
+    const fresh = getSpeakerClusterService().getConfig();
+    const defaults: SpeakerClusterConfig = {
+      similarityThreshold: 0.50,
+      highConfidenceThreshold: 0.65,
+      lowConfidenceThreshold: 0.22,
+      minUtteranceDuration: 1.0,
+      temporalBiasWindow: 10.0,
+      temporalBiasBoost: 0.05,
+      maxEmbeddingsPerCluster: 30,
+      minClusterSize: 3,
+      clusterMergeThreshold: 0.68,
+      maxSpeakers: 8,
+    };
+    getSpeakerClusterService().setConfig(defaults);
+    setClusterConfig(defaults);
+  }, []);
+
+  // Speaker sensitivity preset options
+  // Values are blended 30% with the algorithm's internal 0.55 default,
+  // so the effective threshold range is narrower than these raw values.
+  const SENSITIVITY_PRESETS = [
+    {label: 'Low', value: 0.40, description: 'Fewer speaker labels'},
+    {label: 'Medium', value: 0.55, description: 'Balanced'},
+    {label: 'High', value: 0.70, description: 'More speaker labels'},
+  ] as const;
+
+  const currentSensitivityLabel = getDiarizationThresholdLabel(diarizationThreshold);
+
+  const handleSensitivityChange = useCallback((value: number) => {
+    setDiarizationThreshold(value);
+  }, [setDiarizationThreshold]);
 
   const handleDeleteAllSessions = useCallback(async () => {
     Alert.alert(
@@ -169,6 +221,13 @@ export function SettingsScreen(): React.JSX.Element {
             nllbStatus,
             () => navigation.navigate('ModelRepository'),
           )}
+          {renderModelCard(
+            'Speaker Diarization',
+            'Per-utterance speaker labeling (S1, S2, S3...)',
+            DIARIZATION_SIZE_MB,
+            {icon: 'check-circle', color: theme.colors.secondary, label: 'Bundled'},
+            () => navigation.navigate('ModelRepository'),
+          )}
         </View>
 
         {/* Translation Section */}
@@ -193,6 +252,70 @@ export function SettingsScreen(): React.JSX.Element {
                 <AppIcon name="chevron-down" size={16} color={theme.colors.text.tertiary} />
               </View>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Speaker Detection Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Speaker Detection</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
+            <View style={styles.speakerDetectionHeader}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Sensitivity</Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>
+                  {getDiarizationThresholdDescription()}
+                </Text>
+              </View>
+              <View style={[styles.sensitivityBadge, {backgroundColor: theme.colors.primary + '20'}]}>
+                <Text style={[styles.sensitivityBadgeText, {color: theme.colors.primary}]}>
+                  {currentSensitivityLabel}
+                </Text>
+              </View>
+            </View>
+
+            {/* Sensitivity preset buttons */}
+            <View style={styles.sensitivityPresets}>
+              {SENSITIVITY_PRESETS.map((preset) => {
+                const isSelected = Math.abs(diarizationThreshold - preset.value) < 0.05;
+                return (
+                  <TouchableOpacity
+                    key={preset.label}
+                    style={[
+                      styles.sensitivityPresetButton,
+                      isSelected
+                        ? {backgroundColor: theme.colors.primary + '30', borderColor: theme.colors.primary, borderWidth: 1}
+                        : {backgroundColor: theme.colors.surface.container},
+                    ]}
+                    onPress={() => handleSensitivityChange(preset.value)}
+                    activeOpacity={0.7}>
+                    <Text
+                      style={[
+                        styles.sensitivityPresetLabel,
+                        {color: isSelected ? theme.colors.primary : theme.colors.text.primary},
+                      ]}>
+                      {preset.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.sensitivityPresetValue,
+                        {color: isSelected ? theme.colors.primary : theme.colors.text.tertiary},
+                      ]}>
+                      {formatDiarizationThreshold(preset.value)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Current value indicator */}
+            <View style={styles.sensitivityCurrentValue}>
+              <Text style={[styles.sensitivityCurrentLabel, {color: theme.colors.text.tertiary}]}>
+                Current:
+              </Text>
+              <Text style={[styles.sensitivityCurrentValueText, {color: theme.colors.text.primary}]}>
+                {formatDiarizationThreshold(diarizationThreshold)}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -248,6 +371,65 @@ export function SettingsScreen(): React.JSX.Element {
               />
             </View>
           </View>
+
+          {/* Diarization Tuning — only when developer mode is ON */}
+          {developerMode && (
+            <View style={[styles.card, {backgroundColor: theme.colors.surface.primary, marginTop: spacing.sm}]}>
+              <View style={{padding: spacing.md, gap: spacing.xs}}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Speaker Diarization Tuning</Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary, marginBottom: spacing.sm}]}>
+                  Fine-tune clustering parameters for speaker identification
+                </Text>
+
+                {([
+                  {key: 'similarityThreshold' as const, label: 'Similarity Threshold', min: 0.30, max: 0.80, step: 0.05},
+                  {key: 'highConfidenceThreshold' as const, label: 'High Confidence', min: 0.55, max: 0.85, step: 0.05},
+                  {key: 'lowConfidenceThreshold' as const, label: 'Low Confidence', min: 0.20, max: 0.50, step: 0.05},
+                  {key: 'clusterMergeThreshold' as const, label: 'Merge Threshold', min: 0.45, max: 0.75, step: 0.05},
+                  {key: 'temporalBiasBoost' as const, label: 'Temporal Bias Boost', min: 0.00, max: 0.20, step: 0.02},
+                  {key: 'temporalBiasWindow' as const, label: 'Temporal Window (s)', min: 3, max: 30, step: 1},
+                  {key: 'minUtteranceDuration' as const, label: 'Min Utterance (s)', min: 0.5, max: 3.0, step: 0.5},
+                  {key: 'maxSpeakers' as const, label: 'Max Speakers', min: 2, max: 12, step: 1},
+                ] as const).map(({key, label, min, max, step}) => (
+                  <View key={key} style={styles.tuningRow}>
+                    <Text style={[styles.tuningLabel, {color: theme.colors.text.secondary}]}>{label}</Text>
+                    <View style={styles.tuningControls}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const cur = clusterConfig[key] as number;
+                          const next = Math.max(min, Math.round((cur - step) * 100) / 100);
+                          updateClusterParam(key, next);
+                        }}
+                        style={[styles.tuningBtn, {backgroundColor: theme.colors.surface.container}]}>
+                        <Text style={[styles.tuningBtnText, {color: theme.colors.text.primary}]}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.tuningValue, {color: theme.colors.primary}]}>
+                        {typeof clusterConfig[key] === 'number' && (clusterConfig[key] as number) % 1 !== 0
+                          ? (clusterConfig[key] as number).toFixed(2)
+                          : String(clusterConfig[key])}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const cur = clusterConfig[key] as number;
+                          const next = Math.min(max, Math.round((cur + step) * 100) / 100);
+                          updateClusterParam(key, next);
+                        }}
+                        style={[styles.tuningBtn, {backgroundColor: theme.colors.surface.container}]}>
+                        <Text style={[styles.tuningBtnText, {color: theme.colors.text.primary}]}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  style={[styles.resetDefaultsButton, {borderColor: theme.colors.border.subtle}]}
+                  onPress={resetClusterDefaults}
+                  activeOpacity={0.7}>
+                  <Text style={[styles.resetDefaultsText, {color: theme.colors.text.secondary}]}>Reset to Defaults</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Privacy Section */}
@@ -477,6 +659,62 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     marginTop: spacing.xxs,
   },
+  speakerDetectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  sensitivityBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
+  },
+  sensitivityBadgeText: {
+    fontFamily: typography.fontFamily.label,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+  },
+  sensitivityPresets: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  sensitivityPresetButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    gap: spacing.xxs,
+  },
+  sensitivityPresetLabel: {
+    fontFamily: typography.fontFamily.headline,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.semibold,
+  },
+  sensitivityPresetValue: {
+    fontFamily: typography.fontFamily.mono,
+    fontSize: typography.fontSize.xs,
+  },
+  sensitivityCurrentValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  sensitivityCurrentLabel: {
+    fontFamily: typography.fontFamily.label,
+    fontSize: typography.fontSize.xs,
+  },
+  sensitivityCurrentValueText: {
+    fontFamily: typography.fontFamily.mono,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+  },
   languageSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -623,6 +861,56 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.xs,
     marginTop: 2,
+  },
+  tuningRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  tuningLabel: {
+    fontFamily: typography.fontFamily.mono,
+    fontSize: typography.fontSize.xs,
+    flex: 1,
+  },
+  tuningControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  tuningBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tuningBtnText: {
+    fontFamily: typography.fontFamily.headline,
+    fontSize: typography.fontSize.lg,
+    fontWeight: typography.fontWeight.bold,
+    lineHeight: 22,
+  },
+  tuningValue: {
+    fontFamily: typography.fontFamily.mono,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  resetDefaultsButton: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+  },
+  resetDefaultsText: {
+    fontFamily: typography.fontFamily.label,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    textTransform: 'uppercase',
+    letterSpacing: typography.letterSpacing.widest,
   },
 });
 

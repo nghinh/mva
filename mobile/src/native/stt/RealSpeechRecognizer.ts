@@ -31,6 +31,7 @@ export class RealSpeechRecognizer {
   private lastSpeechMs = 0;
   private lastPartialMs = 0;
   private sampleBuffer: number[] = [];
+  private sessionAudioBuffer: number[] = [];
   private processingChain: Promise<void> = Promise.resolve();
   private inferenceActive = false;
   private emitFn: ((event: MeetingPipelineEvent) => void) | null = null;
@@ -88,6 +89,7 @@ export class RealSpeechRecognizer {
       const now = Date.now();
       const rms = this.computeRms(samples);
       const isSpeech = rms >= SPEECH_THRESHOLD;
+      this.sessionAudioBuffer.push(...Array.from(samples));
 
       if (isSpeech) {
         if (!this.currentUtteranceId) {
@@ -173,8 +175,13 @@ export class RealSpeechRecognizer {
       });
     }
     this.resetUtterance();
+    this.sessionAudioBuffer = [];
     this.sessionId = null;
     this.emitFn = null;
+  }
+
+  getSessionAudioBuffer(): number[] {
+    return [...this.sessionAudioBuffer];
   }
 
   private async prepareModelDirectory(emit: (event: MeetingPipelineEvent) => void): Promise<string> {
@@ -286,6 +293,8 @@ export class RealSpeechRecognizer {
       start_ms: this.utteranceStartMs,
       end_ms: now,
       revision: this.currentRevision,
+      audio_samples: [...this.sampleBuffer],
+      sample_rate: SAMPLE_RATE,
     });
     this.resetUtterance();
   }

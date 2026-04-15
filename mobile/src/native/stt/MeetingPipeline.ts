@@ -71,6 +71,13 @@ export class MeetingPipeline {
   private utteranceCounter = 0;
   private pendingPartialEvents: Map<UtteranceId, STTPartialEvent> = new Map();
 
+  // Audio sample buffer for speaker embedding extraction (memory-only)
+  // Maps utteranceId -> { samples: number[], sampleRate: number }
+  private audioSampleBuffers: Map<
+    UtteranceId,
+    {samples: number[]; sampleRate: number}
+  > = new Map();
+
   constructor(config: Partial<MeetingPipelineConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
 
@@ -138,12 +145,23 @@ export class MeetingPipeline {
       this.pendingUtteranceId = activeUtteranceId;
     }
 
+    // Store audio samples for speaker embedding extraction (memory-only)
+    // Use 16kHz sample rate (default for the pipeline)
+    const sampleRate = this.config.sampleRate;
+    if (!this.audioSampleBuffers.has(activeUtteranceId)) {
+      this.audioSampleBuffers.set(activeUtteranceId, {samples: [], sampleRate});
+    }
+    const bufferEntry = this.audioSampleBuffers.get(activeUtteranceId)!;
+    // Convert Float32Array samples to number array for storage
+    bufferEntry.samples.push(...Array.from(chunk.data));
+
     // Add to chunk buffer
     const result = this.chunkProcessor.addChunk(chunk, activeUtteranceId);
     const buffer = this.chunkProcessor.getBuffer(activeUtteranceId);
 
     if (buffer && this.pendingUtteranceId === activeUtteranceId && this.chunkProcessor.isBufferExpired(buffer, chunk.timestampMs)) {
       this.chunkProcessor.removeBuffer(activeUtteranceId);
+      this.audioSampleBuffers.delete(activeUtteranceId);
       this.pendingUtteranceId = null;
       return;
     }
@@ -180,6 +198,7 @@ export class MeetingPipeline {
           this.sttProcessor.finalizeUtterance(segment);
         }
         this.chunkProcessor.removeBuffer(event.utterance_id);
+        // Note: audioSampleBuffer is cleaned up in handleSTTFinal after embedding extraction
         this.currentUtteranceId = null;
         this.pendingUtteranceId = null;
         break;
@@ -191,6 +210,7 @@ export class MeetingPipeline {
           if (utteranceId) {
             this.sttProcessor.cancelUtterance(utteranceId);
             this.chunkProcessor.removeBuffer(utteranceId);
+            this.audioSampleBuffers.delete(utteranceId);
           }
         this.currentUtteranceId = null;
         this.pendingUtteranceId = null;
@@ -220,8 +240,19 @@ export class MeetingPipeline {
   private handleSTTFinal(event: STTFinalEvent): void {
     if (this.state !== 'running') return;
 
-    // Emit final transcript
+    // Retrieve and attach audio samples for speaker embedding extraction
+    // Audio stays memory-only (not persisted to disk)
+    const audioBuffer = this.audioSampleBuffers.get(event.utterance_id);
+    if (audioBuffer && audioBuffer.samples.length > 0) {
+      event.audio_samples = audioBuffer.samples;
+      event.sample_rate = audioBuffer.sampleRate;
+    }
+
+    // Emit final transcript with audio samples attached
     this.eventEmitter.emit(event);
+
+    // Clean up audio sample buffer for this utterance
+    this.audioSampleBuffers.delete(event.utterance_id);
 
     // Detect and emit language through detector subscriber path
     this.languageDetector.detectFromText(event.text, event.utterance_id);
@@ -326,9 +357,13 @@ export class MeetingPipeline {
     this.sttProcessor.setSession('');
     this.languageDetector.setSession('');
 
+    // Clean up audio sample buffers
+    this.audioSampleBuffers.clear();
+
     this.state = 'stopped';
     this.sessionId = null;
     this.currentUtteranceId = null;
+    this.pendingUtteranceId = null;
   }
 
   /**
@@ -409,8 +444,13 @@ export class MeetingPipeline {
     releaseLanguageDetectorInstance();
     releaseMeetingEventEmitter();
 
+    // Clean up audio sample buffers
+    this.audioSampleBuffers.clear();
+
     this.state = 'idle';
     this.sessionId = null;
+    this.currentUtteranceId = null;
+    this.pendingUtteranceId = null;
   }
 }
 

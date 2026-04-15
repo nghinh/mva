@@ -13,7 +13,17 @@ export const NLLB_REQUIRED_FILES = [
   'vocab.json',
 ] as const;
 
-export type BundledModelId = 'stt' | 'nllb';
+// Speaker diarization models bundled in app.
+// `model.onnx` is the segmentation model placeholder and
+// `3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx` is the embedding model.
+// Current v1 diarization flow uses utterance boundaries from VAD + the embedding model.
+export const DIARIZATION_MODEL_FOLDER = 'speaker-diarization';
+export const DIARIZATION_REQUIRED_FILES = [
+  'model.onnx',
+  '3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx',
+] as const;
+
+export type BundledModelId = 'stt' | 'nllb' | 'diarization';
 
 export const BUNDLED_MODEL_CONFIG = {
   stt: {
@@ -27,5 +37,11 @@ export const BUNDLED_MODEL_CONFIG = {
     folder: NLLB_MODEL_FOLDER,
     requiredFiles: NLLB_REQUIRED_FILES,
     displayName: 'NLLB-600M Mobile',
+  },
+  diarization: {
+    id: 'diarization' as const,
+    folder: DIARIZATION_MODEL_FOLDER,
+    requiredFiles: DIARIZATION_REQUIRED_FILES,
+    displayName: '3D-Speaker-CampPlus',
   },
 } as const;

@@ -16,6 +16,10 @@ export interface TranscriptEntry {
   sourceLanguage: SourceLanguage;
   translatedText: string | null;
   revision: number;
+  /** Speaker identifier (S1, S2, S3...) - non-fatal if absent */
+  speakerId?: string | null;
+  /** Display label for speaker (e.g., "Speaker 1") - non-fatal if absent */
+  speakerLabel?: string | null;
 }
 
 export interface TranslationEntry {
@@ -30,6 +34,10 @@ export interface TranslationEntry {
   sttRevision: number;
   source: 'device';
   latencyMs?: number | null;
+  /** Speaker identifier (S1, S2, S3...) - mirrors the linked utterance's speakerId, non-fatal if absent */
+  speakerId?: string | null;
+  /** Display label for speaker (e.g., "Speaker 1") - non-fatal if absent */
+  speakerLabel?: string | null;
 }
 
 export interface MeetingSession {
@@ -44,6 +52,10 @@ export interface MeetingSession {
   partialTranscript: string;
   translations: TranslationEntry[];
   currentUtteranceId: UtteranceId | null;
+  /** Number of unique speakers detected in this session */
+  speakerCount: number;
+  /** Speaker metadata map: speakerId -> speakerLabel (e.g., S1 -> "Speaker 1") */
+  speakerLabels: Record<string, string>;
 }
 
 const initialMeetingSession: MeetingSession = {
@@ -58,6 +70,8 @@ const initialMeetingSession: MeetingSession = {
   partialTranscript: '',
   translations: [],
   currentUtteranceId: null,
+  speakerCount: 0,
+  speakerLabels: {},
 };
 
 interface MeetingStore {
@@ -82,6 +96,14 @@ interface MeetingStore {
   updateTranslation: (utteranceId: UtteranceId, translatedText: string, isFinal: boolean) => void;
   handleTranslationMessage: (utteranceId: UtteranceId, translatedText: string, isFinal: boolean, sttRevision: number, originalText?: string, timestampMs?: number, latencyMs?: number) => void;
   cancelTranslation: (utteranceId: UtteranceId) => void;
+  /** Assign speaker label to a specific utterance and propagate to linked translation */
+  assignSpeakerToUtterance: (utteranceId: UtteranceId, speakerId: string, speakerLabel: string) => void;
+  /** Set the speaker labels map for the current session */
+  setSpeakerLabels: (labels: Record<string, string>) => void;
+  /** Update the speaker count for the current session */
+  updateSpeakerCount: (count: number) => void;
+  /** Bulk reassign speakers after recalculation */
+  bulkUpdateSpeakers: (assignments: Map<string, {speakerId: string; speakerLabel: string}>) => void;
 }
 
 export const useMeetingStore = create<MeetingStore>((set, get) => ({
@@ -277,6 +299,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   addTranslation: (utteranceId, originalText, translatedText, isFinal, sttRevision = 0) => {
     const {session} = get();
     const existingIndex = session.translations.findIndex((t) => t.utteranceId === utteranceId);
+    const linkedTranscript = session.transcript.find((e) => e.id === utteranceId);
     const entry: TranslationEntry = {
       id: existingIndex >= 0 ? session.translations[existingIndex].id : `trans_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       utteranceId,
@@ -288,6 +311,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       isProcessing: !isFinal,
       sttRevision,
       source: 'device',
+      speakerId: existingIndex >= 0 ? session.translations[existingIndex].speakerId : linkedTranscript?.speakerId,
+      speakerLabel: existingIndex >= 0 ? session.translations[existingIndex].speakerLabel : linkedTranscript?.speakerLabel,
     };
     set((state) => ({
       session: {
@@ -324,6 +349,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       if (existing.sttRevision > sttRevision) return;
       if (existing.isFinal && existing.sttRevision >= sttRevision) return;
     }
+    const existingSpeaker = existingIndex >= 0 ? session.translations[existingIndex] : null;
     const entry: TranslationEntry = {
       id: existingIndex >= 0 ? session.translations[existingIndex].id : `trans_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       utteranceId,
@@ -336,6 +362,8 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       sttRevision,
       source: 'device',
       latencyMs: latencyMs ?? null,
+      speakerId: existingSpeaker?.speakerId ?? linkedTranscript?.speakerId,
+      speakerLabel: existingSpeaker?.speakerLabel ?? linkedTranscript?.speakerLabel,
     };
     set((state) => ({
       session: {
@@ -351,6 +379,63 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     const {session} = get();
     set((state) => ({session: {...state.session, translations: session.translations.filter((t) => t.utteranceId !== utteranceId)}}));
   },
+
+  assignSpeakerToUtterance: (utteranceId, speakerId, speakerLabel) => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        // Update the transcript entry
+        transcript: state.session.transcript.map((entry) =>
+          entry.id === utteranceId
+            ? {...entry, speakerId, speakerLabel}
+            : entry,
+        ),
+        // Also update the linked translation if exists
+        translations: state.session.translations.map((t) =>
+          t.utteranceId === utteranceId
+            ? {...t, speakerId, speakerLabel}
+            : t,
+        ),
+      },
+    }));
+    debugLog('[MeetingStore] Assigned speaker', speakerId, '(' + speakerLabel + ') to utterance:', utteranceId);
+  },
+
+  setSpeakerLabels: (labels) => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        speakerLabels: labels,
+      },
+    }));
+    debugLog('[MeetingStore] Set speaker labels:', Object.keys(labels).length, 'speakers');
+  },
+
+  updateSpeakerCount: (count) => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        speakerCount: count,
+      },
+    }));
+    debugLog('[MeetingStore] Updated speaker count:', count);
+  },
+
+  bulkUpdateSpeakers: (assignments) => {
+    set((state) => ({
+      session: {
+        ...state.session,
+        transcript: state.session.transcript.map((entry) => {
+          const next = assignments.get(entry.id);
+          return next ? {...entry, speakerId: next.speakerId, speakerLabel: next.speakerLabel} : entry;
+        }),
+        translations: state.session.translations.map((entry) => {
+          const next = assignments.get(entry.utteranceId);
+          return next ? {...entry, speakerId: next.speakerId, speakerLabel: next.speakerLabel} : entry;
+        }),
+      },
+    }));
+  },
 }));
 
 export const useMeetingSession = () => useMeetingStore((store) => store.session);
@@ -362,3 +447,5 @@ export const useIsSessionActive = () => useMeetingStore((store) => store.session
 export const useTranslations = () => useMeetingStore((store) => store.session.translations);
 export const useCurrentUtteranceId = () => useMeetingStore((store) => store.session.currentUtteranceId);
 export const usePipelineStatus = () => useMeetingStore((store) => ({status: store.pipelineStatus, error: store.pipelineError}));
+export const useSpeakerCount = () => useMeetingStore((store) => store.session.speakerCount);
+export const useSpeakerLabels = () => useMeetingStore((store) => store.session.speakerLabels);

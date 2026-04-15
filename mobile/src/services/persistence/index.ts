@@ -102,6 +102,10 @@ export interface SessionData {
   sourceLanguage: string;
   targetLanguage: string;
   status: 'live' | 'complete' | 'interrupted';
+  /** Number of unique speakers detected in this session (non-fatal if absent, defaults to 0) */
+  speakerCount?: number;
+  /** Speaker metadata map: speakerId -> speakerLabel (e.g., S1 -> "Speaker 1") */
+  speakerLabels?: Record<string, string>;
 }
 
 export interface UtteranceData {
@@ -114,6 +118,10 @@ export interface UtteranceData {
   translatedText: string | null;
   translationLatencyMs?: number | null;
   revision?: number;
+  /** Speaker identifier (S1, S2, S3...) assigned by clustering, if available */
+  speakerId?: string | null;
+  /** Display label for speaker (e.g., "Speaker 1"), if available */
+  speakerLabel?: string | null;
 }
 
 export interface SessionConfigSnapshot {
@@ -133,6 +141,10 @@ export interface TranslationData {
   text: string;
   latencyMs: number | null;
   createdAt: number; // Unix timestamp ms
+  /** Speaker identifier (S1, S2, S3...) - mirrors the linked utterance's speakerId */
+  speakerId?: string | null;
+  /** Display label for speaker (e.g., "Speaker 1") */
+  speakerLabel?: string | null;
 }
 
 type PersistenceListener = () => void;

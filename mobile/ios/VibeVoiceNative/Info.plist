@@ -27,7 +27,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MetroHost</key>
-	<string>192.168.0.102</string>
+	<string>192.168.50.241</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

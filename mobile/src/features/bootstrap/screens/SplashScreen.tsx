@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {View, Text, StyleSheet, Pressable, ActivityIndicator, Platform, SafeAreaView} from 'react-native';
+import {View, Text, StyleSheet, Pressable, ActivityIndicator, SafeAreaView} from 'react-native';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {colors, spacing, typography, borderRadius, shadows} from '@shared/constants';
@@ -9,8 +9,7 @@ import {ModelInfo} from '@shared/types';
 import type {RootStackParamList} from '../../../app/navigation/router';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
 import {warnLog} from '../../../shared/utils/logger';
-import {getOnDeviceTranslator} from '../../../services/OnDeviceTranslator';
-import {getNllbModelDir} from '../../../native/nllb/modelPaths';
+import {getSpeakerEmbeddingService} from '../../../native/speaker/SpeakerEmbeddingService';
 
 const MOCK_MODEL: ModelInfo = {
   id: 'sensevoice-small',
@@ -77,6 +76,10 @@ export const SplashScreen: React.FC = () => {
         startPrewarm();
         // NLLB init deferred to startMeeting to avoid launch crash
         warnLog('[SplashScreen] NLLB init deferred');
+        // Warm up speaker embedding/diarization model (non-fatal)
+        warnLog('[SplashScreen] Warming up speaker embedding model...');
+        await getSpeakerEmbeddingService().initialize();
+        warnLog('[SplashScreen] Speaker embedding model warm-up complete');
         await delay(300);
         completePrewarm();
         setIsInitializing(false);

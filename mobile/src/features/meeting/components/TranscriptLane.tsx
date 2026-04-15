@@ -20,7 +20,7 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import {useTheme} from '../../../shared/hooks/useTheme';
-import {AppIcon} from '../../../shared/components/ui';
+import {AppIcon, SpeakerBadge} from '../../../shared/components/ui';
 import {TranscriptEntry} from '../state/meetingStore';
 
 interface TranscriptLaneProps {
@@ -106,7 +106,8 @@ function TranscriptEntryItem({entry}: {entry: TranscriptEntry}): React.JSX.Eleme
     <View style={[styles.entryContainer, !isFinal && styles.activeEntryContainer]}>
       <View style={styles.entryHeader}>
         <LanguageBadge language={entry.sourceLanguage} />
-        <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}>
+        <SpeakerBadge speakerId={entry.speakerId} label={entry.speakerId} size="small" />
+        <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}> 
           {formatTimestamp(entry.timestamp)}
         </Text>
         {!isFinal && (
@@ -144,7 +145,7 @@ function EmptyState({isRecording, isOffline}: {isRecording: boolean; isOffline: 
       <View style={styles.emptyContainer}>
         <AppIcon name="mic" size={24} color={theme.colors.text.tertiary} />
         <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Transcript Active</Text>
-        <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Server offline. Transcript continues on device.</Text>
+        <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Offline mode — transcript continues on device.</Text>
       </View>
     );
   }

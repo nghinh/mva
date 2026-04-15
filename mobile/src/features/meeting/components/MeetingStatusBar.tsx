@@ -157,6 +157,8 @@ export interface MeetingStatusBarProps {
   pipelineStatus?: string;
   pipelineError?: string | null;
   currentLanguage?: string;
+  developerMode?: boolean;
+  speakerDebug?: string | null;
 }
 
 export function MeetingStatusBar({
@@ -168,6 +170,8 @@ export function MeetingStatusBar({
   pipelineStatus,
   pipelineError,
   currentLanguage = 'EN',
+  developerMode = false,
+  speakerDebug = null,
 }: MeetingStatusBarProps): React.JSX.Element {
   const {theme} = useTheme();
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
@@ -259,10 +263,15 @@ export function MeetingStatusBar({
         </Text>
       )}
       {latencyMs != null && (
-        <Text style={[styles.metaText, {color: theme.colors.text.tertiary}]}>
+        <Text style={[styles.metaText, {color: theme.colors.text.tertiary}]}> 
           {`${latencyMs}ms`}
         </Text>
       )}
+      {developerMode && speakerDebug ? (
+        <Text style={[styles.metaText, styles.speakerDebugText, {color: theme.colors.text.tertiary}]}> 
+          {`SPK ${speakerDebug}`}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -340,6 +349,10 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 10,
     fontWeight: '500',
+  },
+  speakerDebugText: {
+    fontFamily: 'monospace',
+    lineHeight: 14,
   },
   connectivityBadge: {
     flexDirection: 'row',

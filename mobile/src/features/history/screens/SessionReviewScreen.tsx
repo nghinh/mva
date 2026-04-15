@@ -25,6 +25,8 @@ import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {getPersistenceService, SessionData, UtteranceData} from '../../../services/persistence';
+import {SpeakerBadge} from '../../../shared/components/ui';
+import {getSpeakerClusterService} from '../../../services/speaker/SpeakerClusterService';
 
 type SessionReviewNavigationProp = StackNavigationProp<RootStackParamList, 'SessionReview'>;
 type SessionReviewRouteProp = RouteProp<RootStackParamList, 'SessionReview'>;
@@ -39,6 +41,10 @@ interface TimelineEntry {
   sourceLanguage: string;
   sourceText: string;
   translatedText: string | null;
+  /** Speaker identifier (S1, S2, S3...) - non-fatal if absent */
+  speakerId?: string | null;
+  /** Display label for speaker (e.g., "Speaker 1") - non-fatal if absent */
+  speakerLabel?: string | null;
 }
 
 interface SessionSummary {
@@ -103,6 +109,8 @@ function buildTimeline(utterances: UtteranceData[]): TimelineEntry[] {
       sourceLanguage: u.sourceLanguage,
       sourceText: u.sourceText,
       translatedText: u.translatedText,
+      speakerId: u.speakerId ?? null,
+      speakerLabel: u.speakerLabel ?? null,
     }));
 }
 
@@ -127,6 +135,7 @@ export function SessionReviewScreen(): React.JSX.Element {
   const [utterances, setUtterances] = useState<UtteranceData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
 
   // ── Data loading ──
   useEffect(() => {
@@ -176,7 +185,8 @@ export function SessionReviewScreen(): React.JSX.Element {
       lines.push('=============================================');
       lines.push('');
       for (const u of utterances.filter((u) => u.isFinal).sort((a, b) => a.timestamp - b.timestamp)) {
-        lines.push(`[${formatTimestamp(u.timestamp)}] [${u.sourceLanguage.toUpperCase()}] ${u.sourceText}`);
+        const speakerTag = u.speakerId ? `[${u.speakerId}] ` : '';
+        lines.push(`[${formatTimestamp(u.timestamp)}] ${speakerTag}[${u.sourceLanguage.toUpperCase()}] ${u.sourceText}`);
         if (u.translatedText) lines.push(`→ ${u.translatedText}`);
         lines.push('');
       }
@@ -196,6 +206,14 @@ export function SessionReviewScreen(): React.JSX.Element {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  // ── Recalculate speakers handler ──
+  const handleRecalculateSpeakers = async () => {
+    Alert.alert(
+      'Speaker Recalculation Unavailable',
+      'Speaker diarization now runs after meeting stop for stability. Review-time recalculation is disabled in this build.',
+    );
   };
 
   // ── Bottom nav items ──
@@ -236,8 +254,10 @@ export function SessionReviewScreen(): React.JSX.Element {
 
         {/* Entry content */}
         <View style={styles.timelineContent}>
-          {/* Timestamp + language badge */}
+          {/* Speaker badge + Timestamp + language badge */}
           <View style={styles.entryMeta}>
+            {/* Speaker badge - shown before language badge if available */}
+            <SpeakerBadge speakerId={item.speakerId} label={item.speakerId} size="small" />
             <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}>
               {formatTimestamp(item.timestamp)}
             </Text>
@@ -434,6 +454,29 @@ export function SessionReviewScreen(): React.JSX.Element {
         }
         ListFooterComponent={
           <>
+            {/* ── Recalculate Speakers Button ── */}
+            <View style={styles.exportSection}>
+              <TouchableOpacity
+                style={[
+                  styles.exportButton,
+                  {borderColor: theme.colors.primary + '40'},
+                ]}
+                onPress={handleRecalculateSpeakers}
+                disabled={isRecalculating}
+                activeOpacity={0.7}>
+                {isRecalculating ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <>
+                    <Text style={styles.exportButtonIcon}>🔄</Text>
+                    <Text style={[styles.exportButtonText, {color: theme.colors.primary}]}>
+                      Recalculate Speakers
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
             {/* ── Export Button (centered) ── */}
             <View style={styles.exportSection}>
               <TouchableOpacity

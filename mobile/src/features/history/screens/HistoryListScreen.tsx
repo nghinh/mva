@@ -41,6 +41,7 @@ interface SessionItem {
   durationLabel: string;     // e.g. "1H 15M", "45M", "30M"
   languages: string[];       // e.g. ["EN", "JA", "KO"]
   utteranceCount: number;
+  speakerCount: number;      // number of unique speakers (S1, S2, S3...)
   lastTranslationPreview: string | null;
   status: 'complete' | 'interrupted' | 'offline';
 }
@@ -132,6 +133,7 @@ function mapSessionToItem(session: SessionData, utterances: UtteranceData[]): Se
       session.targetLanguage.toUpperCase(),
     ],
     utteranceCount: utterances.length,
+    speakerCount: session.speakerCount ?? 0,
     lastTranslationPreview: lastTranslation,
     status:
       session.status === 'live' ? 'offline' : (session.status as 'complete' | 'interrupted' | 'offline'),
@@ -336,12 +338,21 @@ function SessionCard({item, onPress, onDelete}: SessionCardProps): React.JSX.Ele
         ))}
       </View>
 
-      {/* Utterance count */}
+      {/* Utterance count + Speaker count */}
       <View style={styles.cardUtteranceRow}>
         <AppIcon name="insights" size={14} color={theme.colors.text.tertiary} />
         <Text style={[styles.cardUtteranceText, {color: theme.colors.text.tertiary}]}>
           {item.utteranceCount} Utterance{item.utteranceCount !== 1 ? 's' : ''}
         </Text>
+        {/* Speaker count - shown if > 0 */}
+        {item.speakerCount > 0 && (
+          <>
+            <View style={styles.cardUtteranceDivider} />
+            <Text style={[styles.cardUtteranceText, {color: theme.colors.text.tertiary}]}>
+              {item.speakerCount} Speaker{item.speakerCount !== 1 ? 's' : ''}
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Last translation preview */}
@@ -670,6 +681,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 12,
+  },
+  cardUtteranceDivider: {
+    width: 1,
+    height: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginHorizontal: 4,
   },
   cardUtteranceText: {
     fontSize: 11,

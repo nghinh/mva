@@ -28,7 +28,7 @@ import {getRamMetrics} from './helpers/getRamMetrics';
 
 export function DeveloperMetricsOverlay(): React.JSX.Element {
   const {theme} = useTheme();
-  const {sttLatencyMs, translationLatencyMs} = useDeveloperMetrics();
+  const {sttLatencyMs, translationLatencyMs, speakerDebug} = useDeveloperMetrics();
 
   const [ramLabel] = useState(() => getRamMetrics().label);
 
@@ -44,13 +44,18 @@ export function DeveloperMetricsOverlay(): React.JSX.Element {
       style={[styles.container, {backgroundColor: theme.colors.surface.secondary}]}
       accessibilityLabel="Developer metrics"
       accessibilityRole="text">
-      <Text style={[styles.text, {color: theme.colors.text.tertiary}]}>
+      <Text style={[styles.text, {color: theme.colors.text.tertiary}]}> 
         STT≈ {sttLatencyMs != null ? `${sttLatencyMs}ms` : '—'}
         {'  •  '}
         Trans: {translationLatencyMs != null ? `${translationLatencyMs}ms` : '—'}
         {'  •  '}
         RAM: {ramLabel}
       </Text>
+      {speakerDebug ? (
+        <Text style={[styles.debugText, {color: theme.colors.text.tertiary}]} numberOfLines={3}>
+          SPK {speakerDebug}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -67,6 +72,13 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     fontWeight: '400',
     letterSpacing: 0.3,
+  },
+  debugText: {
+    marginTop: 4,
+    fontSize: 10,
+    fontFamily: 'monospace',
+    lineHeight: 14,
+    textAlign: 'center',
   },
 });
 
