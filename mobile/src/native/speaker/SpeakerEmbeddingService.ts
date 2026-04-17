@@ -18,7 +18,7 @@ import {
   BUNDLED_MODEL_CONFIG,
   type BundledModelId,
 } from '../models/bundledModels';
-import {getInstalledModelDir} from '../models/BundledModelInstaller';
+import {ensureBundledModelInstalled, getInstalledModelDir} from '../models/BundledModelInstaller';
 import {warnLog} from '../../shared/utils/logger';
 
 /**
@@ -132,6 +132,7 @@ class SpeakerEmbeddingServiceImpl {
 
     try {
       // Get bundled model path
+      await ensureBundledModelInstalled('diarization');
       const modelPath = this.getBundledModelPath();
 
       if (!modelPath) {

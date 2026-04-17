@@ -1,7 +1,7 @@
 import * as RNFS from '@dr.pogodin/react-native-fs';
 import {getNllbModelDir, NLLB_REQUIRED_FILES} from './modelPaths';
 
-const LAN_SERVER_BASE = 'http://192.168.0.102:9090';
+const LAN_SERVER_BASE = 'http://10.1.97.244:9090';
 
 export async function areModelsPresent(): Promise<boolean> {
   const dir = getNllbModelDir();

@@ -4,9 +4,9 @@ import onnxruntime_objc
 /// Full NLLB-600M translator using ONNX Runtime with split decoder architecture
 /// and greedy decoding with KV cache.
 ///
-/// Loads encoder + decoder_with_past at init time (~1.07GB).
-/// Lazy-loads decoder_model on first translate call and caches it.
-/// Responds to memory warnings by releasing the decoder cache.
+/// Uses a low-memory session lifecycle so translation can run on physical iOS
+/// devices without keeping multiple large ONNX sessions resident at once.
+/// This trades latency for stability under tight RAM pressure.
 @objcMembers
 final class NllbTranslatorHelper: NSObject {
   private(set) var isLoaded = false
@@ -15,7 +15,7 @@ final class NllbTranslatorHelper: NSObject {
   private let tokenizer = SentencePieceTokenizer()
 
   private var encoderSession: ORTSession?
-  private var decoderSession: ORTSession?       // lazy-loaded, cached
+  private var decoderSession: ORTSession?
   private var decoderPastSession: ORTSession?
   private var env: ORTEnv?
   private var sessionOpts: ORTSessionOptions?
@@ -26,6 +26,14 @@ final class NllbTranslatorHelper: NSObject {
   private let headDim: Int = 64
 
   private let inferenceQueue = DispatchQueue(label: "com.vnteki.mva.nllb", qos: .utility)
+  private let lowMemoryMode = true
+  private var translationInProgress = false
+  private var pendingFullUnload = false
+  private var pendingSessionCleanup = false
+
+  private var decodeMaxLength: Int {
+    lowMemoryMode ? 48 : maxLength
+  }
 
   // Pre-computed name arrays (avoid re-creating every call)
   private var pastNames: [String] = []
@@ -56,67 +64,68 @@ final class NllbTranslatorHelper: NSObject {
   }
 
   @objc private func handleMemoryWarning() {
-    NSLog("[NllbTranslator] Memory warning — releasing decoder cache")
-    decoderSession = nil
+    inferenceQueue.async {
+      NSLog("[NllbTranslator] Memory warning — scheduling session cleanup")
+      if self.translationInProgress {
+        self.pendingSessionCleanup = true
+      } else {
+        self.releaseSessions()
+      }
+    }
   }
 
   func initialize(modelDir: String) -> Bool {
-    unload()
+    return inferenceQueue.sync {
+      if isLoaded, loadedModelDir == modelDir {
+        return true
+      }
 
-    guard !modelDir.isEmpty else { return false }
-    let fm = FileManager.default
+      performFullUnload()
 
-    let requiredFiles = [
-      "encoder_model_quantized.onnx",
-      "decoder_model_quantized.onnx",
-      "decoder_with_past_model_quantized.onnx",
-      "vocab.json",
-    ]
-    for f in requiredFiles {
-      if !fm.fileExists(atPath: (modelDir as NSString).appendingPathComponent(f)) {
-        NSLog("[NllbTranslator] Missing: \(f)")
+      guard !modelDir.isEmpty else { return false }
+      let fm = FileManager.default
+
+      let requiredFiles = lowMemoryMode
+        ? [
+            "encoder_model_quantized.onnx",
+            "decoder_model_quantized.onnx",
+            "vocab.json",
+          ]
+        : [
+            "encoder_model_quantized.onnx",
+            "decoder_model_quantized.onnx",
+            "decoder_with_past_model_quantized.onnx",
+            "vocab.json",
+          ]
+      for f in requiredFiles {
+        if !fm.fileExists(atPath: (modelDir as NSString).appendingPathComponent(f)) {
+          NSLog("[NllbTranslator] Missing: \(f)")
+          return false
+        }
+      }
+
+      do {
+        try tokenizer.load(
+          modelPath: (modelDir as NSString).appendingPathComponent("sentencepiece.bpe.model")
+        )
+
+        env = try ORTEnv(loggingLevel: .warning)
+        let opts = try ORTSessionOptions()
+        try opts.setIntraOpNumThreads(1)
+        try opts.setGraphOptimizationLevel(.basic)
+        sessionOpts = opts
+
+        loadedModelDir = modelDir
+        isLoaded = true
+        pendingFullUnload = false
+        pendingSessionCleanup = false
+        NSLog("[NllbTranslator] Ready (low-memory mode=%@)", lowMemoryMode ? "ON" : "OFF")
+        return true
+      } catch {
+        NSLog("[NllbTranslator] Init failed: \(error)")
+        performFullUnload()
         return false
       }
-    }
-
-    do {
-      try tokenizer.load(
-        modelPath: (modelDir as NSString).appendingPathComponent("sentencepiece.bpe.model")
-      )
-
-      env = try ORTEnv(loggingLevel: .warning)
-      let opts = try ORTSessionOptions()
-      try opts.setIntraOpNumThreads(1)
-      try opts.setGraphOptimizationLevel(.basic)
-      sessionOpts = opts
-
-      let t0 = CFAbsoluteTimeGetCurrent()
-
-      NSLog("[NllbTranslator] Loading encoder ...")
-      encoderSession = try ORTSession(
-        env: env!,
-        modelPath: (modelDir as NSString).appendingPathComponent("encoder_model_quantized.onnx"),
-        sessionOptions: opts
-      )
-      NSLog("[NllbTranslator] Encoder loaded in %.1fs", CFAbsoluteTimeGetCurrent() - t0)
-
-      let t1 = CFAbsoluteTimeGetCurrent()
-      NSLog("[NllbTranslator] Loading decoder_with_past ...")
-      decoderPastSession = try ORTSession(
-        env: env!,
-        modelPath: (modelDir as NSString).appendingPathComponent("decoder_with_past_model_quantized.onnx"),
-        sessionOptions: opts
-      )
-      NSLog("[NllbTranslator] Decoder_with_past loaded in %.1fs", CFAbsoluteTimeGetCurrent() - t1)
-
-      loadedModelDir = modelDir
-      isLoaded = true
-      NSLog("[NllbTranslator] Ready (total %.1fs, 2 sessions)", CFAbsoluteTimeGetCurrent() - t0)
-      return true
-    } catch {
-      NSLog("[NllbTranslator] Init failed: \(error)")
-      unload()
-      return false
     }
   }
 
@@ -125,43 +134,79 @@ final class NllbTranslatorHelper: NSObject {
       throw nllbError("Translator not initialized")
     }
     return try inferenceQueue.sync {
-      try self.runTranslation(text: text, srcLang: srcLang, tgtLang: tgtLang, modelDir: modelDir)
+      translationInProgress = true
+      defer {
+        translationInProgress = false
+        if pendingFullUnload {
+          performFullUnload()
+        } else if pendingSessionCleanup {
+          releaseSessions()
+          pendingSessionCleanup = false
+        }
+      }
+      return try autoreleasepool {
+        try self.runTranslation(text: text, srcLang: srcLang, tgtLang: tgtLang, modelDir: modelDir)
+      }
     }
   }
 
   func unload() {
+    inferenceQueue.sync {
+      if translationInProgress {
+        pendingFullUnload = true
+        return
+      }
+      performFullUnload()
+    }
+  }
+
+  private func releaseSessions() {
     encoderSession = nil
     decoderSession = nil
     decoderPastSession = nil
+  }
+
+  private func performFullUnload() {
+    releaseSessions()
     sessionOpts = nil
     env = nil
     tokenizer.unload()
     isLoaded = false
     loadedModelDir = nil
+    pendingFullUnload = false
+    pendingSessionCleanup = false
   }
 
   // MARK: - Translation Pipeline
 
   private func runTranslation(text: String, srcLang: String, tgtLang: String, modelDir: String) throws -> String {
     let inputIds = tokenizer.encode(text: text, srcLang: srcLang)
-    let encoderOutput = try runEncoder(inputIds: inputIds)
+    let encoderOutput = try runEncoder(inputIds: inputIds, modelDir: modelDir)
+    if lowMemoryMode {
+      encoderSession = nil
+    }
     let generated = try greedyDecode(
       encoderOutput: encoderOutput,
       encoderSeqLen: inputIds.count,
       tgtLang: tgtLang,
       modelDir: modelDir
     )
+    if lowMemoryMode {
+      decoderSession = nil
+      decoderPastSession = nil
+    }
     return tokenizer.decode(generated)
   }
 
   // MARK: - Encoder
 
-  private func runEncoder(inputIds: [Int]) throws -> ORTValue {
+  private func runEncoder(inputIds: [Int], modelDir: String) throws -> ORTValue {
     let n = inputIds.count
     let idTensor = try makeTensor(inputIds.map { Int64($0) }, shape: [1, NSNumber(value: n)])
     let maskTensor = try makeTensor([Int64](repeating: 1, count: n), shape: [1, NSNumber(value: n)])
+    let session = try getEncoderSession(modelDir: modelDir)
 
-    let out = try encoderSession!.run(
+    let out = try session.run(
       withInputs: ["input_ids": idTensor, "attention_mask": maskTensor],
       outputNames: Set(["last_hidden_state"]),
       runOptions: nil
@@ -174,14 +219,42 @@ final class NllbTranslatorHelper: NSObject {
 
   // MARK: - Lazy decoder access
 
-  private func getDecoderSession(modelDir: String) throws -> ORTSession {
-    if let existing = decoderSession { return existing }
+  private func getEncoderSession(modelDir: String) throws -> ORTSession {
+    if !lowMemoryMode, let existing = encoderSession { return existing }
     let t0 = CFAbsoluteTimeGetCurrent()
-    NSLog("[NllbTranslator] Lazy-loading decoder ...")
+    NSLog("[NllbTranslator] Loading encoder ...")
+    let path = (modelDir as NSString).appendingPathComponent("encoder_model_quantized.onnx")
+    let session = try ORTSession(env: env!, modelPath: path, sessionOptions: sessionOpts!)
+    if !lowMemoryMode {
+      encoderSession = session
+    }
+    NSLog("[NllbTranslator] Encoder loaded in %.1fs", CFAbsoluteTimeGetCurrent() - t0)
+    return session
+  }
+
+  private func getDecoderSession(modelDir: String) throws -> ORTSession {
+    if !lowMemoryMode, let existing = decoderSession { return existing }
+    let t0 = CFAbsoluteTimeGetCurrent()
+    NSLog("[NllbTranslator] Loading decoder ...")
     let path = (modelDir as NSString).appendingPathComponent("decoder_model_quantized.onnx")
     let session = try ORTSession(env: env!, modelPath: path, sessionOptions: sessionOpts!)
-    decoderSession = session
+    if !lowMemoryMode {
+      decoderSession = session
+    }
     NSLog("[NllbTranslator] Decoder loaded in %.1fs", CFAbsoluteTimeGetCurrent() - t0)
+    return session
+  }
+
+  private func getDecoderPastSession(modelDir: String) throws -> ORTSession {
+    if !lowMemoryMode, let existing = decoderPastSession { return existing }
+    let t0 = CFAbsoluteTimeGetCurrent()
+    NSLog("[NllbTranslator] Loading decoder_with_past ...")
+    let path = (modelDir as NSString).appendingPathComponent("decoder_with_past_model_quantized.onnx")
+    let session = try ORTSession(env: env!, modelPath: path, sessionOptions: sessionOpts!)
+    if !lowMemoryMode {
+      decoderPastSession = session
+    }
+    NSLog("[NllbTranslator] Decoder_with_past loaded in %.1fs", CFAbsoluteTimeGetCurrent() - t0)
     return session
   }
 
@@ -193,6 +266,15 @@ final class NllbTranslatorHelper: NSObject {
     tgtLang: String,
     modelDir: String
   ) throws -> [Int] {
+    if lowMemoryMode {
+      return try greedyDecodeWithoutPast(
+        encoderOutput: encoderOutput,
+        encoderSeqLen: encoderSeqLen,
+        tgtLang: tgtLang,
+        modelDir: modelDir
+      )
+    }
+
     let tgtLangId = tokenizer.languageId(for: tgtLang) ?? tokenizer.unkId
     var generated: [Int] = []
     let encMask = try makeTensor(
@@ -230,8 +312,13 @@ final class NllbTranslatorHelper: NSObject {
       }
     }
 
+    if lowMemoryMode {
+      decoderSession = nil
+    }
+
     // === Steps 1+: decoder_with_past (uses KV cache) ===
-    for _ in 1..<maxLength {
+    let decoderPast = try getDecoderPastSession(modelDir: modelDir)
+    for _ in 1..<decodeMaxLength {
       let nextTensor = try makeTensor([Int64(generated.last!)], shape: [1, 1])
       var inputs: [String: ORTValue] = [
         "input_ids": nextTensor,
@@ -239,7 +326,7 @@ final class NllbTranslatorHelper: NSObject {
       ]
       for (k, v) in kvCache { inputs[k] = v }
 
-      let result = try decoderPastSession!.run(
+      let result = try decoderPast.run(
         withInputs: inputs,
         outputNames: outputNameSet,
         runOptions: nil
@@ -256,6 +343,46 @@ final class NllbTranslatorHelper: NSObject {
           kvCache[pastNames[i]] = val
         }
       }
+    }
+
+    return generated
+  }
+
+  private func greedyDecodeWithoutPast(
+    encoderOutput: ORTValue,
+    encoderSeqLen: Int,
+    tgtLang: String,
+    modelDir: String
+  ) throws -> [Int] {
+    let tgtLangId = tokenizer.languageId(for: tgtLang) ?? tokenizer.unkId
+    var generated: [Int] = []
+    let encMask = try makeTensor(
+      [Int64](repeating: 1, count: encoderSeqLen),
+      shape: [1, NSNumber(value: encoderSeqLen)]
+    )
+    let decoder = try getDecoderSession(modelDir: modelDir)
+    let baseIds: [Int] = [tokenizer.eosId, tgtLangId]
+
+    for _ in 0..<decodeMaxLength {
+      let stepIds = baseIds + generated
+      let inputTensor = try makeTensor(stepIds.map(Int64.init), shape: [1, NSNumber(value: stepIds.count)])
+      let result = try decoder.run(
+        withInputs: [
+          "input_ids": inputTensor,
+          "encoder_hidden_states": encoderOutput,
+          "encoder_attention_mask": encMask,
+        ],
+        outputNames: Set(["logits"]),
+        runOptions: nil
+      )
+
+      guard let logits = result["logits"] else {
+        throw nllbError("Decoder returned nil logits")
+      }
+
+      let tokenId = try argmax(logits: logits)
+      if tokenId == tokenizer.eosId { break }
+      generated.append(tokenId)
     }
 
     return generated

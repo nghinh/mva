@@ -1,12 +1,12 @@
 /**
- * History List Screen
+ * HistoryListScreen
  *
  * Home screen showing past meeting sessions with a session card list,
  * empty state, long-press-to-delete, FAB, and bottom navigation.
  *
+ * Matches design from docs/stich/meeting_history_home/code.html
  * @see Story S-5-2
  * @see docs/implementation-artifacts/5-2-build-session-history-list-on-home-screen.md
- * @see docs/stich/meeting_history_home/code.html
  */
 
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
@@ -26,7 +26,7 @@ import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {getPersistenceService, SessionData, UtteranceData} from '../../../services/persistence';
 import {SessionId} from '../../../shared/types';
-import {AppIcon} from '../../../shared/components/ui';
+import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
 
 type HistoryNavigationProp = StackNavigationProp<RootStackParamList, 'History'>;
 
@@ -41,7 +41,7 @@ interface SessionItem {
   durationLabel: string;     // e.g. "1H 15M", "45M", "30M"
   languages: string[];       // e.g. ["EN", "JA", "KO"]
   utteranceCount: number;
-  speakerCount: number;      // number of unique speakers (S1, S2, S3...)
+  speakerCount: number;
   lastTranslationPreview: string | null;
   status: 'complete' | 'interrupted' | 'offline';
 }
@@ -51,11 +51,12 @@ interface SessionItem {
 // =============================================================================
 
 const LANGUAGE_COLORS: Record<string, {bg: string; text: string}> = {
-  EN: {bg: 'rgba(173, 198, 255, 0.15)', text: '#adc6ff'},   // tertiary
-  JA: {bg: 'rgba(255, 180, 171, 0.15)', text: '#ffb4ab'},   // error (red)
-  KO: {bg: 'rgba(68, 238, 186, 0.15)', text: '#44eeba'},   // secondary (green)
-  DE: {bg: 'rgba(68, 238, 186, 0.15)', text: '#44eeba'},   // secondary (green)
-  ZH: {bg: 'rgba(68, 238, 186, 0.15)', text: '#44eeba'},   // secondary (green)
+  EN: {bg: 'rgba(173, 198, 255, 0.2)', text: '#adc6ff'},   // tertiary
+  JA: {bg: 'rgba(255, 180, 171, 0.2)', text: '#ffb4ab'},   // error
+  KO: {bg: 'rgba(68, 238, 186, 0.2)', text: '#44eeba'},   // secondary
+  DE: {bg: 'rgba(68, 238, 186, 0.2)', text: '#44eeba'},
+  ZH: {bg: 'rgba(68, 238, 186, 0.2)', text: '#44eeba'},
+  VI: {bg: 'rgba(68, 238, 186, 0.2)', text: '#44eeba'},
 };
 
 function getLanguageColor(lang: string): {bg: string; text: string} {
@@ -85,8 +86,10 @@ function formatDuration(startedAt: number, endedAt: number | null): string {
 // Session Title — derived from source/target language pair
 // =============================================================================
 
-function buildSessionTitle(sourceLang: string, targetLang: string): string {
-  return `${sourceLang.toUpperCase()}–${targetLang.toUpperCase()} Meeting`;
+function buildSessionTitle(_sourceLang: string, _targetLang: string): string {
+  // In a real app, this would be derived from the meeting content or user-set title.
+  // For now, show a generic title based on languages.
+  return 'Meeting';
 }
 
 // =============================================================================
@@ -115,6 +118,15 @@ function formatSessionDateRange(session: SessionData): string {
 // =============================================================================
 
 function mapSessionToItem(session: SessionData, utterances: UtteranceData[]): SessionItem {
+  // Collect unique languages from utterances
+  const detectedLangs = Array.from(
+    new Set(utterances.map((u) => u.sourceLanguage.toUpperCase()).filter(Boolean))
+  );
+  // Also include sourceLanguage from session if no utterances
+  const langs = detectedLangs.length > 0
+    ? detectedLangs
+    : [session.sourceLanguage.toUpperCase()].filter(Boolean);
+
   // Last translation = last utterance with a translatedText
   const lastTranslation =
     utterances.length > 0
@@ -128,16 +140,54 @@ function mapSessionToItem(session: SessionData, utterances: UtteranceData[]): Se
     title: buildSessionTitle(session.sourceLanguage, session.targetLanguage),
     dateLabel: formatSessionDateRange(session),
     durationLabel: formatDuration(session.startedAt, session.endedAt),
-    languages: [
-      session.sourceLanguage.toUpperCase(),
-      session.targetLanguage.toUpperCase(),
-    ],
+    languages: langs,
     utteranceCount: utterances.length,
     speakerCount: session.speakerCount ?? 0,
     lastTranslationPreview: lastTranslation,
     status:
       session.status === 'live' ? 'offline' : (session.status as 'complete' | 'interrupted' | 'offline'),
   };
+}
+
+// =============================================================================
+// App Header (from mockup: "Executive MVA" + status dot + settings)
+// =============================================================================
+
+interface AppHeaderProps {
+  onSettingsPress?: () => void;
+}
+
+function AppHeader({onSettingsPress}: AppHeaderProps): React.JSX.Element {
+  const {theme} = useTheme();
+
+  return (
+    <View style={[styles.appHeader, {backgroundColor: theme.colors.surface.secondary}]}>
+      <View style={styles.appHeaderLeft}>
+        <Text style={[styles.appHeaderTitle, {color: theme.colors.text.primary}]}>
+          Executive MVA
+        </Text>
+        <View style={styles.statusIndicator}>
+          <View style={styles.statusDot} />
+          <Text style={[styles.statusLabel, {color: theme.colors.secondary}]}>Connected</Text>
+        </View>
+      </View>
+      <View style={styles.appHeaderRight}>
+        <TouchableOpacity
+          style={[styles.headerIconButton, {backgroundColor: theme.colors.surface['container-high']}]}
+          onPress={onSettingsPress}
+          activeOpacity={0.7}
+          accessibilityLabel="Settings">
+          <AppIcon name="settings" size={18} color={theme.colors.text.secondary} />
+        </TouchableOpacity>
+        <View style={[styles.avatar, {borderColor: 'rgba(71, 69, 84, 0.3)'}]}>
+          {/* Placeholder avatar - in production would use actual user image */}
+          <View style={[styles.avatarPlaceholder, {backgroundColor: theme.colors.surface['container-high']}]}>
+            <Text style={{color: theme.colors.text.tertiary, fontSize: 12}}>NV</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 // =============================================================================
@@ -154,43 +204,82 @@ interface BottomNavBarProps {
 function BottomNavBar({activeTab, onTabPress}: BottomNavBarProps): React.JSX.Element {
   const {theme} = useTheme();
 
-  const tabs: {name: TabName; label: string; icon: 'history' | 'mic' | 'dns'; filled: boolean}[] = [
-    {name: 'meetings', label: 'Meetings', icon: 'history', filled: true},
-    {name: 'live', label: 'Live', icon: 'mic', filled: false},
-    {name: 'network', label: 'Network', icon: 'dns', filled: false},
-  ];
-
   return (
-    <View
-      style={[
-        styles.bottomNav,
-        {backgroundColor: theme.colors.surface.primary},
-      ]}>
-      {tabs.map((tab) => {
-        const isActive = activeTab === tab.name;
-        return (
-          <TouchableOpacity
-            key={tab.name}
-            style={[styles.navTab, isActive && {backgroundColor: theme.colors.surface.container}]}
-            onPress={() => onTabPress(tab.name)}
-            activeOpacity={0.7}
-            accessibilityLabel={tab.label}
-            accessibilityRole="button">
-            <AppIcon
-              name={tab.icon}
-              size={20}
-              color={isActive ? theme.colors.primary : theme.colors.text.tertiary}
-            />
-            <Text
-              style={[
-                styles.navTabLabel,
-                {color: isActive ? theme.colors.primary : theme.colors.text.tertiary},
-              ]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={[styles.bottomNav, {backgroundColor: '#0e0e13'}]}>
+      {/* Meetings tab - active */}
+      <TouchableOpacity
+        style={[
+          styles.navTab,
+          {backgroundColor: activeTab === 'meetings' ? theme.colors.surface.container : 'transparent'},
+        ]}
+        onPress={() => onTabPress('meetings')}
+        activeOpacity={0.7}
+        accessibilityLabel="Meetings">
+        <AppIcon
+          name="history"
+          size={20}
+          color={activeTab === 'meetings' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)'}
+        />
+        <Text
+          style={[
+            styles.navTabLabel,
+            {
+              color: activeTab === 'meetings' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)',
+            },
+          ]}>
+          Meetings
+        </Text>
+      </TouchableOpacity>
+
+      {/* Live tab */}
+      <TouchableOpacity
+        style={[
+          styles.navTab,
+          {backgroundColor: activeTab === 'live' ? theme.colors.surface.container : 'transparent'},
+        ]}
+        onPress={() => onTabPress('live')}
+        activeOpacity={0.7}
+        accessibilityLabel="Live">
+        <AppIcon
+          name="mic"
+          size={20}
+          color={activeTab === 'live' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)'}
+        />
+        <Text
+          style={[
+            styles.navTabLabel,
+            {
+              color: activeTab === 'live' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)',
+            },
+          ]}>
+          Live
+        </Text>
+      </TouchableOpacity>
+
+      {/* Network tab */}
+      <TouchableOpacity
+        style={[
+          styles.navTab,
+          {backgroundColor: activeTab === 'network' ? theme.colors.surface.container : 'transparent'},
+        ]}
+        onPress={() => onTabPress('network')}
+        activeOpacity={0.7}
+        accessibilityLabel="Network">
+        <AppIcon
+          name="dns"
+          size={20}
+          color={activeTab === 'network' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)'}
+        />
+        <Text
+          style={[
+            styles.navTabLabel,
+            {
+              color: activeTab === 'network' ? theme.colors.primary : 'rgba(200, 196, 215, 0.4)',
+            },
+          ]}>
+          Network
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -267,7 +356,6 @@ function EmptyState({onStartMeeting}: {onStartMeeting: () => void}): React.JSX.E
       <Text style={[styles.emptySubtitle, {color: theme.colors.text.tertiary}]}>
         Your meeting history will appear here
       </Text>
-
     </View>
   );
 }
@@ -338,21 +426,12 @@ function SessionCard({item, onPress, onDelete}: SessionCardProps): React.JSX.Ele
         ))}
       </View>
 
-      {/* Utterance count + Speaker count */}
+      {/* Utterance count */}
       <View style={styles.cardUtteranceRow}>
         <AppIcon name="insights" size={14} color={theme.colors.text.tertiary} />
         <Text style={[styles.cardUtteranceText, {color: theme.colors.text.tertiary}]}>
           {item.utteranceCount} Utterance{item.utteranceCount !== 1 ? 's' : ''}
         </Text>
-        {/* Speaker count - shown if > 0 */}
-        {item.speakerCount > 0 && (
-          <>
-            <View style={styles.cardUtteranceDivider} />
-            <Text style={[styles.cardUtteranceText, {color: theme.colors.text.tertiary}]}>
-              {item.speakerCount} Speaker{item.speakerCount !== 1 ? 's' : ''}
-            </Text>
-          </>
-        )}
       </View>
 
       {/* Last translation preview */}
@@ -378,71 +457,61 @@ export function HistoryListScreen(): React.JSX.Element {
   const {theme} = useTheme();
   const navigation = useNavigation<HistoryNavigationProp>();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [activeTab, setActiveTab] = useState<TabName>('meetings');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadSessions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const persistence = getPersistenceService();
+      const storedSessions = await persistence.getSessions();
+      const items = (
+        await Promise.all(
+          storedSessions.map(async (session) => {
+            try {
+              const utterances = await persistence.getUtterances(session.id);
+              return mapSessionToItem(session, utterances);
+            } catch (itemError) {
+              console.warn('[HistoryListScreen] Failed to map session item:', session.id, itemError);
+              return null;
+            }
+          }),
+        )
+      ).filter((item): item is SessionItem => item !== null);
+      setSessions(items);
+    } catch (error) {
+      console.warn('[HistoryListScreen] Failed to load sessions:', error);
+      setSessions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Load sessions with utterances (for count + last translation preview)
   useEffect(() => {
     const persistence = getPersistenceService();
 
-    const loadSessions = async () => {
-      setIsLoading(true);
-      try {
-        const storedSessions = await persistence.getSessions();
-        const items = await Promise.all(
-          storedSessions.map(async (session) => {
-            const utterances = await persistence.getUtterances(session.id);
-            return mapSessionToItem(session, utterances);
-          }),
-        );
-        setSessions(items);
-      } catch (error) {
-        console.warn('[HistoryListScreen] Failed to load sessions:', error);
-        setSessions([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadSessions();
     const unsubscribe = persistence.subscribe(loadSessions);
     return unsubscribe;
-  }, []);
+  }, [loadSessions]);
 
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const persistence = getPersistenceService();
-      const storedSessions = await persistence.getSessions();
-      const items = await Promise.all(
-        storedSessions.map(async (session) => {
-          const utterances = await persistence.getUtterances(session.id);
-          return mapSessionToItem(session, utterances);
-        }),
-      );
-      setSessions(items);
+      await loadSessions();
     } catch (error) {
       console.warn('[HistoryListScreen] Failed to refresh sessions:', error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [loadSessions]);
 
-  // Handle tab press
-  const handleTabPress = useCallback(
-    (tab: TabName) => {
-      if (tab === 'meetings') {
-        setActiveTab('meetings');
-      } else if (tab === 'live') {
-        navigation.navigate('Meeting');
-      } else if (tab === 'network') {
-        navigation.navigate('Settings');
-      }
-    },
-    [navigation],
-  );
+  // Handle settings press
+  const handleSettingsPress = useCallback(() => {
+    navigation.navigate('Settings');
+  }, [navigation]);
 
   // Navigate to new meeting
   const handleNewMeeting = useCallback(() => {
@@ -494,59 +563,49 @@ export function HistoryListScreen(): React.JSX.Element {
   const ItemSeparatorComponent = useCallback(() => <View style={styles.separator} />, []);
 
   return (
-    <SafeAreaView
-      style={[styles.container, {backgroundColor: theme.colors.background.primary}]}> 
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          {backgroundColor: theme.colors.surface.primary},
-        ]}>
-        <View style={styles.headerLeft}>
-          <Text
-            style={[
-              styles.headerTitle,
-              theme.typography.screenTitle,
-              {color: theme.colors.text.primary},
-            ]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.primary}]}>
+      {/* App Header */}
+      <AppHeader onSettingsPress={handleSettingsPress} />
+
+      {/* Content */}
+      <View style={styles.content}>
+        {/* Section header */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, {color: theme.colors.text.primary}]}>
             Sessions
           </Text>
-          <Text style={[styles.headerSubtitle, {color: theme.colors.text.tertiary}]}>
+          <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>
             Archived meeting transcripts
           </Text>
         </View>
-        <View style={styles.headerRight}>
-          <View style={styles.statusDot} />
-          <Text style={[styles.statusLabel, {color: theme.colors.secondary}]}>Connected</Text>
-        </View>
-      </View>
 
-      {/* Session list */}
-      <FlatList
-        data={sessions}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={[
-          styles.listContent,
-          sessions.length === 0 && styles.listContentEmpty,
-        ]}
-        ItemSeparatorComponent={ItemSeparatorComponent}
-        ListEmptyComponent={ListEmptyComponent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-      />
+        {/* Session list */}
+        <FlatList
+          data={sessions}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={[
+            styles.listContent,
+            sessions.length === 0 && styles.listContentEmpty,
+          ]}
+          ItemSeparatorComponent={ItemSeparatorComponent}
+          ListEmptyComponent={ListEmptyComponent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
+        />
+      </View>
 
       {/* FAB — New Meeting */}
       <FABNewMeeting onPress={handleNewMeeting} />
 
       {/* Bottom Nav */}
-      <BottomNavBar activeTab={activeTab} onTabPress={handleTabPress} />
+      <AppBottomNav activeTab="meetings" />
     </SafeAreaView>
   );
 }
@@ -560,25 +619,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Header
-  header: {
+  // App Header
+  appHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    height: 64,
   },
-  headerLeft: {
-    gap: 2,
+  appHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  headerTitle: {},
-  headerSubtitle: {
-    fontSize: 13,
-    fontWeight: '400',
-    marginTop: 2,
-    opacity: 0.6,
+  appHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
-  headerRight: {
+  statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -599,11 +658,56 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  appHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  avatarPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Content area
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+
+  // Section header
+  sectionHeader: {
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    opacity: 0.6,
+  },
 
   // List
   listContent: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
     paddingBottom: 140, // space for FAB + bottom nav
   },
   listContentEmpty: {
@@ -612,12 +716,12 @@ const styles = StyleSheet.create({
 
   // Separator
   separator: {
-    height: 16,
+    height: 20,
   },
 
   // Session Card
   sessionCard: {
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
@@ -630,7 +734,7 @@ const styles = StyleSheet.create({
   },
   cardTitleArea: {
     flex: 1,
-    gap: 3,
+    gap: 4,
   },
   cardDateLabel: {
     fontSize: 10,
@@ -661,11 +765,11 @@ const styles = StyleSheet.create({
   // Language pills
   cardLanguages: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     marginBottom: 12,
   },
   languagePill: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
@@ -681,12 +785,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 12,
-  },
-  cardUtteranceDivider: {
-    width: 1,
-    height: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginHorizontal: 4,
   },
   cardUtteranceText: {
     fontSize: 11,
@@ -732,16 +830,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 240,
     lineHeight: 20,
-  },
-  emptyArrowContainer: {
-    position: 'absolute',
-    bottom: 100,
-    right: 40,
-  },
-  emptyArrowLine: {
-    width: 60,
-    height: 1.5,
-    borderRadius: 1,
   },
 
   // FAB
@@ -791,7 +879,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 10,
-    paddingBottom: 28, // extra bottom safe area
+    paddingBottom: 28,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.04)',
   },

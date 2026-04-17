@@ -7,7 +7,8 @@
 
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../../constants';
+import { spacing, typography, borderRadius } from '../../constants';
+import { useTheme } from '../../hooks/useTheme';
 
 interface ProgressCardProps {
   title: string;
@@ -36,28 +37,36 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
   totalBytes,
   status = 'downloading',
 }) => {
+  const { theme } = useTheme();
   const isComplete = progress >= 100;
   const clampedProgress = Math.min(Math.max(progress, 0), 100);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.surface.container,
+          borderColor: theme.colors.border.subtle,
+        },
+      ]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          <Text style={[styles.title, { color: theme.colors.secondary }]}>{title}</Text>
+          {subtitle && <Text style={[styles.subtitle, { color: theme.colors.text.secondary }]}>{subtitle}</Text>}
         </View>
-        <Text style={styles.percentage}>{clampedProgress.toFixed(0)}%</Text>
+        <Text style={[styles.percentage, { color: theme.colors.text.primary }]}>{clampedProgress.toFixed(0)}%</Text>
       </View>
 
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
-        <View style={styles.progressBarBackground}>
+        <View style={[styles.progressBarBackground, { backgroundColor: theme.colors.surface['container-highest'] }]}>
           <View
             style={[
               styles.progressBarFill,
-              { width: `${clampedProgress}%` },
-              isComplete && styles.progressBarComplete,
+              { width: `${clampedProgress}%`, backgroundColor: theme.colors.secondary, shadowColor: theme.colors.secondary },
+              isComplete && { backgroundColor: theme.colors.secondary },
             ]}
           />
         </View>
@@ -65,14 +74,14 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
 
       {/* Status Line */}
       <View style={styles.statusRow}>
-        <Text style={styles.statusText}>
+        <Text style={[styles.statusText, { color: theme.colors.text.tertiary }]}>
           {status === 'downloading' && 'Loading AI model...'}
           {status === 'processing' && 'Processing model assets...'}
           {status === 'verifying' && 'Verifying model integrity...'}
           {isComplete && 'Model ready'}
         </Text>
         {bytesDownloaded !== undefined && totalBytes !== undefined && (
-          <Text style={styles.bytesText}>
+          <Text style={[styles.bytesText, { color: theme.colors.text.tertiary }]}>
             {formatBytes(bytesDownloaded)} / {formatBytes(totalBytes)}
           </Text>
         )}
@@ -83,11 +92,9 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors['surface-container'],
     borderRadius: borderRadius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors['outline-variant'],
   },
   header: {
     flexDirection: 'row',
@@ -102,42 +109,33 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.semibold,
-    color: colors.secondary,
     letterSpacing: typography.letterSpacing.wider,
     textTransform: 'uppercase',
   },
   subtitle: {
     fontFamily: typography.fontFamily.body,
     fontSize: typography.fontSize.sm,
-    color: colors['on-surface-variant'],
     marginTop: spacing.xxs,
   },
   percentage: {
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
-    color: colors['on-surface'],
   },
   progressBarContainer: {
     marginVertical: spacing.sm,
   },
   progressBarBackground: {
     height: 4,
-    backgroundColor: colors['surface-container-highest'],
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors['secondary-container'],
     borderRadius: 2,
-    shadowColor: colors.secondary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 4,
-  },
-  progressBarComplete: {
-    backgroundColor: colors.secondary,
   },
   statusRow: {
     flexDirection: 'row',
@@ -148,14 +146,12 @@ const styles = StyleSheet.create({
   statusText: {
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
     letterSpacing: typography.letterSpacing.wide,
     textTransform: 'uppercase',
   },
   bytesText: {
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.xs,
-    color: colors['on-surface-variant'],
     opacity: 0.7,
   },
 });

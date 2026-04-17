@@ -26,20 +26,24 @@ function formatTime(startedAt: number | null): string {
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-// Language badge colors: EN=blue, JA=red, KO=green
+// Language badge colors: AUTO neutral, EN blue, JA red, KO green, ZH amber
 function getLanguageBadgeStyle(
   language: string,
-  palette: {en: string; ja: string; ko: string},
+  palette: {auto: string; en: string; ja: string; ko: string; zh: string},
 ): {backgroundColor: string; textColor: string} {
   switch (language.toLowerCase()) {
+    case 'auto':
+      return {backgroundColor: palette.auto, textColor: '#FFFFFF'};
     case 'en':
       return {backgroundColor: palette.en, textColor: '#FFFFFF'};
     case 'ja':
       return {backgroundColor: palette.ja, textColor: '#FFFFFF'};
     case 'ko':
       return {backgroundColor: palette.ko, textColor: '#FFFFFF'};
+    case 'zh':
+      return {backgroundColor: palette.zh, textColor: '#FFFFFF'};
     default:
-      return {backgroundColor: palette.en, textColor: '#FFFFFF'};
+      return {backgroundColor: palette.auto, textColor: '#FFFFFF'};
   }
 }
 
@@ -115,9 +119,11 @@ interface LanguageBadgeProps {
 
 function LanguageBadge({language}: LanguageBadgeProps): React.JSX.Element {
   const badgeStyle = getLanguageBadgeStyle(language, {
+    auto: '#8B8BA3',
     en: '#3B82F6', // blue
     ja: '#EF4444', // red
     ko: '#16A34A', // green
+    zh: '#F59E0B', // amber
   });
 
   return (

@@ -1,4 +1,5 @@
 export {AppIcon} from './AppIcon';
+export {AppBottomNav} from './AppBottomNav';
 export { ReadinessStatus } from './ReadinessStatus';
 export { ProgressCard } from './ProgressCard';
 export { ModelCard } from './ModelCard';

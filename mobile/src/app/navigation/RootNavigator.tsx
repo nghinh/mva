@@ -12,9 +12,11 @@ import {SettingsScreen} from '../../features/settings/screens';
 import {ModelRepositoryScreen} from '../../features/models/screens';
 import {AppRouterProvider, useRoute} from './router';
 import {ThemeProvider} from '../../shared/hooks/useTheme';
-import {useBootstrapStore} from '../../shared/store';
+import {useBootstrapStore, useBootstrapOverallStatus} from '../../shared/store';
 import {areBundledAssetsAvailable, ensureBundledModelInstalled} from '../../native/models/BundledModelInstaller';
 import {getSpeakerEmbeddingService} from '../../native/speaker/SpeakerEmbeddingService';
+import {getOnDeviceTranslator} from '../../services/OnDeviceTranslator';
+import {getNllbModelDir} from '../../native/nllb/modelPaths';
 
 const STT_MODEL_INFO = {
   id: 'sensevoice-small',
@@ -99,6 +101,26 @@ function BundledModelsInitializer(): null {
         }
       }
 
+      // Preload NLLB translation model so translation is instant when meeting starts.
+      // MUST await this before calling completePrewarm() so the model is actually in memory.
+      if (!cancelled && hasBundledNllb) {
+        try {
+          const translator = getOnDeviceTranslator();
+          const alreadyLoaded = await translator.isLoaded();
+          if (!alreadyLoaded) {
+            console.warn('[BundledModelsInitializer] Preloading NLLB translation model...');
+            await translator.initialize(getNllbModelDir());
+            console.warn('[BundledModelsInitializer] NLLB translation model preloaded successfully');
+          } else {
+            console.warn('[BundledModelsInitializer] NLLB translation model already loaded');
+          }
+          // Model is now in memory - translatorReady is already true from above
+        } catch (error) {
+          console.warn('[BundledModelsInitializer] NLLB preload failed (translation will be delayed):', error);
+        }
+      }
+
+      // Only mark prewarm complete AFTER NLLB is actually loaded into memory
       if (!cancelled && hasBundledStt && translatorReady) {
         startPrewarm();
         setTimeout(() => {
@@ -123,6 +145,14 @@ function BundledModelsInitializer(): null {
 
 function NavigatorContent(): React.JSX.Element {
   const route = useRoute();
+  const overallStatus = useBootstrapOverallStatus();
+
+  // Show SplashScreen while models are loading (initializing or error)
+  if (overallStatus !== 'ready') {
+    return <SplashScreen />;
+  }
+
+  console.warn('[NavigatorContent] Rendering route:', route.name, 'stack length:', /* cannot access stack here */ '');
 
   switch (route.name) {
     case 'Meeting':
@@ -137,14 +167,14 @@ function NavigatorContent(): React.JSX.Element {
       return <ModelRepositoryScreen />;
     case 'Bootstrap':
     default:
-      return <SplashScreen />;
+      return <HistoryListScreen />;
   }
 }
 
 export function RootNavigator(): React.JSX.Element {
   return (
     <ThemeProvider>
-      <BundledModelsInitializer />
+      {/* BundledModelsInitializer disabled — SplashScreen handles all initialization */}
       <AppRouterProvider>
         <NavigatorContent />
       </AppRouterProvider>

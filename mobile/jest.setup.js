@@ -1,9 +1,17 @@
 const {jest: jestGlobal} = require('@jest/globals');
 
+/**
+ * AsyncStorage mock with IN-MEMORY PERSISTENCE across calls.
+ * - getItem returns the last value set by setItem (within the same test)
+ * - removeItem clears the key
+ * This allows persistence service instances to share data correctly in tests.
+ */
+const asyncStorageStore = {};
+
 jestGlobal.mock('@react-native-async-storage/async-storage', () => ({
-  getItem: jest.fn(() => Promise.resolve(null)),
-  setItem: jest.fn(() => Promise.resolve()),
-  removeItem: jest.fn(() => Promise.resolve()),
+  getItem: jestGlobal.fn((key) => Promise.resolve(asyncStorageStore[key] ?? null)),
+  setItem: jestGlobal.fn((key, value) => { asyncStorageStore[key] = value; return Promise.resolve(); }),
+  removeItem: jestGlobal.fn((key) => { delete asyncStorageStore[key]; return Promise.resolve(); }),
 }));
 
 jestGlobal.mock('react-native-safe-area-context', () => ({

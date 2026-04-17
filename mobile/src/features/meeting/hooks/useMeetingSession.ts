@@ -34,7 +34,10 @@ import {
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
 import {useTargetLanguage} from '../../../shared/store';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
-import {getSpeakerEmbeddingService} from '../../../native/speaker/SpeakerEmbeddingService';
+import {
+  getSpeakerEmbeddingService,
+  releaseSpeakerEmbeddingService,
+} from '../../../native/speaker/SpeakerEmbeddingService';
 import {getOfflineSpeakerDiarizationService} from '../../../native/speaker/OfflineSpeakerDiarizationService';
 import {getSpeakerClusterService} from '../../../services/speaker/SpeakerClusterService';
 import {getSessionDiarizationWindowService} from '../../../services/speaker/SessionDiarizationWindowService';
@@ -50,18 +53,94 @@ export interface UseMeetingSessionReturn {
   partialTranscript: string;
   currentUtteranceId: UtteranceId | null;
   startMeeting: (sourceLanguage?: SourceLanguage, targetLanguage?: TargetLanguage) => Promise<void>;
-  stopMeeting: () => Promise<void>;
+  stopMeeting: () => Promise<{sessionId: string | null; fallbackSession: SessionData | null; fallbackUtterances: UtteranceData[]}>;
   updatePartialTranscript: (utteranceId: UtteranceId, text: string, language: SourceLanguage, revision: number) => void;
   finalizePartialTranscript: (utteranceId: UtteranceId, text: string, language: SourceLanguage, confidence: number) => void;
   pipelineStatus: string;
   pipelineError: string | null;
   isOffline: boolean;
   isDegraded: boolean;
+  degradedMessage: string | null;
 }
 
 let persistenceService: PersistenceService | null = null;
 let meetingPipeline: MeetingPipeline | null = null;
 let realSpeechRecognizer: RealSpeechRecognizer | null = null;
+
+function isIosDebugLiveTranslationDisabled(): boolean {
+  return Platform.OS === 'ios' && __DEV__;
+}
+
+type DeferredTranslationItem = {
+  utteranceId: UtteranceId;
+  sessionId: SessionId;
+  sourceText: string;
+  sourceLanguage: SourceLanguage;
+  revision: number;
+  timestampMs: number;
+};
+
+/** Single-flight NLLB native init; must not block STT/mic (loading ~1GB competes for RAM with SenseVoice). */
+let nllbInitInFlight: Promise<boolean> | null = null;
+
+function kickOffNllbInitIfNeeded(): void {
+  if (isIosDebugLiveTranslationDisabled()) {
+    return;
+  }
+  if (useMeetingStore.getState().session.status !== 'recording') {
+    return;
+  }
+  const translator = getOnDeviceTranslator();
+  if (translator.isSuppressedForMemoryPressure()) {
+    return;
+  }
+  if (nllbInitInFlight) {
+    return;
+  }
+  nllbInitInFlight = (async (): Promise<boolean> => {
+    try {
+      const loaded = await translator.isLoaded();
+      console.warn('[useMeetingSession] kickOffNllbInitIfNeeded: isLoaded =', loaded);
+      if (translator.isSuppressedForMemoryPressure()) {
+        warnLog('[useMeetingSession] Translation suppressed after memory warning.');
+        return false;
+      }
+      if (!loaded) {
+        console.warn('[useMeetingSession] kickOffNllbInitIfNeeded: calling translator.initialize()...');
+        const ok = await translator.initialize(getNllbModelDir());
+        if (!ok) return false;
+      }
+      return true;
+    } catch (error) {
+      warnLog('[useMeetingSession] Translator init failed; transcript-only mode.', error);
+      return false;
+    }
+  })();
+  nllbInitInFlight.finally(() => {
+    nllbInitInFlight = null;
+  });
+}
+
+/** Wait for on-device translator after kickOff; used on stt_final so translation is not dropped while NLLB loads. */
+async function awaitTranslatorReadyForTranslate(timeoutMs: number): Promise<boolean> {
+  if (isIosDebugLiveTranslationDisabled()) {
+    return false;
+  }
+  kickOffNllbInitIfNeeded();
+  // Prefer awaiting the in-flight init promise directly so final translation
+  // never races ahead of native model setup.
+  if (nllbInitInFlight) {
+    try {
+      return await Promise.race([
+        nllbInitInFlight,
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+      ]);
+    } catch {
+      return getOnDeviceTranslator().isLoaded();
+    }
+  }
+  return getOnDeviceTranslator().isLoaded();
+}
 
 function getPersistenceService(): PersistenceService {
   if (!persistenceService) {
@@ -71,14 +150,54 @@ function getPersistenceService(): PersistenceService {
   return persistenceService;
 }
 
+function prepareTranslationText(text: string, iosDebugSafeMode: boolean): string {
+  const normalized = text.trim();
+  if (!iosDebugSafeMode) {
+    return normalized;
+  }
+
+  const collapsed = normalized.replace(/\s+/g, ' ');
+  return collapsed.length <= 160 ? collapsed : `${collapsed.slice(0, 160).trimEnd()}...`;
+}
+
+function buildUntranslatedUtteranceData(
+  sessionId: SessionId,
+  utteranceId: UtteranceId,
+  text: string,
+  sourceLanguage: SourceLanguage,
+  revision: number,
+  timestampMs: number,
+): UtteranceData {
+  return {
+    id: utteranceId,
+    sessionId,
+    timestamp: timestampMs,
+    isFinal: true,
+    sourceText: text,
+    sourceLanguage,
+    translatedText: null,
+    translationLatencyMs: null,
+    revision,
+  };
+}
+
 export function useMeetingSession(): UseMeetingSessionReturn {
   const LIVE_SPEAKER_ASSIGNMENT_ENABLED = false;
+  const IOS_DEBUG_TRANSLATION_SAFE_MODE = isIosDebugLiveTranslationDisabled();
   const store = useMeetingStore();
   const preferredTargetLanguage = useTargetLanguage();
   const session = store.session;
   const pipelineRef = useRef<MeetingPipeline | null>(null);
   const realRecognizerRef = useRef<RealSpeechRecognizer | null>(null);
+  const stoppingSessionRef = useRef(false);
+  const lastPersistedSessionMetaRef = useRef<string | null>(null);
   const translationVersionRef = useRef(new Map<UtteranceId, number>());
+  const deferredTranslationsRef = useRef(new Map<UtteranceId, DeferredTranslationItem>());
+  // Per-utterance draft throttling: only translate partials when the text has
+  // grown enough AND enough time has passed since the last draft, so NLLB does
+  // not starve STT CPU.
+  const draftLastSizeRef = useRef(new Map<UtteranceId, number>());
+  const draftLastTimestampRef = useRef(new Map<UtteranceId, number>());
 
   const trimSamplesForSpeakerEmbedding = useCallback((samples: number[], sampleRate: number): number[] => {
     if (samples.length === 0) {
@@ -431,28 +550,155 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     return true;
   }, []);
 
-  const maybeTranslateDraft = useCallback((event: Extract<MeetingPipelineEvent, {type: 'stt_partial'}>) => {
-    const threshold = event.language === 'en' ? 5 : 12;
-    const size = event.language === 'en' ? event.text.trim().split(/\s+/).filter(Boolean).length : Array.from(event.text.trim()).length;
-    if (size < threshold) {
+  const queueDeferredTranslation = useCallback((item: DeferredTranslationItem) => {
+    deferredTranslationsRef.current.set(item.utteranceId, item);
+  }, []);
+
+  const persistUntranslatedFinal = useCallback(async (item: DeferredTranslationItem) => {
+    const persistence = getPersistenceService();
+    await persistence.saveFinalUtteranceWithTranslation(
+      buildUntranslatedUtteranceData(
+        item.sessionId,
+        item.utteranceId,
+        item.sourceText,
+        item.sourceLanguage,
+        item.revision,
+        item.timestampMs,
+      ),
+      null,
+    );
+  }, []);
+
+  const processDeferredTranslationsAfterMeeting = useCallback(async (sessionId: SessionId, targetLanguage: TargetLanguage) => {
+    const pendingItems = Array.from(deferredTranslationsRef.current.values())
+      .filter((item) => item.sessionId === sessionId)
+      .sort((a, b) => a.timestampMs - b.timestampMs);
+    if (!pendingItems.length) {
       return;
     }
 
+    const translator = getOnDeviceTranslator();
+    translator.clearMemoryPressureSuppression();
+
+    const ready = await translator.ensureLoaded(getNllbModelDir()).catch(() => false);
+    if (!ready) {
+      warnLog('[useMeetingSession] Deferred translation init failed; leaving untranslated backlog persisted.');
+      return;
+    }
+
+    const persistence = getPersistenceService();
+
+    try {
+      for (const item of pendingItems) {
+        const translatedText = await translator.translate({
+          text: item.sourceText.trim(),
+          sourceLanguage: mapSourceLanguageToNllb(item.sourceLanguage),
+          targetLanguage: mapTargetLanguageToNllb(targetLanguage),
+        });
+
+        const translationId = `trans_${item.utteranceId}_final`;
+        await persistence.saveFinalUtteranceWithTranslation(
+          {
+            id: item.utteranceId,
+            sessionId: item.sessionId,
+            timestamp: item.timestampMs,
+            isFinal: true,
+            sourceText: item.sourceText,
+            sourceLanguage: item.sourceLanguage,
+            translatedText: translatedText.text,
+            translationLatencyMs: null,
+            revision: item.revision,
+          },
+          {
+            id: translationId,
+            utteranceId: item.utteranceId,
+            text: translatedText.text,
+            latencyMs: null,
+            createdAt: Date.now(),
+          },
+        );
+
+        deferredTranslationsRef.current.delete(item.utteranceId);
+      }
+    } catch (error) {
+      warnLog('[useMeetingSession] Deferred translation processing stopped early:', error);
+    } finally {
+      await translator.unload().catch(() => undefined);
+    }
+  }, []);
+
+  const maybeTranslateDraft = useCallback((event: Extract<MeetingPipelineEvent, {type: 'stt_partial'}>) => {
+    if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
+      return;
+    }
+    const translator = getOnDeviceTranslator();
+    // HARD GATE 1: until splash/meeting has warmed NLLB, drafts would pay the
+    // ~multi-second decoder_model lazy-load themselves and stall every
+    // subsequent partial behind them. Let the final translate absorb that cost
+    // instead; later utterances will run on a hot model.
+    if (!translator.isWarmedUp()) {
+      return;
+    }
+    // HARD GATE 2: if NLLB is still crunching the previous draft, bail out NOW.
+    // Native NLLB has no cancellation — every queued call WILL run to
+    // completion (~500-800ms each). For a 10s utterance with partials every
+    // 300ms this stacks ~12s of cumulative work, which is exactly the ~13s
+    // lag users observe. Letting the next partial trigger a draft once the
+    // translator is free produces a smoother cadence and, crucially, keeps
+    // the final translation latency bounded to ONE NLLB run after stt_final.
+    if (translator.isTranslating()) {
+      return;
+    }
+
+    const isEnglish = event.language === 'en';
+    // Fire the first draft as soon as the partial has a couple of words.
+    const minSize = isEnglish ? 3 : 8;
+    // Retranslate on fairly small growth so drafts track the transcript closely.
+    const growthGate = isEnglish ? 2 : 4;
+    // Soft interval gate (redundant with isTranslating above but keeps a floor
+    // in case translate() is very fast).
+    const MIN_INTERVAL_MS = 400;
+
+    const size = isEnglish
+      ? event.text.trim().split(/\s+/).filter(Boolean).length
+      : Array.from(event.text.trim()).length;
+    if (size < minSize) {
+      return;
+    }
+
+    const now = Date.now();
+    const lastSize = draftLastSizeRef.current.get(event.utterance_id) ?? 0;
+    const lastAt = draftLastTimestampRef.current.get(event.utterance_id) ?? 0;
+    const grewEnough = size - lastSize >= growthGate;
+    const elapsedEnough = now - lastAt >= MIN_INTERVAL_MS;
+    if (!(grewEnough && elapsedEnough)) {
+      return;
+    }
+    draftLastSizeRef.current.set(event.utterance_id, size);
+    draftLastTimestampRef.current.set(event.utterance_id, now);
+
     const dispatchDraftTranslation = async () => {
       const translator = getOnDeviceTranslator();
-      if (!(await translator.isLoaded())) {
+      // Wait for warm-up instead of silently dropping the draft. If Splash has
+      // already loaded NLLB, this resolves instantly; otherwise we await the
+      // shared in-flight promise so the first few partials still get translated.
+      const translatorReady = await translator
+        .ensureLoaded(getNllbModelDir())
+        .catch(() => false);
+      if (!translatorReady) {
         return;
       }
       const nextVersion = (translationVersionRef.current.get(event.utterance_id) ?? 0) + 1;
       translationVersionRef.current.set(event.utterance_id, nextVersion);
+      // Drop any older queued draft — only the freshest partial matters.
       translator.cancelPending();
 
-        translator.translate({
-          text: event.text,
-          sourceLanguage: mapSourceLanguageToNllb(event.language),
-          targetLanguage: mapTargetLanguageToNllb(preferredTargetLanguage),
-          requestId: nextVersion,
-        }).then((result) => {
+      translator.translate({
+        text: event.text,
+        sourceLanguage: mapSourceLanguageToNllb(event.language),
+        targetLanguage: mapTargetLanguageToNllb(preferredTargetLanguage),
+        requestId: nextVersion,
+      }).then((result) => {
         const activeVersion = translationVersionRef.current.get(event.utterance_id);
         if (activeVersion !== result.version) return;
         useMeetingStore.getState().handleTranslationMessage(
@@ -472,14 +718,29 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     };
 
     dispatchDraftTranslation().catch((error) => warnLog('[useMeetingSession] Draft translation dispatch failed:', error));
-  }, []);
+  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE, preferredTargetLanguage]);
 
   const handleIncomingPipelineEvent = useCallback((event: MeetingPipelineEvent) => {
+    if (stoppingSessionRef.current && (event.type === 'stt_partial' || event.type === 'stt_final')) {
+      return;
+    }
     useMeetingStore.getState().handlePipelineEvent(event);
 
+    if (event.type === 'utterance_cancel') {
+      // Purge per-utterance throttle state; the store drops the translation
+      // entry itself.
+      draftLastSizeRef.current.delete(event.utterance_id);
+      draftLastTimestampRef.current.delete(event.utterance_id);
+      translationVersionRef.current.delete(event.utterance_id);
+    }
+
     if (event.type === 'stt_partial') {
-      // Draft translation disabled: NLLB inference on every partial starves STT CPU.
-      // Translation runs only on stt_final below.
+      // Kick off a draft translation so the translation lane tracks the
+      // transcript in near-realtime instead of waiting for endpoint detection
+      // to fire stt_final (which adds ~800-1500ms silence + another full NLLB
+      // call). `maybeTranslateDraft` self-throttles by growth + interval so
+      // STT CPU stays available.
+      maybeTranslateDraft(event);
 
       // Record STT latency proxy: time from event timestamp to JS receipt.
       // architecture.md §5.1 targets STT partial ~200ms. This is the best available
@@ -490,6 +751,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
 
     if (event.type === 'stt_final') {
+      // Release draft throttle state for this utterance — no more partials
+      // will arrive for it.
+      draftLastSizeRef.current.delete(event.utterance_id);
+      draftLastTimestampRef.current.delete(event.utterance_id);
+
       // Record STT latency for final emissions as well
       const eventTime = event.timestamp_ms ?? Date.now();
       const processingLatencyMs = Math.max(1, Date.now() - eventTime);
@@ -605,17 +871,41 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         );
 
         const translator = getOnDeviceTranslator();
-        if (!(await translator.isLoaded())) {
+        const untranslatedItem: DeferredTranslationItem = {
+          utteranceId: event.utterance_id,
+          sessionId,
+          sourceText: event.text,
+          sourceLanguage: event.language,
+          revision: event.revision,
+          timestampMs: event.timestamp_ms,
+        };
+
+        if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
+          queueDeferredTranslation(untranslatedItem);
+          persistUntranslatedFinal(untranslatedItem).catch((err) =>
+            warnLog('[useMeetingSession] Failed to persist deferred untranslated utterance:', err),
+          );
+          return;
+        }
+
+        const translatorReady = await awaitTranslatorReadyForTranslate(180_000);
+        if (!translatorReady) {
+          warnLog('[useMeetingSession] NLLB not ready after wait; skipping translation for utterance.');
+          queueDeferredTranslation(untranslatedItem);
+          persistUntranslatedFinal(untranslatedItem).catch((err) =>
+            warnLog('[useMeetingSession] Failed to persist untranslated utterance:', err),
+          );
           return;
         }
         const nextVersion = (translationVersionRef.current.get(event.utterance_id) ?? 0) + 1;
         translationVersionRef.current.set(event.utterance_id, nextVersion);
         translator.cancelPending();
         const startedAt = Date.now();
+        const translationInputText = prepareTranslationText(event.text, IOS_DEBUG_TRANSLATION_SAFE_MODE);
 
         translator
           .translate({
-            text: event.text,
+            text: translationInputText,
             sourceLanguage: mapSourceLanguageToNllb(event.language),
             targetLanguage: mapTargetLanguageToNllb(preferredTargetLanguage),
             requestId: nextVersion,
@@ -631,7 +921,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               result.text,
               true,
               event.revision,
-              event.text,
+              translationInputText,
               event.timestamp_ms,
             );
 
@@ -649,9 +939,9 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               sessionId,
               timestamp: event.timestamp_ms,
               isFinal: true,
-              sourceText: event.text,
-              sourceLanguage: event.language,
-              translatedText: result.text,
+               sourceText: event.text,
+               sourceLanguage: event.language,
+               translatedText: result.text,
               translationLatencyMs: latencyMs,
               revision: event.revision,
             };
@@ -671,33 +961,26 @@ export function useMeetingSession(): UseMeetingSessionReturn {
             if (isTranslationCancelledError(error)) {
               return;
             }
-            warnLog('[useMeetingSession] On-device translation failed:', error);
-            useMeetingStore.getState().handleTranslationMessage(
-              event.utterance_id,
-              'Translation failed',
-              true,
-              event.revision,
-              event.text,
-              event.timestamp_ms,
-            );
+            queueDeferredTranslation(untranslatedItem);
 
-            // Persist utterance even when translation fails (AC: 2 — crash recovery still needs the utterance)
-            const persistence = getPersistenceService();
-            const sessionId = useMeetingStore.getState().session.id ?? event.session_id;
-            const utteranceData: UtteranceData = {
-              id: event.utterance_id,
-              sessionId,
-              timestamp: event.timestamp_ms,
-              isFinal: true,
-              sourceText: event.text,
-              sourceLanguage: event.language,
-              translatedText: null,
-              translationLatencyMs: null,
-              revision: event.revision,
-            };
-            persistence
-              .saveFinalUtteranceWithTranslation(utteranceData, null)
-              .catch((err) => warnLog('[useMeetingSession] Failed to persist utterance after translation failure:', err));
+            const translatorPausedForMemory =
+              error instanceof Error && error.name === 'TranslationSuppressedForMemoryError';
+
+            warnLog('[useMeetingSession] On-device translation failed:', error);
+            if (!translatorPausedForMemory) {
+              useMeetingStore.getState().handleTranslationMessage(
+                event.utterance_id,
+                'Translation failed',
+                true,
+                event.revision,
+                translationInputText,
+                event.timestamp_ms,
+              );
+            }
+
+            persistUntranslatedFinal(untranslatedItem).catch((err) =>
+              warnLog('[useMeetingSession] Failed to persist utterance after translation failure:', err),
+            );
           });
       };
 
@@ -705,7 +988,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         warnLog('[useMeetingSession] Final translation dispatch failed:', error);
       });
     }
-  }, [applyOfflineDiarizationWindow, maybeTranslateDraft, preferredTargetLanguage, trimSamplesForSpeakerEmbedding]);
+  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE, applyOfflineDiarizationWindow, maybeTranslateDraft, persistUntranslatedFinal, preferredTargetLanguage, queueDeferredTranslation, trimSamplesForSpeakerEmbedding]);
 
   useEffect(() => {
     meetingPipeline = getMeetingPipelineInstance();
@@ -748,24 +1031,33 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   }, [handleIncomingPipelineEvent]);
 
   useEffect(() => {
-    const currentSession = session;
-    if (!currentSession.id) {
+    if (!session.id) {
+      lastPersistedSessionMetaRef.current = null;
       return;
     }
 
+    const normalizedStatus =
+      session.status === 'recording' || session.status === 'stopping'
+        ? 'live'
+        : session.status === 'complete'
+          ? 'complete'
+          : 'interrupted';
+    const persistKey = `${session.id}:${normalizedStatus}:${session.endedAt ?? 'null'}`;
+
+    if (lastPersistedSessionMetaRef.current === persistKey) {
+      return;
+    }
+    lastPersistedSessionMetaRef.current = persistKey;
+
     const persistence = getPersistenceService();
-    persistence.updateSession(currentSession.id, {
-      endedAt: currentSession.endedAt,
-      status:
-        currentSession.status === 'recording' || currentSession.status === 'stopping'
-          ? 'live'
-          : currentSession.status === 'complete'
-            ? 'complete'
-            : 'interrupted',
+    persistence.updateSession(session.id, {
+      endedAt: session.endedAt,
+      status: normalizedStatus,
     }).catch((error) => {
       warnLog('[useMeetingSession] Failed to persist active session:', error);
+      lastPersistedSessionMetaRef.current = null;
     });
-  }, [session]);
+  }, [session.id, session.status, session.endedAt]);
 
   const finalizePartialTranscript = useCallback(
     (utteranceId: UtteranceId, text: string, language: SourceLanguage, _confidence: number) => {
@@ -809,6 +1101,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   const startMeeting = useCallback(
     async (sourceLanguage: SourceLanguage = 'en', targetLanguage: TargetLanguage = 'vi') => {
       const persistence = getPersistenceService();
+      getOnDeviceTranslator().clearMemoryPressureSuppression();
+      stoppingSessionRef.current = false;
+      if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
+        console.warn('[useMeetingSession] iOS debug live translation disabled; final utterances will be backfilled after stopMeeting.');
+      }
       getSpeakerClusterService().reset();
       getSessionDiarizationWindowService().reset(Date.now(), 16000);
       const sessionId = store.startSession(sourceLanguage, targetLanguage);
@@ -824,14 +1121,6 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       };
 
       let startedWithRealRecognizer = false;
-      const translator = getOnDeviceTranslator();
-      if (!(await translator.isLoaded())) {
-        translator.initialize(getNllbModelDir()).then((ok) => {
-          if (!ok) warnLog('[useMeetingSession] Translator model not ready; translation may be unavailable.');
-        }).catch((error) => {
-          warnLog('[useMeetingSession] Translator init failed; transcript-only mode.', error);
-        });
-      }
       if (LIVE_SPEAKER_ASSIGNMENT_ENABLED) {
         getSpeakerEmbeddingService().initialize().catch((error) => {
           warnLog('[useMeetingSession] Speaker embedding init failed; continuing without diarization.', error);
@@ -862,6 +1151,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         }
       }
 
+      // Do not eagerly load NLLB here. On iOS devices this competes with the
+      // already-live STT model and can trigger critical memory pressure before
+      // the first translation is even needed. Translation initialization stays
+      // lazy and is awaited by the actual translation path.
+
       const sessionData: SessionData = {
         id: sessionId,
         startedAt: currentSession.startedAt!,
@@ -877,8 +1171,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   );
 
   const stopMeeting = useCallback(async () => {
+    console.warn('[useMeetingSession] stopMeeting CALLED');
     const persistence = getPersistenceService();
-    const currentSession = store.session;
+    const translator = getOnDeviceTranslator();
+    stoppingSessionRef.current = true;
+    translator.cancelPending();
     const recognizer = realRecognizerRef.current ?? realSpeechRecognizer;
     const sessionSamples = recognizer?.getSessionAudioBuffer() ?? [];
     if (recognizer) {
@@ -898,16 +1195,39 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       }
     }
 
+    releaseMeetingPipelineInstance();
+
+    await translator.unload().catch(() => undefined);
+    await translator.waitForIdle(30000).catch(() => false);
+
+    // Capture the freshest possible session snapshot AFTER recognizer/pipeline stop,
+    // so any flushed final utterance is included in persistence/review/export.
+    const currentSession = useMeetingStore.getState().session;
     store.stopSession();
 
     if (currentSession.id) {
+      const endedAt = Date.now();
+      const finalSessionData: SessionData = {
+        id: currentSession.id,
+        startedAt: currentSession.startedAt ?? endedAt,
+        endedAt,
+        sourceLanguage: currentSession.sourceLanguage,
+        targetLanguage: currentSession.targetLanguage,
+        status: 'complete',
+        speakerCount: currentSession.speakerCount,
+        speakerLabels: currentSession.speakerLabels,
+      };
+
+      console.warn('[useMeetingSession] About to persist final session', {
+        sessionId: currentSession.id,
+        transcriptCount: currentSession.transcript.length,
+        translationCount: currentSession.translations.length,
+        speakerCount: currentSession.speakerCount,
+        speakerLabels: currentSession.speakerLabels,
+      });
+
       await persistence.runInBatch(async () => {
-        await persistence.updateSession(currentSession.id!, {
-          endedAt: Date.now(),
-          status: 'complete',
-          speakerCount: currentSession.speakerCount,
-          speakerLabels: currentSession.speakerLabels,
-        });
+        await persistence.saveSession(finalSessionData);
 
         const utterances: UtteranceData[] = currentSession.transcript.map((entry) => ({
           id: entry.id,
@@ -919,27 +1239,61 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           translatedText: entry.translatedText,
           translationLatencyMs:
             currentSession.translations.find((translation) => translation.utteranceId === entry.id)?.latencyMs ?? null,
+          revision: entry.revision,
           speakerId: entry.speakerId ?? null,
           speakerLabel: entry.speakerLabel ?? null,
         }));
 
+        console.warn('[useMeetingSession] Saving', utterances.length, 'utterances for session', currentSession.id);
         for (const utterance of utterances) {
           await persistence.saveUtterance(utterance);
         }
+        console.warn('[useMeetingSession] All utterances saved');
       });
 
-      try {
-        await applyPostSessionDiarization(currentSession.id, sessionSamples);
-      } catch (error) {
-        warnLog('[useMeetingSession] Post-session speaker diarization failed:', error);
+      // Verify session was saved by re-reading it immediately
+      const savedSession = await persistence.getSession(currentSession.id);
+      console.warn('[useMeetingSession] Saved session verification', {
+        sessionId: currentSession.id,
+        found: !!savedSession,
+        speakerCount: savedSession?.speakerCount,
+        speakerLabels: savedSession?.speakerLabels,
+        utteranceCount: savedSession ? (await persistence.getUtterances(savedSession.id)).length : 0,
+      });
+
+      const persistedSessionCheck = await persistence.getSession(currentSession.id);
+      if (!persistedSessionCheck) {
+        console.warn('[useMeetingSession] Final session missing after first save, retrying', currentSession.id);
+        await persistence.saveSession(finalSessionData);
       }
+
+      await applyPostSessionDiarization(currentSession.id, sessionSamples);
+      await processDeferredTranslationsAfterMeeting(currentSession.id, currentSession.targetLanguage);
+
+      const latestSession = (await persistence.getSession(currentSession.id)) ?? finalSessionData;
+      const latestUtterances = await persistence.getUtterances(currentSession.id);
+
+      debugLog('[useMeetingSession] Meeting stopped');
+      getSpeakerClusterService().reset();
+      getSessionDiarizationWindowService().reset(0, 16000);
+      getOfflineSpeakerDiarizationService().unload().catch(() => undefined);
+      releaseSpeakerEmbeddingService();
+      stoppingSessionRef.current = false;
+      return {
+        sessionId: currentSession.id,
+        fallbackSession: latestSession,
+        fallbackUtterances: latestUtterances,
+      };
     }
 
     debugLog('[useMeetingSession] Meeting stopped');
     getSpeakerClusterService().reset();
     getSessionDiarizationWindowService().reset(0, 16000);
     getOfflineSpeakerDiarizationService().unload().catch(() => undefined);
-  }, [applyPostSessionDiarization, store]);
+    releaseSpeakerEmbeddingService();
+    stoppingSessionRef.current = false;
+    return {sessionId: null, fallbackSession: null, fallbackUtterances: []};
+  }, [applyPostSessionDiarization, processDeferredTranslationsAfterMeeting, store]);
 
   return {
     isActive: session.status === 'recording' || session.status === 'stopping',
@@ -958,6 +1312,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     pipelineStatus: store.pipelineStatus,
     pipelineError: store.pipelineError,
     isOffline: false,
-    isDegraded: false,
+    isDegraded: IOS_DEBUG_TRANSLATION_SAFE_MODE || getOnDeviceTranslator().isSuppressedForMemoryPressure(),
+    degradedMessage: IOS_DEBUG_TRANSLATION_SAFE_MODE
+      ? 'Live translation is deferred during recording on iOS debug builds to keep the meeting stable. Transcript stays real-time, and queued translations finish automatically after you stop the meeting.'
+      : getOnDeviceTranslator().isSuppressedForMemoryPressure()
+        ? `Translation paused temporarily while the device frees memory. Live translation will resume automatically in about ${Math.max(1, Math.ceil(getOnDeviceTranslator().getMemoryPressureCooldownRemainingMs() / 1000))}s.`
+        : null,
   };
 }

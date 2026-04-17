@@ -27,6 +27,7 @@ import {
   useModelState,
   useTranslatorModelState,
   useTargetLanguage,
+  useThemeMode,
   useDiarizationThreshold,
   TARGET_LANGUAGE_OPTIONS,
   getLanguageOption,
@@ -41,7 +42,7 @@ import {
 import {getPersistenceService} from '../../../services/persistence';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
 import {spacing, borderRadius, typography} from '../../../shared/constants';
-import {AppIcon} from '../../../shared/components/ui';
+import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
 
 type SettingsNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'>;
 
@@ -64,7 +65,8 @@ export function SettingsScreen(): React.JSX.Element {
   const {theme} = useTheme();
   const navigation = useNavigation<SettingsNavigationProp>();
   const developerMode = useDeveloperMode();
-  const {setDeveloperMode} = useSettingsStore();
+  const themeMode = useThemeMode();
+  const {setDeveloperMode, setThemeMode} = useSettingsStore();
   const modelState = useModelState();
   const translatorModelState = useTranslatorModelState();
   const targetLanguage = useTargetLanguage();
@@ -191,7 +193,7 @@ export function SettingsScreen(): React.JSX.Element {
   );
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.secondary}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.primary}]}> 
       {/* Header */}
       <View style={[styles.header, {backgroundColor: theme.colors.surface.primary}]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} style={styles.backButton}>
@@ -228,6 +230,40 @@ export function SettingsScreen(): React.JSX.Element {
             {icon: 'check-circle', color: theme.colors.secondary, label: 'Bundled'},
             () => navigation.navigate('ModelRepository'),
           )}
+        </View>
+
+        {/* Appearance Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Appearance</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Theme</Text>
+              <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Use one consistent app theme across Meetings, Live, and Network.</Text>
+            </View>
+            <View style={styles.themeModeRow}>
+              {([
+                {key: 'system', label: 'System'},
+                {key: 'light', label: 'Light'},
+                {key: 'dark', label: 'Dark'},
+              ] as const).map((option) => {
+                const active = themeMode === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[
+                      styles.themeModeButton,
+                      active
+                        ? {backgroundColor: theme.colors.primary + '25', borderColor: theme.colors.primary}
+                        : {backgroundColor: theme.colors.surface.container, borderColor: theme.colors.border.subtle},
+                    ]}
+                    onPress={() => setThemeMode(option.key)}
+                    activeOpacity={0.7}>
+                    <Text style={{color: active ? theme.colors.primary : theme.colors.text.primary, fontWeight: '700'}}>{option.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         {/* Translation Section */}
@@ -526,6 +562,8 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <AppBottomNav activeTab="network" />
     </SafeAreaView>
   );
 }
@@ -780,6 +818,18 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
+  },
+  themeModeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  themeModeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    alignItems: 'center',
   },
   privacyRow: {
     padding: spacing.md,

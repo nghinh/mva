@@ -26,7 +26,7 @@ import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
-import {AppIcon} from '../../../shared/components/ui';
+import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
 import {useBootstrapOverallStatus, useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
 import {useDeveloperMode, useTargetLanguage} from '../../../shared/store/settingsStore';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
@@ -110,7 +110,7 @@ function WaitingStateOverlay({
     <Animated.View
       style={[styles.waitingOverlay, {opacity}]}
       pointerEvents="box-none"
-      accessibilityLabel="Waiting for speech. Speak in English, Japanese, or Korean."
+      accessibilityLabel="Waiting for speech. Speak in English, Japanese, Korean, or Chinese."
       accessibilityLiveRegion="polite">
       <View style={styles.waitingContent}>
         {/* Sound wave animation */}
@@ -124,8 +124,9 @@ function WaitingStateOverlay({
         <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}>
           Listening...
         </Text>
-        <Text style={[styles.waitingHint, {color: theme.colors.text.tertiary}]}>
-          Speak in English, Japanese, or Korean
+        <Text style={[styles.waitingHint, {color: theme.colors.text.tertiary}]}> 
+          Speak in English, Japanese,
+          {'\n'}Korean, or Chinese
         </Text>
 
         {/* Language hint pills */}
@@ -161,6 +162,17 @@ function WaitingStateOverlay({
             <Text
               style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}>
               KO
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.languageHintPill,
+              {backgroundColor: theme.colors.surface.secondary},
+            ]}>
+            <Text style={[styles.languageHintFlag]}>🇨🇳</Text>
+            <Text
+              style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}> 
+              ZH
             </Text>
           </View>
         </View>
@@ -200,7 +212,13 @@ export function MeetingScreen(): React.JSX.Element {
     pipelineError,
     isOffline,
     isDegraded,
+    degradedMessage,
   } = useMeetingSession();
+
+  const latestDetectedLanguage =
+    transcript.length > 0
+      ? transcript[transcript.length - 1]?.sourceLanguage?.toUpperCase()
+      : 'AUTO';
 
   const [latencyMs] = useState<number | null>(45);
   const waitingOpacity = useRef(new Animated.Value(1)).current;
@@ -244,8 +262,28 @@ export function MeetingScreen(): React.JSX.Element {
   }, [startMeeting, targetLanguage]);
 
   const handleStopMeeting = useCallback(async () => {
-    await stopMeeting();
-  }, [stopMeeting]);
+    console.warn('[MeetingScreen] handleStopMeeting: starting');
+    try {
+      console.warn('[MeetingScreen] calling stopMeeting()...');
+      const result = await stopMeeting();
+      console.warn('[MeetingScreen] stopMeeting resolved sessionId=', result.sessionId, 'fallbackSession=', !!result.fallbackSession);
+      if (result.sessionId) {
+        console.warn('[MeetingScreen] Calling navigation.navigate(SessionReview, sessionId=', result.sessionId, ')');
+        navigation.navigate('SessionReview', {
+          sessionId: result.sessionId,
+          fallbackSession: result.fallbackSession ?? undefined,
+          fallbackUtterances: result.fallbackUtterances ?? undefined,
+        });
+        console.warn('[MeetingScreen] navigation.navigate returned');
+      } else {
+        console.warn('[MeetingScreen] sessionId is null, not navigating');
+      }
+    } catch (error) {
+      // If stopMeeting itself throws (not just warns), do not navigate -
+      // something went wrong that the user should see on the meeting screen.
+      console.warn('[MeetingScreen] stopMeeting failed, staying on screen:', error);
+    }
+  }, [stopMeeting, navigation]);
 
   const sttReady = modelState.status === 'cached-ready';
   const translatorInstalled = translatorModelState.status === 'cached-ready';
@@ -354,7 +392,7 @@ export function MeetingScreen(): React.JSX.Element {
           onStopMeeting={handleStopMeeting}
           pipelineStatus={pipelineStatus}
           pipelineError={pipelineError}
-          currentLanguage={session.sourceLanguage}
+          currentLanguage={latestDetectedLanguage || 'AUTO'}
           developerMode={developerMode}
           speakerDebug={speakerDebug}
         />
@@ -377,7 +415,7 @@ export function MeetingScreen(): React.JSX.Element {
           isOffline={isOffline}
           isDegraded={isDegraded}
           translationAvailable={true}
-          degradedMessage={null}
+          degradedMessage={degradedMessage}
           isActive={isActive}
           isRecording={isRecording}
           suppressPlaceholder={showWaiting}
@@ -426,6 +464,10 @@ export function MeetingScreen(): React.JSX.Element {
 
         {/* Developer Metrics Overlay — visible only when dev mode is on */}
         {developerMode && isActive && <DeveloperMetricsOverlay />}
+
+        <View style={styles.bottomNavWrap}>
+          <AppBottomNav activeTab="live" />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -504,10 +546,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 16,
-    paddingBottom: 24,
+    paddingBottom: 0,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: 'rgba(255,255,255,0.06)',
     gap: 12,
+  },
+  bottomNavWrap: {
+    marginHorizontal: -16,
   },
   primaryButton: {
     height: 56,
@@ -535,7 +580,7 @@ const styles = StyleSheet.create({
     top: 40,
     left: 0,
     right: 0,
-    bottom: '50%',
+    bottom: '46%',
     justifyContent: 'flex-start',
     alignItems: 'center',
     zIndex: 10,
@@ -572,8 +617,11 @@ const styles = StyleSheet.create({
   },
   languageHintRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
-    marginTop: 2,
+    marginTop: 12,
+    maxWidth: 240,
   },
   languageHintPill: {
     flexDirection: 'row',

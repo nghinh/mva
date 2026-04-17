@@ -2,6 +2,8 @@ import {localStorage as AsyncStorage} from '../utils/localStorage';
 import {create} from 'zustand';
 import {createJSONStorage, persist} from 'zustand/middleware';
 
+export type AppThemeMode = 'system' | 'dark' | 'light';
+
 /**
  * Supported target translation languages.
  * Currently limited to Vietnamese (v1 offline build).
@@ -60,6 +62,8 @@ export const DEFAULT_DIARIZATION_THRESHOLD = 0.55;
 interface SettingsState {
   developerMode: boolean;
   setDeveloperMode: (enabled: boolean) => void;
+  themeMode: AppThemeMode;
+  setThemeMode: (mode: AppThemeMode) => void;
   /** Target translation language preference (default: Vietnamese) */
   targetLanguage: SupportedTargetLanguage;
   setTargetLanguage: (lang: SupportedTargetLanguage) => void;
@@ -73,6 +77,8 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       developerMode: false,
       setDeveloperMode: (enabled) => set({developerMode: enabled}),
+      themeMode: 'system',
+      setThemeMode: (mode) => set({themeMode: mode}),
       targetLanguage: DEFAULT_TARGET_LANGUAGE,
       setTargetLanguage: (lang) => set({targetLanguage: lang}),
       diarizationThreshold: DEFAULT_DIARIZATION_THRESHOLD,
@@ -85,6 +91,7 @@ export const useSettingsStore = create<SettingsState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         developerMode: state.developerMode,
+        themeMode: state.themeMode,
         targetLanguage: state.targetLanguage,
         diarizationThreshold: state.diarizationThreshold,
       }),
@@ -101,6 +108,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         return {
           developerMode: state.developerMode ?? false,
+          themeMode: state.themeMode ?? 'system',
           targetLanguage: state.targetLanguage ?? DEFAULT_TARGET_LANGUAGE,
           diarizationThreshold: upgradedThreshold,
         } as SettingsState;
@@ -110,5 +118,6 @@ export const useSettingsStore = create<SettingsState>()(
 );
 
 export const useDeveloperMode = () => useSettingsStore((state) => state.developerMode);
+export const useThemeMode = () => useSettingsStore((state) => state.themeMode);
 export const useTargetLanguage = () => useSettingsStore((state) => state.targetLanguage);
 export const useDiarizationThreshold = () => useSettingsStore((state) => state.diarizationThreshold);

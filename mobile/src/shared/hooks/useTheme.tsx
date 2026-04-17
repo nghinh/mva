@@ -14,6 +14,7 @@ import React, {
 } from 'react';
 import {Appearance, AccessibilityInfo} from 'react-native';
 import type {ColorMode} from '../theme/colors';
+import {useThemeMode} from '../store/settingsStore';
 import {
   ThemeTokens,
   ThemeMode,
@@ -82,9 +83,10 @@ function useSystemPreferences() {
 
 export function ThemeProvider({children, mode}: ThemeProviderProps): React.JSX.Element {
   const {systemColorMode, isReduceMotionEnabled} = useSystemPreferences();
+  const preferredThemeMode = useThemeMode();
 
   // Use explicit mode prop if provided, otherwise fall back to system preference
-  const resolvedMode: ThemeMode = mode ?? systemColorMode;
+  const resolvedMode: ThemeMode = mode ?? (preferredThemeMode === 'system' ? systemColorMode : preferredThemeMode);
 
   const value = useMemo<ThemeContextValue>(() => {
     const modeColors = getColorsForMode(resolvedMode);

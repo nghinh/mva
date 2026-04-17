@@ -87,7 +87,10 @@ final class SentencePieceTokenizer {
   /// Encode text to token IDs for NLLB.
   /// Returns: [srcLangId, BOS, ...tokens..., EOS]
   func encode(text: String, srcLang: String) -> [Int] {
-    precondition(isReady, "Tokenizer not loaded")
+    guard isReady else {
+      NSLog("[SentencePieceTokenizer] encode skipped: tokenizer not loaded")
+      return [eosId]
+    }
 
     let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalized.isEmpty else {
@@ -103,7 +106,10 @@ final class SentencePieceTokenizer {
 
   /// Decode token IDs back to text.
   func decode(_ ids: [Int]) -> String {
-    precondition(isReady, "Tokenizer not loaded")
+    guard isReady else {
+      NSLog("[SentencePieceTokenizer] decode skipped: tokenizer not loaded")
+      return ""
+    }
 
     let filtered = ids.filter { $0 != bosId && $0 != eosId && $0 != padId && !langCodeToId.values.contains($0) }
 

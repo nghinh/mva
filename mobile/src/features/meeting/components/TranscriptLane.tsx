@@ -345,10 +345,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingLeft: 8,
     borderLeftWidth: 2,
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   headerLabel: {
     fontSize: 11,
@@ -358,7 +361,6 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 10,
-    marginLeft: 8,
   },
   headerRight: {
     flexDirection: 'row',

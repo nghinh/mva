@@ -175,7 +175,10 @@ async function safeSetItem(key: string, value: string): Promise<void> {
   try {
     await AsyncStorage.setItem(key, value);
   } catch (err) {
+    warnLog('[Persistence] safeSetItem FAILED for key:', key, 'error:', err);
     logStorageFallbackOnce(err);
+    // Don't throw — let callers continue. The cache has the data and will be
+    // re-persisted on next successful write. This is resilient to transient failures.
   }
 }
 
@@ -193,6 +196,7 @@ export function createPersistenceService() {
   let translationsCache: Map<UtteranceId, TranslationData> = new Map();
   let sessionConfigCache: Map<SessionId, SessionConfigSnapshot> = new Map();
   let initialized = false;
+  let initPromise: Promise<void> | null = null;
   let crashRecoveryRan = false;
   const listeners = new Set<PersistenceListener>();
   let batchDepth = 0;
@@ -215,32 +219,42 @@ export function createPersistenceService() {
   const cloneSnapshot = (snapshot: SessionConfigSnapshot): SessionConfigSnapshot => ({...snapshot});
 
   const service = {
+    /**
+     * ensureInitialized — all callers MUST await this before reading/writing sessionsCache.
+     * Uses a shared initPromise so concurrent callers all wait for the SAME init to complete.
+     */
     ensureInitialized: async () => {
-      if (!initialized) {
-        await service.initialize();
+      if (!initPromise) {
+        initPromise = (async () => {
+          debugLog('[Persistence] Initializing...');
+          const stored = await safeGetItem(SESSIONS_KEY);
+          if (stored) {
+            try {
+              sessionsCache = JSON.parse(stored);
+              debugLog('[Persistence] init: parsed, sessionsCache.length:', sessionsCache.length);
+            } catch (err) {
+              warnLog('[Persistence] Failed to parse sessions cache, resetting.', err);
+              sessionsCache = [];
+            }
+          } else {
+            debugLog('[Persistence] init: no stored data');
+          }
+          initialized = true;
+          debugLog('[Persistence] Initialized with', sessionsCache.length, 'sessions');
+
+          // Crash recovery: run after initialization to catch sessions left in 'live' state
+          if (!crashRecoveryRan) {
+            crashRecoveryRan = true;
+            await service.recoverInterruptedSessions();
+          }
+        })();
       }
+      await initPromise;
     },
 
+    /** @deprecated Use ensureInitialized() instead. Kept for test compatibility. */
     initialize: async () => {
-      if (initialized) return;
-      debugLog('[Persistence] Initializing...');
-      const stored = await safeGetItem(SESSIONS_KEY);
-      if (stored) {
-        try {
-          sessionsCache = JSON.parse(stored);
-        } catch (err) {
-          warnLog('[Persistence] Failed to parse sessions cache, resetting.', err);
-          sessionsCache = [];
-        }
-      }
-      initialized = true;
-      debugLog('[Persistence] Initialized with', sessionsCache.length, 'sessions');
-
-      // Crash recovery: run after initialization to catch sessions left in 'live' state
-      if (!crashRecoveryRan) {
-        crashRecoveryRan = true;
-        await service.recoverInterruptedSessions();
-      }
+      await service.ensureInitialized();
     },
 
     subscribe: (listener: PersistenceListener) => {
@@ -264,8 +278,28 @@ export function createPersistenceService() {
     },
 
     persistSessions: async () => {
-      await service.ensureInitialized();
-      await safeSetItem(SESSIONS_KEY, JSON.stringify(sessionsCache));
+      // Note: No need to call ensureInitialized() here.
+      // Callers (saveSession, recoverInterruptedSessions) have already awaited ensureInitialized(),
+      // so the cache is ready. Calling ensureInitialized() here would deadlock
+      // because initPromise is being awaited inside its own executor.
+      const data = JSON.stringify(sessionsCache);
+      debugLog('[Persistence] persistSessions: writing', sessionsCache.length, 'sessions, key:', SESSIONS_KEY);
+      console.warn('[Persistence] persistSessions: calling safeSetItem...');
+      await safeSetItem(SESSIONS_KEY, data);
+      console.warn('[Persistence] persistSessions: safeSetItem returned');
+
+      // CRITICAL: Verify data was actually persisted by reading back from AsyncStorage.
+      // This catches cases where safeSetItem appears to succeed but data is not stored.
+      const verified = await safeGetItem(SESSIONS_KEY);
+      console.warn('[Persistence] persistSessions: verified, written len=', data.length, 'read len=', verified ? verified.length : 0);
+      if (verified !== data) {
+        warnLog('[Persistence] persistSessions: VERIFICATION FAILED! Written:', data.length, 'bytes, Read back:', verified ? verified.length : 0, 'bytes');
+        // Don't throw — the cache has the data and the next persist will retry.
+        // Throwing breaks the stopMeeting flow and prevents navigation to SessionReview.
+        // The session will still be available via fallbackSession/fallbackUtterances.
+      } else {
+        debugLog('[Persistence] persistSessions: verified OK');
+      }
     },
 
     persistUtterances: async (sessionId: SessionId) => {
@@ -277,9 +311,12 @@ export function createPersistenceService() {
     loadUtterances: async (sessionId: SessionId): Promise<UtteranceData[]> => {
       await service.ensureInitialized();
       const stored = await safeGetItem(UTTERANCES_KEY_PREFIX + sessionId);
+      console.warn('[Persistence] loadUtterances:', sessionId, 'stored=', stored ? stored.length : 'null');
       if (!stored) return [];
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        console.warn('[Persistence] loadUtterances: parsed', parsed.length, 'utterances');
+        return parsed;
       } catch (err) {
         warnLog('[Persistence] Failed to parse utterances cache, resetting.', err);
         return [];
@@ -287,7 +324,9 @@ export function createPersistenceService() {
     },
 
     saveSession: async (session: SessionData): Promise<void> => {
+      debugLog('[Persistence] saveSession called:', session.id, session.status);
       await service.ensureInitialized();
+      debugLog('[Persistence] saveSession: initialized, cache len:', sessionsCache.length);
       const exists = sessionsCache.findIndex((s) => s.id === session.id);
       const nextSession = cloneSession(session);
       if (exists >= 0) {
@@ -295,6 +334,7 @@ export function createPersistenceService() {
       } else {
         sessionsCache.push(nextSession);
       }
+      debugLog('[Persistence] saveSession: added to cache, cache len:', sessionsCache.length);
       await service.persistSessions();
       requestNotify();
       debugLog('[Persistence] Saved session:', session.id, session.status);
@@ -313,12 +353,55 @@ export function createPersistenceService() {
 
     getSessions: async (): Promise<SessionData[]> => {
       await service.ensureInitialized();
-      return [...sessionsCache].map(cloneSession).sort((a, b) => b.startedAt - a.startedAt);
+      let result = [...sessionsCache].map(cloneSession).sort((a, b) => b.startedAt - a.startedAt);
+
+      // DEFENSIVE: If cache is empty, try reading directly from AsyncStorage.
+      // This handles cases where the singleton cache was reset but data exists in storage.
+      if (result.length === 0) {
+        console.warn('[Persistence] getSessions: cache empty, reading directly from AsyncStorage');
+        const stored = await safeGetItem(SESSIONS_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as SessionData[];
+            console.warn('[Persistence] getSessions: found', parsed.length, 'sessions in AsyncStorage!');
+            sessionsCache = parsed;
+            result = [...sessionsCache].map(cloneSession).sort((a, b) => b.startedAt - a.startedAt);
+          } catch {
+            // ignore parse error
+          }
+        }
+      }
+
+      debugLog('[Persistence] getSessions: returning', result.length, 'sessions');
+      return result;
     },
 
     getSession: async (id: SessionId): Promise<SessionData | null> => {
       await service.ensureInitialized();
-      const session = sessionsCache.find((s) => s.id === id);
+
+      // Try cache first
+      let session = sessionsCache.find((s) => s.id === id);
+
+      // DEFENSIVE: If not in cache, try reading directly from AsyncStorage.
+      // This handles singleton reset scenarios.
+      if (!session) {
+        console.warn('[Persistence] getSession:', id, 'not in cache, reading from AsyncStorage');
+        const stored = await safeGetItem(SESSIONS_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as SessionData[];
+            const found = parsed.find((s) => s.id === id);
+            if (found) {
+              // Update cache
+              sessionsCache = parsed;
+              session = cloneSession(found);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+
       return session ? cloneSession(session) : null;
     },
 
@@ -379,10 +462,15 @@ export function createPersistenceService() {
 
     getUtterances: async (sessionId: SessionId): Promise<UtteranceData[]> => {
       await service.ensureInitialized();
+      console.warn('[Persistence] getUtterances:', sessionId, 'cacheHit=', utterancesCache.has(sessionId));
       if (utterancesCache.has(sessionId)) {
-        return utterancesCache.get(sessionId)!.map(cloneUtterance);
+        const cached = utterancesCache.get(sessionId)!.map(cloneUtterance);
+        console.warn('[Persistence] getUtterances: returning', cached.length, 'from cache');
+        return cached;
       }
+      console.warn('[Persistence] getUtterances: cache miss, loading from AsyncStorage');
       const loaded = await service.loadUtterances(sessionId);
+      console.warn('[Persistence] getUtterances: loaded', loaded.length, 'from AsyncStorage');
       if (loaded.length > 0) {
         utterancesCache.set(sessionId, loaded);
       }
@@ -533,7 +621,8 @@ export function createPersistenceService() {
      *         Then the partial session is recoverable with all utterances saved before the crash.
      */
     recoverInterruptedSessions: async (): Promise<number> => {
-      await service.ensureInitialized();
+      // Note: This is called from within the init IIFE, so the cache is already
+      // loaded. No need to call ensureInitialized() here (which would deadlock).
       const interrupted: SessionData[] = [];
       for (const session of sessionsCache) {
         if (session.status === 'live' && session.endedAt === null) {

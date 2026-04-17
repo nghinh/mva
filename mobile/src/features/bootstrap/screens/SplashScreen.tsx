@@ -2,14 +2,16 @@ import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, StyleSheet, Pressable, ActivityIndicator, SafeAreaView} from 'react-native';
 import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
-import {colors, spacing, typography, borderRadius, shadows} from '@shared/constants';
+import {spacing, typography, borderRadius, shadows} from '@shared/constants';
+import {useTheme} from '@shared/hooks/useTheme';
 import {ReadinessStatus, ProgressCard} from '@shared/components/ui';
 import {useBootstrapStore, useModelState, usePrewarmState, useBootstrapOverallStatus} from '@shared/store';
 import {ModelInfo} from '@shared/types';
 import type {RootStackParamList} from '../../../app/navigation/router';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
 import {warnLog} from '../../../shared/utils/logger';
-import {getSpeakerEmbeddingService} from '../../../native/speaker/SpeakerEmbeddingService';
+import {getOnDeviceTranslator} from '../../../services/OnDeviceTranslator';
+import {areBundledAssetsAvailable, ensureBundledModelInstalled} from '../../../native/models/BundledModelInstaller';
 
 const MOCK_MODEL: ModelInfo = {
   id: 'sensevoice-small',
@@ -37,6 +39,7 @@ type SplashNavigationProp = StackNavigationProp<RootStackParamList, 'Bootstrap'>
 
 export const SplashScreen: React.FC = () => {
   const navigation = useNavigation<SplashNavigationProp>();
+  const {theme, isDark} = useTheme();
   const modelState = useModelState();
   const prewarmState = usePrewarmState();
   const overallStatus = useBootstrapOverallStatus();
@@ -47,6 +50,7 @@ export const SplashScreen: React.FC = () => {
     setTranslatorModelDownloading,
     setTranslatorModelDownloadProgress,
     setTranslatorModelReady,
+    setTranslatorModelError,
     startPrewarm,
     completePrewarm,
     initialize,
@@ -66,20 +70,54 @@ export const SplashScreen: React.FC = () => {
     const run = async () => {
       try {
         initialize();
+
+        // Step 1: Install STT model
         setModelDownloading(MOCK_MODEL);
-        await simulateProgress((p) => setModelDownloadProgress(p), 67);
-        await getSTTProcessorInstance().loadModel();
-        setModelReady(MOCK_MODEL);
+        try {
+          await ensureBundledModelInstalled('stt', (completed, total) => {
+            setModelDownloadProgress({bytesDownloaded: completed, totalBytes: total, percentage: total > 0 ? completed / total : 0});
+          });
+          await getSTTProcessorInstance().loadModel();
+          setModelReady(MOCK_MODEL);
+        } catch (error) {
+          warnLog('[SplashScreen] STT model install/load failed:', error);
+          setModelReady(MOCK_MODEL); // Still mark ready so we can try transcript-only mode
+        }
+
+        // Step 2: Install NLLB translation model (this is the slow part ~5-6s)
         setTranslatorModelDownloading(MOCK_TRANSLATOR_MODEL);
-        await simulateProgress((p) => setTranslatorModelDownloadProgress(p), 100);
+        try {
+          await ensureBundledModelInstalled('nllb', (completed, total) => {
+            setTranslatorModelDownloadProgress({bytesDownloaded: completed, totalBytes: total, percentage: total > 0 ? completed / total : 0});
+          });
+        } catch (error) {
+          warnLog('[SplashScreen] NLLB model install failed:', error);
+          setTranslatorModelError(error instanceof Error ? error.message : 'NLLB install failed');
+        }
+
+        // Step 3: Keep the translation model installed but do not preload it.
+        // On physical iOS devices, keeping STT + NLLB resident before the user
+        // even starts a meeting causes critical memory pressure. Translator load
+        // is deferred until the first real translation request.
+        const translator = getOnDeviceTranslator();
+        const alreadyLoaded = await translator.isLoaded();
+        console.warn('[SplashScreen] isLoaded check: alreadyLoaded =', alreadyLoaded);
+        if (alreadyLoaded) {
+          warnLog('[SplashScreen] NLLB translator already in memory');
+        } else {
+          warnLog('[SplashScreen] NLLB translator install verified; native load deferred until needed');
+        }
+
         setTranslatorModelReady(MOCK_TRANSLATOR_MODEL);
+
+        // Step 4: Mark prewarm complete.
+        // Speaker embedding is intentionally NOT warmed here because loading
+        // STT + NLLB + diarization together pushes iOS into critical memory
+        // pressure on physical devices. Diarization is only needed after the
+        // meeting or when live speaker assignment is explicitly enabled, so it
+        // is initialized lazily at point-of-use instead.
         startPrewarm();
-        // NLLB init deferred to startMeeting to avoid launch crash
-        warnLog('[SplashScreen] NLLB init deferred');
-        // Warm up speaker embedding/diarization model (non-fatal)
-        warnLog('[SplashScreen] Warming up speaker embedding model...');
-        await getSpeakerEmbeddingService().initialize();
-        warnLog('[SplashScreen] Speaker embedding model warm-up complete');
+
         await delay(300);
         completePrewarm();
         setIsInitializing(false);
@@ -104,29 +142,35 @@ export const SplashScreen: React.FC = () => {
     return 0;
   };
 
+  // Palette pulled from the active theme so light mode doesn't get the
+  // dark-only tokens that were hardcoded here originally.
+  const glowTint = isDark ? 'rgba(162,155,254,0.06)' : 'rgba(91,78,217,0.07)';
+  const ringBorderColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)';
+  const waveBarColor = isDark ? 'rgba(162,155,254,0.7)' : 'rgba(91,78,217,0.55)';
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.secondary}]}>
       <View style={styles.backgroundGlow}>
-        <View style={styles.glowCenter} />
+        <View style={[styles.glowCenter, {backgroundColor: glowTint}]} />
       </View>
       <View style={styles.content}>
         <View style={styles.logoSection}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoOuterRing} />
-            <View style={styles.micCore}>
-              <Text style={styles.micCoreText}>◉</Text>
+            <View style={[styles.logoOuterRing, {borderColor: ringBorderColor}]} />
+            <View style={[styles.micCore, {borderColor: theme.colors.secondary}]}>
+              <Text style={[styles.micCoreText, {color: theme.colors.secondary}]}>◉</Text>
             </View>
             <View style={styles.waveformBars}>
-              <View style={styles.waveformBar} />
-              <View style={[styles.waveformBar, styles.waveformBarTall]} />
-              <View style={styles.waveformBar} />
-              <View style={[styles.waveformBar, styles.waveformBarTall]} />
-              <View style={styles.waveformBar} />
+              <View style={[styles.waveformBar, {backgroundColor: waveBarColor}]} />
+              <View style={[styles.waveformBar, styles.waveformBarTall, {backgroundColor: waveBarColor}]} />
+              <View style={[styles.waveformBar, {backgroundColor: waveBarColor}]} />
+              <View style={[styles.waveformBar, styles.waveformBarTall, {backgroundColor: waveBarColor}]} />
+              <View style={[styles.waveformBar, {backgroundColor: waveBarColor}]} />
             </View>
           </View>
           <View style={styles.titleSection}>
-            <Text style={styles.appName}>Meeting Voice Assistant</Text>
-            <Text style={styles.tagline}>Understand every voice</Text>
+            <Text style={[styles.appName, {color: theme.colors.text.primary}]}>Meeting Voice Assistant</Text>
+            <Text style={[styles.tagline, {color: theme.colors.text.tertiary}]}>Understand every voice</Text>
           </View>
         </View>
 
@@ -163,28 +207,34 @@ export const SplashScreen: React.FC = () => {
             </View>
           )}
 
-          <Text style={styles.statusMessage}>
+          <Text style={[styles.statusMessage, {color: theme.colors.text.tertiary}]}>
             {isInitializing ? 'Getting ready...' : overallStatus === 'ready' ? 'Ready to start' : 'Setup required'}
           </Text>
         </View>
       </View>
 
       <View style={styles.footer}>
-        <View style={styles.metadataContainer}>
-          <Text style={styles.metadataIconGlyph}>◈</Text>
-          <Text style={styles.metadataText}>SenseVoice • EN / JA / KO / ZH</Text>
+        <View style={[styles.metadataContainer, {borderColor: ringBorderColor}]}>
+          <Text style={[styles.metadataIconGlyph, {color: theme.colors.secondary}]}>◈</Text>
+          <Text style={[styles.metadataText, {color: theme.colors.text.tertiary}]}>SenseVoice • EN / JA / KO / ZH</Text>
         </View>
 
         {isInitializing && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.secondary} />
+            <ActivityIndicator size="small" color={theme.colors.secondary} />
           </View>
         )}
 
         {!isInitializing && overallStatus === 'ready' && (
           <View style={styles.readyFooter}>
-            <Pressable style={({pressed}) => [styles.readyButton, pressed && styles.readyButtonPressed]} onPress={() => navigation.replace('Meeting')}>
-              <Text style={styles.readyButtonText}>Start Meeting</Text>
+            <Pressable
+              style={({pressed}) => [
+                styles.readyButton,
+                {backgroundColor: theme.colors.secondary},
+                pressed && styles.readyButtonPressed,
+              ]}
+              onPress={() => navigation.replace('Meeting')}>
+              <Text style={[styles.readyButtonText, {color: isDark ? theme.colors.text.primary : '#FFFFFF'}]}>Start Meeting</Text>
             </Pressable>
           </View>
         )}
@@ -217,33 +267,33 @@ async function simulateProgress(
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: colors['surface-dim']},
+  container: {flex: 1},
   backgroundGlow: {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center'},
-  glowCenter: {marginTop: 80, width: 320, height: 320, borderRadius: 160, backgroundColor: 'rgba(162,155,254,0.06)'},
+  glowCenter: {marginTop: 80, width: 320, height: 320, borderRadius: 160},
   content: {flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg},
   logoSection: {alignItems: 'center', marginBottom: spacing.xl},
   logoContainer: {width: 180, height: 180, alignItems: 'center', justifyContent: 'center'},
-  logoOuterRing: {position: 'absolute', width: 180, height: 180, borderRadius: 90, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)'},
-  micCore: {width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: colors.secondary, alignItems: 'center', justifyContent: 'center'},
-  micCoreText: {color: colors.secondary, fontSize: 26},
+  logoOuterRing: {position: 'absolute', width: 180, height: 180, borderRadius: 90, borderWidth: 1},
+  micCore: {width: 56, height: 56, borderRadius: 28, borderWidth: 2, alignItems: 'center', justifyContent: 'center'},
+  micCoreText: {fontSize: 26},
   waveformBars: {position: 'absolute', bottom: 42, flexDirection: 'row', gap: 6},
-  waveformBar: {width: 4, height: 24, borderRadius: 2, backgroundColor: 'rgba(162,155,254,0.7)'},
+  waveformBar: {width: 4, height: 24, borderRadius: 2},
   waveformBarTall: {height: 36},
   titleSection: {marginTop: spacing.md, alignItems: 'center'},
-  appName: {fontFamily: typography.fontFamily.headline, fontSize: 24, fontWeight: '700', color: colors['on-surface'], textAlign: 'center'},
-  tagline: {fontFamily: typography.fontFamily.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors['on-surface-variant'], marginTop: 8},
+  appName: {fontFamily: typography.fontFamily.headline, fontSize: 24, fontWeight: '700', textAlign: 'center'},
+  tagline: {fontFamily: typography.fontFamily.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', marginTop: 8},
   statusSection: {gap: spacing.md},
   readinessGrid: {gap: spacing.md},
-  statusMessage: {textAlign: 'center', color: colors['on-surface-variant'], fontFamily: typography.fontFamily.body, fontSize: typography.fontSize.xl, marginTop: spacing.sm},
+  statusMessage: {textAlign: 'center', fontFamily: typography.fontFamily.body, fontSize: typography.fontSize.xl, marginTop: spacing.sm},
   footer: {paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, alignItems: 'center'},
-  metadataContainer: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', marginBottom: spacing.lg},
-  metadataIconGlyph: {color: colors.secondary},
-  metadataText: {color: colors['on-surface-variant']},
+  metadataContainer: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: borderRadius.full, borderWidth: 1, marginBottom: spacing.lg},
+  metadataIconGlyph: {},
+  metadataText: {},
   loadingContainer: {marginTop: spacing.md},
   readyFooter: {width: '100%', marginTop: spacing.md},
-  readyButton: {backgroundColor: colors.secondary, borderRadius: borderRadius.lg, paddingVertical: spacing.md, alignItems: 'center', ...shadows.card.elevated},
+  readyButton: {borderRadius: borderRadius.lg, paddingVertical: spacing.md, alignItems: 'center', ...shadows.card.elevated},
   readyButtonPressed: {opacity: 0.9},
-  readyButtonText: {color: colors['on-surface'], fontWeight: '700'},
+  readyButtonText: {fontWeight: '700'},
 });
 
 export default SplashScreen;

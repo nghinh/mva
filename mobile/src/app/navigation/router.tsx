@@ -5,7 +5,7 @@ export type RootStackParamList = {
   Bootstrap: undefined;
   Meeting: undefined;
   History: undefined;
-  SessionReview: {sessionId: string};
+  SessionReview: {sessionId: string; fallbackSession?: unknown; fallbackUtterances?: unknown[]};
   Settings: undefined;
   ModelRepository: undefined;
 };
@@ -41,7 +41,12 @@ export function AppRouterProvider({children}: {children: React.ReactNode}) {
 
   const navigate = useCallback(<T extends RouteName>(name: T, ...args: RootStackParamList[T] extends undefined ? [] : [params: RootStackParamList[T]]) => {
     const params = (args[0] ?? undefined) as RootStackParamList[T];
-    setStack(prev => [...prev, {name, params: (params ?? undefined) as RootStackParamList[T]}]);
+    console.warn('[Router] navigate called:', name, 'params sessionId=', (params as any)?.sessionId);
+    setStack(prev => {
+      const newStack = [...prev, {name, params: (params ?? undefined) as RootStackParamList[T]}];
+      console.warn('[Router] navigate: stack before=', prev.map(s => s.name), 'after=', newStack.map(s => s.name));
+      return newStack;
+    });
   }, []);
 
   const replace = useCallback(<T extends RouteName>(name: T, ...args: RootStackParamList[T] extends undefined ? [] : [params: RootStackParamList[T]]) => {

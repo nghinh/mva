@@ -208,23 +208,23 @@ function WaitingState({isRecording}: {isRecording: boolean}): React.JSX.Element 
   return (
     <View style={styles.waitingContainer}>
       <View style={styles.waitingIconRow}>
-        <View style={[styles.languageChip, {backgroundColor: theme.colors.surface.secondary}]}>
-          <Text style={[styles.languageChipText, {color: theme.colors.text.tertiary}]}>EN</Text>
+        <View style={[styles.languageChip, {backgroundColor: theme.colors.surface.secondary}]}> 
+          <Text style={[styles.languageChipText, {color: theme.colors.text.tertiary}]}>AUTO</Text>
         </View>
         <View style={styles.arrowContainer}>
           <AppIcon name="forward" size={14} color={theme.colors.text.tertiary} />
         </View>
-        <View style={[styles.languageChip, {backgroundColor: theme.colors.secondary}]}>
+        <View style={[styles.languageChip, {backgroundColor: theme.colors.secondary}]}> 
           <Text style={[styles.languageChipText, {color: theme.colors.text.primary}]}>VI</Text>
         </View>
       </View>
       {isRecording ? (
         <>
-          <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}>
+          <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}> 
             Ready to Translate
           </Text>
-          <Text style={[styles.waitingDescription, {color: theme.colors.text.tertiary}]}>
-            Vietnamese translation will appear as you speak.
+          <Text style={[styles.waitingDescription, {color: theme.colors.text.tertiary}]}> 
+            English, Japanese, Korean, and Chinese will be translated into Vietnamese.
           </Text>
         </>
       ) : (
@@ -439,10 +439,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingLeft: 8,
     borderLeftWidth: 2,
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    overflow: 'hidden',
   },
   headerLabel: {
     fontSize: 11,
@@ -452,7 +455,6 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 10,
-    marginLeft: 8,
   },
   headerRight: {
     flexDirection: 'row',
