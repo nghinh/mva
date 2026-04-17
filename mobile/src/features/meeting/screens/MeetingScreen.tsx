@@ -12,14 +12,12 @@
  * @see docs/implementation-artifacts/4-6-deliver-accessibility-and-dark-mode-for-meeting-screen.md
  */
 
-import React, {useCallback, useState, useRef, useEffect} from 'react';
+import React, {useCallback, useState, useEffect} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
-  AccessibilityInfo,
   SafeAreaView,
 } from 'react-native';
 import {useNavigation} from '../../../app/navigation/router';
@@ -27,7 +25,7 @@ import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
-import {useBootstrapOverallStatus, useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
+import {useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
 import {useDeveloperMode, useTargetLanguage} from '../../../shared/store/settingsStore';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
 import {DeveloperMetricsOverlay} from '../components/DeveloperMetricsOverlay/DeveloperMetricsOverlay';
@@ -43,130 +41,12 @@ type LaneFocusMode = 'original' | 'split' | 'translation';
 const APP_NAME = 'Executive MVA';
 
 // =============================================================================
-// WaitingStateOverlay
-// Shown when meeting starts but before any speech is detected.
-// Calm, non-distracting visual with sound wave animation.
-// =============================================================================
-
-function SoundWaveBar({
-  index,
-  baseHeight,
-}: {
-  index: number;
-  baseHeight: number;
-}): React.JSX.Element {
-  const {theme, isReduceMotionEnabled} = useTheme();
-  const anim = useRef(new Animated.Value(0.3)).current;
-
-  useEffect(() => {
-    if (isReduceMotionEnabled) {
-      // Static bar when reduced motion is enabled
-      anim.setValue(1);
-      return undefined;
-    }
-    // Animate from 0.3 → 1 with staggered timing per bar index
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 600 + index * 150,
-          useNativeDriver: false,
-        }),
-        Animated.timing(anim, {
-          toValue: 0.3,
-          duration: 600 + index * 150,
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [anim, index, isReduceMotionEnabled]);
-
-  return (
-    <Animated.View
-      style={[
-        styles.soundWaveBar,
-        {
-          backgroundColor: theme.colors.primary,
-          opacity: anim,
-          height: baseHeight,
-        },
-      ]}
-    />
-  );
-}
-
-function WaitingStateOverlay({
-  opacity,
-  isRecording,
-}: {
-  opacity: Animated.Value;
-  isRecording: boolean;
-}): React.JSX.Element {
-  const {theme} = useTheme();
-  const waveHeights = [12, 20, 14, 24, 16, 22, 10];
-  const languageHints = [
-    {flag: '🇬🇧', code: 'EN'},
-    {flag: '🇯🇵', code: 'JA'},
-    {flag: '🇰🇷', code: 'KO'},
-    {flag: '🇨🇳', code: 'ZH'},
-  ] as const;
-
-  return (
-    <Animated.View
-      style={[styles.waitingOverlay, {opacity}]}
-      pointerEvents="box-none"
-      accessibilityLabel="Waiting for speech. Speak in English, Japanese, Korean, or Chinese."
-      accessibilityLiveRegion="polite">
-      <View style={styles.waitingContent}>
-        {/* Sound wave animation */}
-        <View style={styles.soundWaveContainer}>
-          {waveHeights.map((h, i) => (
-            <SoundWaveBar key={i} index={i} baseHeight={h} />
-          ))}
-        </View>
-
-        {/* Listening text */}
-        <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}>
-          Listening...
-        </Text>
-        <Text style={[styles.waitingHint, {color: theme.colors.text.tertiary}]}> 
-          Speak in English, Japanese,
-          {'\n'}Korean, or Chinese
-        </Text>
-
-        {/* Language hint pills */}
-        <View style={styles.languageHintRow}>
-          {languageHints.map(({flag, code}) => (
-            <View
-              key={code}
-              style={[
-                styles.languageHintPill,
-                {backgroundColor: theme.colors.surface.secondary},
-              ]}>
-              <Text style={styles.languageHintFlag}>{flag}</Text>
-              <Text
-                style={[styles.languageHintText, {color: theme.colors.text.tertiary}]}
-                numberOfLines={1}>
-                {code}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    </Animated.View>
-  );
-}
-
-// =============================================================================
 // Main MeetingScreen
 // =============================================================================
 
 export function MeetingScreen(): React.JSX.Element {
   const {theme} = useTheme();
   const navigation = useNavigation<MeetingNavigationProp>();
-  const bootstrapStatus = useBootstrapOverallStatus();
   const modelState = useModelState();
   const translatorModelState = useTranslatorModelState();
   const prewarmState = usePrewarmState();
@@ -200,25 +80,6 @@ export function MeetingScreen(): React.JSX.Element {
 
   const [latencyMs] = useState<number | null>(45);
   const [laneFocusMode, setLaneFocusMode] = useState<LaneFocusMode>('split');
-  const waitingOpacity = useRef(new Animated.Value(1)).current;
-  const hasShownFirstSpeech = useRef(false);
-
-  // Transition out waiting overlay when first speech is detected
-  useEffect(() => {
-    const hasSpeech = partialTranscript.length > 0 || transcript.length > 0;
-    if (hasSpeech && !hasShownFirstSpeech.current) {
-      hasShownFirstSpeech.current = true;
-      Animated.timing(waitingOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-    if (!hasSpeech && hasShownFirstSpeech.current) {
-      hasShownFirstSpeech.current = false;
-      waitingOpacity.setValue(1);
-    }
-  }, [partialTranscript, transcript, waitingOpacity]);
 
   useEffect(() => {
     const modelsReady = modelState.status === 'cached-ready';
@@ -231,9 +92,6 @@ export function MeetingScreen(): React.JSX.Element {
       return () => clearTimeout(timer);
     }
   }, [modelState.status, prewarmState.status, startPrewarm, completePrewarm]);
-
-  // Show waiting state when: idle, or recording but no speech yet
-  const showWaiting = status === 'idle' || (isRecording && transcript.length === 0 && !partialTranscript);
 
   const handleStartMeeting = useCallback(() => {
     // Use target language from user preferences (defaults to Vietnamese)
@@ -430,7 +288,6 @@ export function MeetingScreen(): React.JSX.Element {
             currentUtteranceId={currentUtteranceId}
             isRecording={isRecording}
             isOffline={isOffline}
-            suppressPlaceholder={showWaiting}
           />
         )}
         {showTranslationLane && (
@@ -443,13 +300,7 @@ export function MeetingScreen(): React.JSX.Element {
             degradedMessage={degradedMessage}
             isActive={isActive}
             isRecording={isRecording}
-            suppressPlaceholder={showWaiting}
           />
-        )}
-
-        {/* Waiting State Overlay */}
-        {showWaiting && (
-          <WaitingStateOverlay opacity={waitingOpacity} isRecording={isRecording} />
         )}
       </View>
 
@@ -636,75 +487,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  // Waiting state overlay styles
-  waitingOverlay: {
-    position: 'absolute',
-    top: 24,
-    left: 0,
-    right: 0,
-    bottom: '58%',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    zIndex: 10,
-    paddingHorizontal: 20,
-    paddingTop: 4,
-  },
-  waitingContent: {
-    alignItems: 'center',
-    gap: 6,
-    width: '100%',
-    maxWidth: 300,
-  },
-  soundWaveContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    height: 40,
-  },
-  soundWaveBar: {
-    width: 3,
-    borderRadius: 2,
-  },
-  waitingTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  waitingHint: {
-    fontSize: 13,
-    fontWeight: '400',
-    textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 250,
-  },
-  languageHintRow: {
-    flexDirection: 'row',
-    flexWrap: 'nowrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 0,
-    width: '100%',
-    maxWidth: 280,
-  },
-  languageHintPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    minWidth: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 9,
-  },
-  languageHintFlag: {
-    fontSize: 11,
-  },
-  languageHintText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.2,
   },
 });
 

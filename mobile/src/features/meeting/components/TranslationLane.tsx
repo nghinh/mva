@@ -37,7 +37,6 @@ interface TranslationLaneProps {
   degradedMessage?: string | null;
   isActive: boolean;
   isRecording: boolean;
-  suppressPlaceholder?: boolean;
 }
 
 // =============================================================================
@@ -216,7 +215,8 @@ function WaitingState({isRecording}: {isRecording: boolean}): React.JSX.Element 
 
   return (
     <View style={styles.waitingContainer}>
-      <View style={styles.waitingIconRow}>
+      <View style={[styles.waitingIconWrap, {backgroundColor: theme.colors.surface.secondary}]}> 
+        <View style={styles.waitingIconRow}>
         <View style={[styles.languageChip, {backgroundColor: theme.colors.surface.secondary}]}> 
           <Text style={[styles.languageChipText, {color: theme.colors.text.tertiary}]}>AUTO</Text>
         </View>
@@ -226,19 +226,20 @@ function WaitingState({isRecording}: {isRecording: boolean}): React.JSX.Element 
         <View style={[styles.languageChip, {backgroundColor: theme.colors.secondary}]}> 
           <Text style={[styles.languageChipText, {color: theme.colors.text.primary}]}>VI</Text>
         </View>
+        </View>
       </View>
       {isRecording ? (
         <>
           <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}> 
-            Ready to Translate
+            Translation standing by
           </Text>
           <Text style={[styles.waitingDescription, {color: theme.colors.text.tertiary}]}> 
-            English, Japanese, Korean, and Chinese will be translated into Vietnamese.
+            Incoming English, Japanese, Korean, and Chinese speech will appear here in Vietnamese.
           </Text>
         </>
       ) : (
         <>
-          <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}>
+          <Text style={[styles.waitingTitle, {color: theme.colors.text.secondary}]}> 
             Translation Ready
           </Text>
           <Text style={[styles.waitingDescription, {color: theme.colors.text.tertiary}]}>
@@ -263,7 +264,6 @@ export function TranslationLane({
   degradedMessage,
   isActive: _isActive,
   isRecording,
-  suppressPlaceholder = false,
 }: TranslationLaneProps): React.JSX.Element {
   const {theme} = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -392,7 +392,7 @@ export function TranslationLane({
         ) : showTranslationDegradedState ? (
           <DegradedState translationAvailable={translationAvailable} message={degradedMessage} />
         ) : !hasEntries ? (
-          suppressPlaceholder ? <View style={styles.placeholderSpacer} /> : <WaitingState isRecording={isRecording} />
+          <WaitingState isRecording={isRecording} />
         ) : (
           <View style={styles.scrollWrapper}>
             <ScrollView
@@ -669,7 +669,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    gap: 10,
+    gap: 8,
+  },
+  waitingIconWrap: {
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   waitingIconRow: {
     flexDirection: 'row',
@@ -698,9 +703,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
-  },
-  placeholderSpacer: {
-    flex: 1,
+    maxWidth: 220,
   },
   // Jump to Latest Pill
   jumpPillContainer: {

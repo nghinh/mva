@@ -32,7 +32,6 @@ interface TranscriptLaneProps {
   currentUtteranceId: string | null;
   isRecording: boolean;
   isOffline?: boolean;
-  suppressPlaceholder?: boolean;
 }
 
 // =============================================================================
@@ -146,7 +145,9 @@ function EmptyState({isRecording, isOffline}: {isRecording: boolean; isOffline: 
   if (isOffline) {
     return (
       <View style={styles.emptyContainer}>
-        <AppIcon name="mic" size={24} color={theme.colors.text.tertiary} />
+        <View style={[styles.emptyIconWrap, {backgroundColor: theme.colors.surface.secondary}]}> 
+          <AppIcon name="mic" size={18} color={theme.colors.text.tertiary} />
+        </View>
         <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Transcript Active</Text>
         <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Offline mode — transcript continues on device.</Text>
       </View>
@@ -156,18 +157,22 @@ function EmptyState({isRecording, isOffline}: {isRecording: boolean; isOffline: 
   if (!isRecording) {
     return (
       <View style={styles.emptyContainer}>
-        <AppIcon name="mic" size={24} color={theme.colors.text.tertiary} />
-        <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Ready to Capture</Text>
-        <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Start meeting to see the original speaker transcript.</Text>
+        <View style={[styles.emptyIconWrap, {backgroundColor: theme.colors.surface.secondary}]}> 
+          <AppIcon name="mic" size={18} color={theme.colors.text.tertiary} />
+        </View>
+        <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Original Transcript</Text>
+        <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Start a meeting to see the live source transcript here.</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.emptyContainer}>
-      <AppIcon name="sync" size={24} color={theme.colors.text.tertiary} />
-      <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Listening...</Text>
-      <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Speak in English, Japanese, or Korean</Text>
+      <View style={[styles.emptyIconWrap, {backgroundColor: theme.colors.surface.secondary}]}> 
+        <AppIcon name="sync" size={18} color={theme.colors.primary} />
+      </View>
+      <Text style={[styles.emptyTitle, {color: theme.colors.text.secondary}]}>Listening for speech</Text>
+      <Text style={[styles.emptyDescription, {color: theme.colors.text.tertiary}]}>Speak in English, Japanese, Korean, or Chinese to start the live transcript.</Text>
     </View>
   );
 }
@@ -183,7 +188,6 @@ export function TranscriptLane({
   currentUtteranceId,
   isRecording,
   isOffline = false,
-  suppressPlaceholder = false,
 }: TranscriptLaneProps): React.JSX.Element {
   const {theme} = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -280,7 +284,7 @@ export function TranscriptLane({
 
       {/* Lane Content */}
       {!hasContent ? (
-        suppressPlaceholder ? <View style={styles.placeholderSpacer} /> : <EmptyState isRecording={isRecording} isOffline={isOffline} />
+        <EmptyState isRecording={isRecording} isOffline={isOffline} />
       ) : (
         <View style={styles.scrollWrapper}>
           <ScrollView
@@ -410,7 +414,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    gap: 6,
+    gap: 8,
+  },
+  emptyIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyTitle: {
     fontSize: 13,
@@ -421,9 +432,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     lineHeight: 16,
-  },
-  placeholderSpacer: {
-    flex: 1,
+    maxWidth: 220,
   },
   entryContainer: {
     gap: 4,

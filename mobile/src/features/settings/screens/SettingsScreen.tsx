@@ -43,6 +43,7 @@ import {getPersistenceService} from '../../../services/persistence';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
 import {spacing, borderRadius, typography} from '../../../shared/constants';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
+import {Platform} from 'react-native';
 
 type SettingsNavigationProp = StackNavigationProp<RootStackParamList, 'Settings'>;
 
@@ -73,9 +74,11 @@ export function SettingsScreen(): React.JSX.Element {
   const currentLangOption = getLanguageOption(targetLanguage);
   const diarizationThreshold = useDiarizationThreshold();
   const {setDiarizationThreshold} = useSettingsStore();
+  const translationEngineLabel = Platform.OS === 'ios' ? 'Apple Translate' : 'Opus-MT';
 
   const [sessionDataSizeMB, setSessionDataSizeMB] = useState<number>(0);
   const [langSelectorVisible, setLangSelectorVisible] = useState(false);
+  const [devUnlockTapCount, setDevUnlockTapCount] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -159,6 +162,20 @@ export function SettingsScreen(): React.JSX.Element {
     );
   }, []);
 
+  const handleDeveloperUnlock = useCallback(() => {
+    const nextCount = devUnlockTapCount + 1;
+    if (developerMode) {
+      return;
+    }
+    if (nextCount >= 7) {
+      setDeveloperMode(true);
+      setDevUnlockTapCount(0);
+      Alert.alert('Developer Mode Enabled', 'Advanced diagnostics and tuning options are now visible.');
+      return;
+    }
+    setDevUnlockTapCount(nextCount);
+  }, [devUnlockTapCount, developerMode, setDeveloperMode]);
+
   const getModelStatusDisplay = (status: string, isReady: boolean) => {
     if (isReady || status === 'cached-ready') {
       return {icon: 'check-circle', color: theme.colors.secondary, label: 'Ready'};
@@ -177,36 +194,11 @@ export function SettingsScreen(): React.JSX.Element {
 
   const sttStatus = getModelStatusDisplay(modelState.status, modelState.status === 'cached-ready');
 
-  const renderModelCard = (
-    name: string,
-    description: string,
-    sizeMB: number,
-    statusInfo: {icon: string; color: string; label: string},
-    onPress?: () => void,
-  ) => (
-    <TouchableOpacity
-      style={[styles.modelCard, {backgroundColor: theme.colors.surface.container}]}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
-      disabled={!onPress}>
-      <View style={styles.modelCardHeader}>
-        <View style={styles.modelCardInfo}>
-          <Text style={[styles.modelCardName, {color: theme.colors.text.primary}]}>{name}</Text>
-          <Text style={[styles.modelCardDesc, {color: theme.colors.text.tertiary}]}>{description}</Text>
-        </View>
-        <View style={[styles.statusBadge, {backgroundColor: statusInfo.color + '20', borderColor: statusInfo.color + '40'}]}>
-          <AppIcon name={statusInfo.icon as any} size={12} color={statusInfo.color} />
-          <Text style={[styles.statusBadgeText, {color: statusInfo.color}]}>{statusInfo.label}</Text>
-        </View>
-      </View>
-      <View style={styles.modelCardFooter}>
-        <Text style={[styles.modelCardSize, {color: theme.colors.text.tertiary}]}>{sizeMB} MB</Text>
-        {onPress && (
-          <Text style={[styles.modelCardAction, {color: theme.colors.primary}]}>Manage</Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const translationStatus = translatorModelState.status === 'cached-ready'
+    ? {icon: 'check-circle', color: theme.colors.secondary, label: 'Ready'}
+    : translatorModelState.status === 'missing'
+    ? {icon: 'cloud-off', color: theme.colors.text.tertiary, label: 'Not Available'}
+    : {icon: 'error', color: theme.colors.error, label: 'Unavailable'};
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: theme.colors.background.primary}]}> 
@@ -220,101 +212,129 @@ export function SettingsScreen(): React.JSX.Element {
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {/* AI Models Section */}
+        {/* General Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>AI Models</Text>
-          <Text style={styles.sectionSubtitle}>Bundled offline models — all processing happens on-device</Text>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>General</Text>
 
-          {renderModelCard(
-            'SenseVoice-Small',
-            'Speech recognition (STT)',
-            SENSEVOICE_SIZE_MB,
-            sttStatus,
-            () => navigation.navigate('ModelRepository'),
-          )}
-          {renderModelCard(
-            'On-Device Translation',
-            'Apple Translate (iOS) / Opus-MT (Android)',
-            0,
-            translatorModelState.status === 'cached-ready'
-              ? {icon: 'check-circle', color: theme.colors.secondary, label: 'Ready'}
-              : translatorModelState.status === 'missing'
-              ? {icon: 'cloud-off', color: theme.colors.text.tertiary, label: 'Not Available'}
-              : {icon: 'error', color: theme.colors.error, label: 'Unavailable'},
-            undefined,
-          )}
-          {renderModelCard(
-            'Speaker Diarization',
-            'Per-utterance speaker labeling (S1, S2, S3...)',
-            DIARIZATION_SIZE_MB,
-            {icon: 'check-circle', color: theme.colors.secondary, label: 'Bundled'},
-            () => navigation.navigate('ModelRepository'),
-          )}
-        </View>
-
-        {/* Appearance Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Appearance</Text>
           <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
-            <View style={styles.settingInfo}>
-              <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Theme</Text>
-              <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Use one consistent app theme across Meetings, Live, and Network.</Text>
-            </View>
-            <View style={styles.themeModeRow}>
-              {([
-                {key: 'system', label: 'System'},
-                {key: 'light', label: 'Light'},
-                {key: 'dark', label: 'Dark'},
-              ] as const).map((option) => {
-                const active = themeMode === option.key;
-                return (
-                  <TouchableOpacity
-                    key={option.key}
-                    style={[
-                      styles.themeModeButton,
-                      active
-                        ? {backgroundColor: theme.colors.primary + '25', borderColor: theme.colors.primary}
-                        : {backgroundColor: theme.colors.surface.container, borderColor: theme.colors.border.subtle},
-                    ]}
-                    onPress={() => setThemeMode(option.key)}
-                    activeOpacity={0.7}>
-                    <Text style={{color: active ? theme.colors.primary : theme.colors.text.primary, fontWeight: '700'}}>{option.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        {/* Translation Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Translation</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
             <TouchableOpacity
               style={styles.settingRow}
               onPress={() => setLangSelectorVisible(true)}
               activeOpacity={0.7}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Target Language</Text>
-                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>
-                  All translations output to this language
-                </Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Translate all meeting output into this language.</Text>
               </View>
-              <View style={[styles.languageSelector, {backgroundColor: theme.colors.surface.container}]}>
+              <View style={[styles.languageSelector, {backgroundColor: theme.colors.surface.container}]}> 
                 <Text style={[styles.languageFlag]}>{LANGUAGE_FLAGS[targetLanguage] ?? '🇻🇳'}</Text>
-                <Text style={[styles.languageCode, {color: theme.colors.text.primary}]}>
+                <Text style={[styles.languageCode, {color: theme.colors.text.primary}]}> 
                   {targetLanguage.toUpperCase()}
                 </Text>
                 <AppIcon name="chevron-down" size={16} color={theme.colors.text.tertiary} />
               </View>
             </TouchableOpacity>
+
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Translation Engine</Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Uses {translationEngineLabel} for on-device meeting translation.</Text>
+              </View>
+              <View style={[styles.inlineBadge, {backgroundColor: theme.colors.surface.container}]}> 
+                <Text style={[styles.inlineBadgeText, {color: theme.colors.text.secondary}]}>{translationEngineLabel}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* AI Models Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>On-Device AI</Text>
+          <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>Speech recognition and speaker detection are stored locally on your device.</Text>
+
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
+            <View style={styles.aiSummaryHeader}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Model Summary</Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Core speech models are installed locally. Translation uses the device-native engine.</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.manageModelsButton, {backgroundColor: theme.colors.surface.container}]}
+                onPress={() => navigation.navigate('ModelRepository')}
+                activeOpacity={0.7}>
+                <Text style={[styles.manageModelsText, {color: theme.colors.primary}]}>Manage Models</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, {color: theme.colors.text.tertiary}]}>Speech Recognition</Text>
+              <View style={[styles.statusBadge, {backgroundColor: sttStatus.color + '20', borderColor: sttStatus.color + '40'}]}>
+                <AppIcon name={sttStatus.icon as any} size={12} color={sttStatus.color} />
+                <Text style={[styles.statusBadgeText, {color: sttStatus.color}]}>{sttStatus.label}</Text>
+              </View>
+            </View>
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, {color: theme.colors.text.tertiary}]}>Translation</Text>
+              <View style={[styles.statusBadge, {backgroundColor: translationStatus.color + '20', borderColor: translationStatus.color + '40'}]}>
+                <AppIcon name={translationStatus.icon as any} size={12} color={translationStatus.color} />
+                <Text style={[styles.statusBadgeText, {color: translationStatus.color}]}>{translationStatus.label}</Text>
+              </View>
+            </View>
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, {color: theme.colors.text.tertiary}]}>Speaker Detection</Text>
+              <View style={[styles.statusBadge, {backgroundColor: theme.colors.secondary + '20', borderColor: theme.colors.secondary + '40'}]}>
+                <AppIcon name="check-circle" size={12} color={theme.colors.secondary} />
+                <Text style={[styles.statusBadgeText, {color: theme.colors.secondary}]}>Bundled</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Appearance Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>Appearance</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
+            <View style={styles.themeCardContent}>
+              <View style={styles.settingInfoNoMargin}>
+              <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Theme</Text>
+              <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Choose how the app appears across all screens.</Text>
+              </View>
+              <View style={styles.themeModeRow}>
+                {([
+                  {key: 'system', label: 'System'},
+                  {key: 'light', label: 'Light'},
+                  {key: 'dark', label: 'Dark'},
+                ] as const).map((option) => {
+                  const active = themeMode === option.key;
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.themeModeButton,
+                        active
+                          ? {backgroundColor: theme.colors.primary + '25', borderColor: theme.colors.primary}
+                          : {backgroundColor: theme.colors.surface.container, borderColor: theme.colors.border.subtle},
+                      ]}
+                      onPress={() => setThemeMode(option.key)}
+                      activeOpacity={0.7}>
+                      <Text style={{color: active ? theme.colors.primary : theme.colors.text.primary, fontWeight: '700'}}>{option.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Speaker Detection Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Speaker Detection</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>Speaker Detection</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
             <View style={styles.speakerDetectionHeader}>
               <View style={styles.settingInfo}>
                 <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Sensitivity</Text>
@@ -375,10 +395,10 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Storage Section */}
+        {/* Local Data Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Storage</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>Local Data</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
             <View style={styles.storageRow}>
               <Text style={[styles.storageLabel, {color: theme.colors.text.tertiary}]}>AI Models</Text>
               <Text style={[styles.storageValue, {color: theme.colors.text.primary}]}>{TOTAL_MODELS_SIZE_MB} MB</Text>
@@ -393,9 +413,17 @@ export function SettingsScreen(): React.JSX.Element {
             <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
             <View style={styles.totalRow}>
               <Text style={[styles.totalLabel, {color: theme.colors.text.primary}]}>Total Local</Text>
-              <Text style={[styles.totalValue, {color: theme.colors.primary}]}>
+              <Text style={[styles.totalValue, {color: theme.colors.primary}]}> 
                 {TOTAL_MODELS_SIZE_MB + sessionDataSizeMB} MB
               </Text>
+            </View>
+            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+            <View style={styles.localDataNoteRow}>
+              <View style={styles.privacyBadge}>
+                <AppIcon name="check-circle" size={18} color={theme.colors.secondary} />
+                <Text style={[styles.privacyBadgeText, {color: theme.colors.secondary}]}>100% Offline</Text>
+              </View>
+              <Text style={[styles.localDataNote, {color: theme.colors.text.tertiary}]}>Audio, transcripts, and translations stay on this device. Removing the app deletes locally stored data.</Text>
             </View>
           </View>
 
@@ -409,28 +437,25 @@ export function SettingsScreen(): React.JSX.Element {
         </View>
 
         {/* Developer Mode Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Developer Options</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Developer Mode</Text>
-                <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>
-                  Show performance metrics overlay during meetings
-                </Text>
+        {developerMode && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>Developer Options</Text>
+            <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Developer Mode</Text>
+                  <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>Show performance metrics overlay during meetings.</Text>
+                </View>
+                <Switch
+                  value={developerMode}
+                  onValueChange={setDeveloperMode}
+                  trackColor={{false: theme.colors.surface.container, true: theme.colors.primary + '60'}}
+                  thumbColor={developerMode ? theme.colors.primary : theme.colors.text.tertiary}
+                />
               </View>
-              <Switch
-                value={developerMode}
-                onValueChange={setDeveloperMode}
-                trackColor={{false: theme.colors.surface.container, true: theme.colors.primary + '60'}}
-                thumbColor={developerMode ? theme.colors.primary : theme.colors.text.tertiary}
-              />
             </View>
-          </View>
 
-          {/* Diarization Tuning — only when developer mode is ON */}
-          {developerMode && (
-            <View style={[styles.card, {backgroundColor: theme.colors.surface.primary, marginTop: spacing.sm}]}>
+            <View style={[styles.card, {backgroundColor: theme.colors.surface.primary, marginTop: spacing.sm}]}> 
               <View style={{padding: spacing.md, gap: spacing.xs}}>
                 <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>Speaker Diarization Tuning</Text>
                 <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary, marginBottom: spacing.sm}]}>
@@ -485,54 +510,23 @@ export function SettingsScreen(): React.JSX.Element {
                 </TouchableOpacity>
               </View>
             </View>
-          )}
-        </View>
-
-        {/* Privacy Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Privacy</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
-            <View style={styles.privacyRow}>
-              <View style={styles.privacyBadge}>
-                <AppIcon name="check-circle" size={20} color={theme.colors.secondary} />
-                <Text style={[styles.privacyBadgeText, {color: theme.colors.secondary}]}>100% Offline</Text>
-              </View>
-              <Text style={[styles.privacyDesc, {color: theme.colors.text.tertiary}]}>
-                All AI inference runs locally. No audio or text ever leaves your device. All data is stored in app-private sandbox — uninstalling the app permanently removes all data.
-              </Text>
-            </View>
           </View>
-        </View>
+        )}
 
         {/* About Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>About</Text>
-          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
-            <View style={styles.aboutRow}>
+          <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>About</Text>
+          <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}> 
+            <TouchableOpacity style={styles.aboutRow} onPress={handleDeveloperUnlock} activeOpacity={0.7}>
               <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Version</Text>
               <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>1.0.0</Text>
-            </View>
+            </TouchableOpacity>
             <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
             <View style={styles.aboutRow}>
-              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>AI Models</Text>
-              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>SenseVoice + On-Device Translation</Text>
-            </View>
-            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
-            <View style={styles.aboutRow}>
-              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Target</Text>
+              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Translation</Text>
               <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}> 
-                {currentLangOption.nativeLabel} ({currentLangOption.label})
+                {currentLangOption.nativeLabel}
               </Text>
-            </View>
-            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
-            <View style={styles.aboutRow}>
-              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Developer</Text>
-              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>Nghi Nguyen</Text>
-            </View>
-            <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
-            <View style={styles.aboutRow}>
-              <Text style={[styles.aboutLabel, {color: theme.colors.text.tertiary}]}>Contact</Text>
-              <Text style={[styles.aboutValue, {color: theme.colors.text.primary}]}>nghinh@gmail.com</Text>
             </View>
           </View>
         </View>
@@ -637,10 +631,49 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xs,
     marginBottom: spacing.md,
   },
+  inlineBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  inlineBadgeText: {
+    fontFamily: typography.fontFamily.label,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+  },
   card: {
     borderRadius: borderRadius.xl,
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  aiSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  manageModelsButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+  },
+  manageModelsText: {
+    fontFamily: typography.fontFamily.label,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  summaryLabel: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.fontSize.md,
+    flex: 1,
   },
   modelCard: {
     borderRadius: borderRadius.xl,
@@ -655,10 +688,11 @@ const styles = StyleSheet.create({
   },
   modelCardInfo: {
     flex: 1,
+    paddingRight: spacing.sm,
   },
   modelCardName: {
     fontFamily: typography.fontFamily.headline,
-    fontSize: typography.fontSize.lg,
+    fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
   },
   modelCardDesc: {
@@ -684,7 +718,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
   },
@@ -706,6 +740,9 @@ const styles = StyleSheet.create({
   settingInfo: {
     flex: 1,
     marginRight: spacing.md,
+  },
+  settingInfoNoMargin: {
+    width: '100%',
   },
   settingLabel: {
     fontFamily: typography.fontFamily.headline,
@@ -824,6 +861,16 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.bold,
   },
+  localDataNoteRow: {
+    padding: spacing.md,
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  localDataNote: {
+    fontFamily: typography.fontFamily.body,
+    fontSize: typography.fontSize.sm,
+    lineHeight: typography.fontSize.sm * typography.lineHeight.relaxed,
+  },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -843,6 +890,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginTop: spacing.md,
+  },
+  themeCardContent: {
+    padding: spacing.md,
   },
   themeModeButton: {
     flex: 1,
@@ -871,6 +921,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     textAlign: 'center',
     lineHeight: typography.fontSize.sm * typography.lineHeight.relaxed,
+    maxWidth: 300,
   },
   aboutRow: {
     flexDirection: 'row',
@@ -886,6 +937,8 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.label,
     fontSize: typography.fontSize.md,
     fontWeight: typography.fontWeight.semibold,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   bottomSpacer: {
     height: spacing.xxl,
