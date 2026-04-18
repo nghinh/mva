@@ -31,7 +31,11 @@ class OfflineSpeakerDiarizationModule(reactContext: ReactApplicationContext) :
         embeddingThreads,
         threshold.toFloat(),
       )
-      promise.resolve(mapOf("success" to (sampleRate > 0), "sampleRate" to if (sampleRate > 0) sampleRate else 16000))
+      val result = Arguments.createMap().apply {
+        putBoolean("success", sampleRate > 0)
+        putInt("sampleRate", if (sampleRate > 0) sampleRate else 16000)
+      }
+      promise.resolve(result)
     } catch (e: Exception) {
       promise.reject("INIT_ERROR", e.message, e)
     }

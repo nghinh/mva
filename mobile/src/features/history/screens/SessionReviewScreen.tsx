@@ -264,6 +264,7 @@ export function SessionReviewScreen(): React.JSX.Element {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingRecap, setIsExportingRecap] = useState(false);
   const [isExportingMinutes, setIsExportingMinutes] = useState(false);
+  const [isRecalculating] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('transcript');
 
   // ── Data loading ──

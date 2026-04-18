@@ -1279,8 +1279,21 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         await persistence.saveSession(finalSessionData);
       }
 
-      await applyPostSessionDiarization(currentSession.id, sessionSamples);
-      await processDeferredTranslationsAfterMeeting(currentSession.id, currentSession.targetLanguage);
+      if (Platform.OS === 'android') {
+        try {
+          await applyPostSessionDiarization(currentSession.id, sessionSamples);
+        } catch (error) {
+          warnLog('[useMeetingSession] Android post-session diarization failed; continuing to review screen:', error);
+        }
+        try {
+          await processDeferredTranslationsAfterMeeting(currentSession.id, currentSession.targetLanguage);
+        } catch (error) {
+          warnLog('[useMeetingSession] Android deferred translation finalization failed; continuing to review screen:', error);
+        }
+      } else {
+        await applyPostSessionDiarization(currentSession.id, sessionSamples);
+        await processDeferredTranslationsAfterMeeting(currentSession.id, currentSession.targetLanguage);
+      }
 
       const latestSession = (await persistence.getSession(currentSession.id)) ?? finalSessionData;
       const latestUtterances = await persistence.getUtterances(currentSession.id);
