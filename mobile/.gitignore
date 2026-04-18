@@ -10,6 +10,9 @@ web-build/
 android/app/build/
 ios/Pods/
 ios/build/
+ios/build-release/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
 
 # Metro
 .metro-health*

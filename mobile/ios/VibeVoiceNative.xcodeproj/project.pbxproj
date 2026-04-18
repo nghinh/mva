@@ -11,8 +11,6 @@
 		338292F88A58C0413C36C108 /* libPods-VibeVoiceNative.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2870802CB1D67F9BEF522CAF /* libPods-VibeVoiceNative.a */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		76D7A0012DBB9001006654EE /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D7A0002DBB9001006654EE /* SceneDelegate.swift */; };
-
-
 		76F100012DC00001006654EE /* SpeakerEmbeddingModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F100002DC00001006654EE /* SpeakerEmbeddingModule.swift */; };
 		76F100032DC00002006654EE /* SpeakerEmbeddingModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 76F100022DC00002006654EE /* SpeakerEmbeddingModule.m */; };
 		76F100052DC00003006654EE /* OfflineSpeakerDiarizationModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F100042DC00003006654EE /* OfflineSpeakerDiarizationModule.swift */; };
@@ -32,8 +30,6 @@
 		2870802CB1D67F9BEF522CAF /* libPods-VibeVoiceNative.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VibeVoiceNative.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = VibeVoiceNative/AppDelegate.swift; sourceTree = "<group>"; };
 		76D7A0002DBB9001006654EE /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = VibeVoiceNative/SceneDelegate.swift; sourceTree = "<group>"; };
-
-
 		76F100002DC00001006654EE /* SpeakerEmbeddingModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeVoiceNative/SpeakerEmbeddingModule.swift; sourceTree = "<group>"; };
 		76F100022DC00002006654EE /* SpeakerEmbeddingModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = VibeVoiceNative/SpeakerEmbeddingModule.m; sourceTree = "<group>"; };
 		76F100042DC00003006654EE /* OfflineSpeakerDiarizationModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VibeVoiceNative/OfflineSpeakerDiarizationModule.swift; sourceTree = "<group>"; };

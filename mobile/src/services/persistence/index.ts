@@ -91,6 +91,8 @@
  * 6. Enable WAL mode via PRAGMA journal_mode=WAL
  */
 
+import {DocumentDirectoryPath, exists, mkdir, readFile, unlink, writeFile} from '@dr.pogodin/react-native-fs';
+import {Platform} from 'react-native';
 import {localStorage as AsyncStorage} from '../../shared/utils/localStorage';
 import {SessionId, UtteranceId} from '../../shared/types';
 import {debugLog, warnLog} from '../../shared/utils/logger';
@@ -153,17 +155,27 @@ const SESSIONS_KEY = '@vibevoice:sessions';
 const UTTERANCES_KEY_PREFIX = '@vibevoice:utterances:';
 const TRANSLATIONS_KEY_PREFIX = '@vibevoice:translations:';
 const SESSION_CONFIG_KEY_PREFIX = '@vibevoice:session-config:';
+const IOS_PERSISTENCE_DIR = `${DocumentDirectoryPath}/vibevoice-persistence`;
 let hasWarnedStorageFallback = false;
+
+function getIosPersistencePath(key: string): string {
+  const safeKey = key.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${IOS_PERSISTENCE_DIR}/${safeKey}.json`;
+}
 
 function logStorageFallbackOnce(reason: unknown) {
   if (!hasWarnedStorageFallback) {
     hasWarnedStorageFallback = true;
-    warnLog('[Persistence] AsyncStorage unavailable, using in-memory fallback only.', reason);
+    warnLog('[Persistence] Storage unavailable, using in-memory fallback only.', reason);
   }
 }
 
 async function safeGetItem(key: string): Promise<string | null> {
   try {
+    if (Platform.OS === 'ios') {
+      const path = getIosPersistencePath(key);
+      return (await exists(path)) ? await readFile(path, 'utf8') : null;
+    }
     return await AsyncStorage.getItem(key);
   } catch (err) {
     logStorageFallbackOnce(err);
@@ -173,17 +185,27 @@ async function safeGetItem(key: string): Promise<string | null> {
 
 async function safeSetItem(key: string, value: string): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      await mkdir(IOS_PERSISTENCE_DIR);
+      await writeFile(getIosPersistencePath(key), value, 'utf8');
+      return;
+    }
     await AsyncStorage.setItem(key, value);
   } catch (err) {
     warnLog('[Persistence] safeSetItem FAILED for key:', key, 'error:', err);
     logStorageFallbackOnce(err);
-    // Don't throw — let callers continue. The cache has the data and will be
-    // re-persisted on next successful write. This is resilient to transient failures.
   }
 }
 
 async function safeRemoveItem(key: string): Promise<void> {
   try {
+    if (Platform.OS === 'ios') {
+      const path = getIosPersistencePath(key);
+      if (await exists(path)) {
+        await unlink(path);
+      }
+      return;
+    }
     await AsyncStorage.removeItem(key);
   } catch (err) {
     logStorageFallbackOnce(err);
