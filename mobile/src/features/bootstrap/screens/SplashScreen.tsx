@@ -7,7 +7,6 @@ import {useTheme} from '@shared/hooks/useTheme';
 import {ReadinessStatus, ProgressCard} from '@shared/components/ui';
 import {useBootstrapStore, useModelState, usePrewarmState, useBootstrapOverallStatus, useTargetLanguage} from '@shared/store';
 import {ModelInfo} from '@shared/types';
-import {SupportedTargetLanguage} from '@shared/store/settingsStore';
 import type {RootStackParamList} from '../../../app/navigation/router';
 import {getSTTProcessorInstance} from '../../../native/stt/STTProcessor';
 import {warnLog} from '../../../shared/utils/logger';
@@ -132,7 +131,6 @@ export const SplashScreen: React.FC = () => {
     setModelDownloadProgress,
     setModelReady,
     setTranslatorModelDownloading,
-    setTranslatorModelDownloadProgress,
     setTranslatorModelReady,
     setTranslatorModelError,
     startPrewarm,
@@ -362,24 +360,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function simulateProgress(
-  onProgress: (progress: {bytesDownloaded: number; totalBytes: number; percentage: number}) => void,
-  targetPercent: number,
-): Promise<void> {
-  const totalBytes = 234 * 1024 * 1024;
-  const steps = 20;
-  const stepDelay = 100;
-  const stepPercent = targetPercent / steps;
-
-  for (let i = 1; i <= steps; i++) {
-    await delay(stepDelay);
-    onProgress({
-      bytesDownloaded: Math.round((totalBytes * (i * stepPercent)) / 100),
-      totalBytes,
-      percentage: Math.min(i * stepPercent, targetPercent),
-    });
-  }
-}
 
 const styles = StyleSheet.create({
   container: {flex: 1},

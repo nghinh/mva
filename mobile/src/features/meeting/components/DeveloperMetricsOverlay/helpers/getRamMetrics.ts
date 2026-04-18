@@ -69,7 +69,6 @@ export function getRamMetrics(): RamMetrics {
   if (hermesMemory) {
     // Convert bytes to MB
     const usedMB = Math.round(hermesMemory.usedJSHeapSize / (1024 * 1024));
-    const totalMB = Math.round(hermesMemory.totalJSHeapSize / (1024 * 1024));
     return {
       estimatedMB: usedMB,
       label: `${usedMB}MB`,

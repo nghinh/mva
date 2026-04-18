@@ -36,8 +36,6 @@ import {
   formatDiarizationThreshold,
   getDiarizationThresholdLabel,
   getDiarizationThresholdDescription,
-  DIARIZATION_THRESHOLD_MIN,
-  DIARIZATION_THRESHOLD_MAX,
 } from '../../../shared/config/runtimeConfig';
 import {getPersistenceService} from '../../../services/persistence';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
@@ -107,7 +105,6 @@ export function SettingsScreen(): React.JSX.Element {
     getSpeakerClusterService().setConfig({[key]: value});
   }, [clusterConfig]);
   const resetClusterDefaults = useCallback(() => {
-    const fresh = getSpeakerClusterService().getConfig();
     const defaults: SpeakerClusterConfig = {
       similarityThreshold: 0.50,
       highConfidenceThreshold: 0.65,

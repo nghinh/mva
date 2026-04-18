@@ -123,8 +123,12 @@ export function RootNavigator(): React.JSX.Element {
     <ThemeProvider>
       {/* BundledModelsInitializer disabled — SplashScreen handles all initialization */}
       <AppRouterProvider>
-        <NavigatorContent />
+        <ThemeProvider>
+          <BundledModelsInitializer />
+          <NavigatorContent />
+        </ThemeProvider>
       </AppRouterProvider>
+
     </ThemeProvider>
   );
 }

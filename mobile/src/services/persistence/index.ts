@@ -195,7 +195,6 @@ export function createPersistenceService() {
   let utterancesCache: Map<SessionId, UtteranceData[]> = new Map();
   let translationsCache: Map<UtteranceId, TranslationData> = new Map();
   let sessionConfigCache: Map<SessionId, SessionConfigSnapshot> = new Map();
-  let initialized = false;
   let initPromise: Promise<void> | null = null;
   let crashRecoveryRan = false;
   const listeners = new Set<PersistenceListener>();

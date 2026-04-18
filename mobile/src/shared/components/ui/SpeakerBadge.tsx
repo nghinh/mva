@@ -68,12 +68,10 @@ export function SpeakerBadge({
   showBorder = false,
   style,
 }: SpeakerBadgeProps): React.JSX.Element | null {
-  // Non-fatal: return null if speakerId is absent
+  const colors = useMemo(() => getSpeakerColor(speakerId), [speakerId]);
   if (!speakerId) {
     return null;
   }
-
-  const colors = useMemo(() => getSpeakerColor(speakerId), [speakerId]);
   const displayLabel = label ?? speakerId;
 
   const isSmall = size === 'small';
@@ -122,11 +120,10 @@ export function SpeakerBadgeWithIcon({
   showIcon = false,
   style,
 }: SpeakerBadgeWithIconProps): React.JSX.Element | null {
+  const colors = useMemo(() => getSpeakerColor(speakerId), [speakerId]);
   if (!speakerId) {
     return null;
   }
-
-  const colors = useMemo(() => getSpeakerColor(speakerId), [speakerId]);
   const displayLabel = label ?? speakerId;
   const isSmall = size === 'small';
 

@@ -193,8 +193,6 @@ export function TranscriptLane({
   const scrollViewRef = useRef<ScrollView>(null);
   const pillOpacity = useRef(new Animated.Value(0)).current;
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [scrollViewHeight, setScrollViewHeight] = useState(0);
 
   const orderedEntries = useMemo(() => {
     return [...entries].sort((a, b) => {

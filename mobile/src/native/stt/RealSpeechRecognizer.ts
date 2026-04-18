@@ -12,7 +12,7 @@ import { ensureBundledModelInstalled } from '../models/BundledModelInstaller';
 
 const SAMPLE_RATE = 16000;
 const IS_ANDROID = Platform.OS === 'android';
-const ANDROID_WINDOW_MODE = IS_ANDROID;
+const ANDROID_CAPTURE_CALIBRATION_MS = 1500;
 
 // STT-input gain (applied only to the audio fed to SenseVoice + session
 // buffer, NOT to the signal used for speech detection). iOS gets AGC'd
@@ -59,12 +59,13 @@ const NOISE_FLOOR_UP_ALPHA = 0.005;
 
 // Intra-sentence pauses (breathing, clause boundaries) are 300–700ms. 900ms
 // accommodates them while still responding to real sentence boundaries.
-const SILENCE_END_MS = IS_ANDROID ? 1800 : 900;
+const SILENCE_END_MS = IS_ANDROID ? 1400 : 900;
 
 // Shortest utterance worth transcribing. 200ms keeps single-word replies
 // ("yes", "có", "ok") instead of cancelling them as too_short.
 const MIN_UTTERANCE_MS = 200;
-const PARTIAL_INTERVAL_MS = IS_ANDROID ? 700 : 500;
+const PARTIAL_INTERVAL_MS = IS_ANDROID ? 900 : 500;
+const ANDROID_MIN_PARTIAL_BUFFER_MS = 1200;
 
 // Preroll: when speech starts, prepend the last N ms so we don't lose soft
 // onsets (fricatives, low-energy starts of words). The first chunk to cross
@@ -73,7 +74,6 @@ const PREROLL_MS = 400;
 const PREROLL_SAMPLES = Math.floor((SAMPLE_RATE * PREROLL_MS) / 1000);
 const ANDROID_UTTERANCE_OVERLAP_MS = 600;
 const ANDROID_UTTERANCE_OVERLAP_SAMPLES = Math.floor((SAMPLE_RATE * ANDROID_UTTERANCE_OVERLAP_MS) / 1000);
-const ANDROID_WINDOW_FINALIZE_MS = 9000;
 
 // Soft cap: once we're past SOFT_MAX, accept a shorter pause as the boundary
 // instead of waiting the full SILENCE_END_MS window.
@@ -139,12 +139,21 @@ export class RealSpeechRecognizer {
   private rmsStatsMax = 0;
   private rmsStatsSum = 0;
   private rmsStatsCount = 0;
+  private captureCalibrationEndsAt = 0;
+  private speechCalibrationWindow: number[] = [];
+  private utteranceCalibrationStartMs = 0;
+  private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | null = null;
+  private hardCapCount = 0;
 
   async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void): Promise<void> {
     this.sessionId = sessionId;
     this.emitFn = emit;
     this.detector.setSession(sessionId);
     this.noiseFloorRms = NOISE_FLOOR_SEED;
+    this.captureCalibrationEndsAt = Date.now() + (IS_ANDROID ? ANDROID_CAPTURE_CALIBRATION_MS : 0);
+    this.speechCalibrationWindow = [];
+    this.lastFinalizeReason = null;
+    this.hardCapCount = 0;
 
     emit({
       type: 'pipeline_status',
@@ -229,6 +238,7 @@ export class RealSpeechRecognizer {
     // Drain any in-flight utterance via the same snapshot-and-reset path so
     // we don't lose the final sentence when the user stops.
     if (this.currentUtteranceId && this.sampleBuffer.length > 0 && this.sessionId) {
+      this.lastFinalizeReason = 'stop';
       this.finalizeUtterance(Date.now(), emit);
       await this.processingChain.catch(() => undefined);
     }
@@ -323,12 +333,26 @@ export class RealSpeechRecognizer {
       }
     }
 
+    if (IS_ANDROID && now < this.captureCalibrationEndsAt && !this.inSpeech) {
+      this.speechCalibrationWindow.push(rawRms);
+      if (this.speechCalibrationWindow.length > 30) {
+        this.speechCalibrationWindow.shift();
+      }
+      if (this.speechCalibrationWindow.length >= 10) {
+        const avgCalibrationRms =
+          this.speechCalibrationWindow.reduce((sum, value) => sum + value, 0) /
+          this.speechCalibrationWindow.length;
+        this.noiseFloorRms = Math.min(this.noiseFloorRms, avgCalibrationRms);
+      }
+    }
+
     if (isSpeech) {
       if (!this.currentUtteranceId) {
         this.currentUtteranceId = `${sessionId}-sense-${++this.utteranceCounter}`;
         this.currentRevision = 0;
         this.currentText = '';
         this.utteranceStartMs = now;
+        this.utteranceCalibrationStartMs = now;
         this.sampleBuffer = [];
         if (IS_ANDROID && this.nextUtteranceSeed.length > 0) {
           this.sampleBuffer.push(...this.nextUtteranceSeed);
@@ -362,33 +386,26 @@ export class RealSpeechRecognizer {
     const silenceSinceSpeech = this.lastSpeechMs ? now - this.lastSpeechMs : 0;
 
     if (this.sampleBuffer.length >= MAX_UTTERANCE_SAMPLES) {
+      this.hardCapCount += 1;
+      this.lastFinalizeReason = 'hard_cap';
       infoLog('[RealSTT] hard-cap final', {
         id: this.currentUtteranceId,
         samples: this.sampleBuffer.length,
+        hardCapCount: this.hardCapCount,
       });
       this.finalizeUtterance(now, emit);
       return;
     }
 
-    if (isSpeech && !this.inferenceActive && now - this.lastPartialMs >= PARTIAL_INTERVAL_MS) {
+    const partialBufferReady =
+      !IS_ANDROID || utteranceDurationMs >= ANDROID_MIN_PARTIAL_BUFFER_MS;
+    if (isSpeech && partialBufferReady && !this.inferenceActive && now - this.lastPartialMs >= PARTIAL_INTERVAL_MS) {
       this.lastPartialMs = now;
       this.scheduleInference(() => this.emitPartial(Date.now(), emit));
     }
 
-    if (ANDROID_WINDOW_MODE) {
-      if (utteranceDurationMs >= ANDROID_WINDOW_FINALIZE_MS) {
-        infoLog('[RealSTT] android-window final', {
-          id: this.currentUtteranceId,
-          utteranceDurationMs,
-          silenceSinceSpeech,
-          samples: this.sampleBuffer.length,
-        });
-        this.finalizeUtterance(now, emit);
-      }
-      return;
-    }
-
     if (!isSpeech && silenceSinceSpeech >= SILENCE_END_MS) {
+      this.lastFinalizeReason = 'silence';
       infoLog('[RealSTT] silence-final', {
         id: this.currentUtteranceId,
         silenceMs: silenceSinceSpeech,
@@ -521,6 +538,7 @@ export class RealSpeechRecognizer {
       return;
     }
     if (elapsedMs < MIN_UTTERANCE_MS || snapshot.length === 0) {
+      this.lastFinalizeReason = 'too_short';
       emit({
         type: 'utterance_cancel',
         session_id: sessionId,
@@ -536,6 +554,7 @@ export class RealSpeechRecognizer {
     const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
     const text = (result.text ?? '').trim();
     if (!text) {
+      this.lastFinalizeReason = 'empty_result';
       emit({
         type: 'utterance_cancel',
         session_id: sessionId,
@@ -568,7 +587,15 @@ export class RealSpeechRecognizer {
       audio_samples: snapshot.slice(),
       sample_rate: SAMPLE_RATE,
     });
-    infoLog('[RealSTT] stt_final', { id: utteranceId, chars: text.length, durationMs: elapsedMs });
+    infoLog('[RealSTT] stt_final', {
+      id: utteranceId,
+      chars: text.length,
+      durationMs: elapsedMs,
+      finalizeReason: this.lastFinalizeReason,
+      engageDelayMs: this.utteranceCalibrationStartMs > 0 ? Math.max(0, this.lastSpeechMs - this.utteranceCalibrationStartMs) : 0,
+      hardCapCount: this.hardCapCount,
+      avgRawRms: this.rmsStatsCount > 0 ? Number((this.rmsStatsSum / this.rmsStatsCount).toFixed(5)) : 0,
+    });
   }
 
   private applySttInputGain(samples: Float32Array): Float32Array {
@@ -661,6 +688,7 @@ export class RealSpeechRecognizer {
     this.currentText = '';
     this.currentRevision = 0;
     this.utteranceStartMs = 0;
+    this.utteranceCalibrationStartMs = 0;
     this.lastSpeechMs = 0;
     this.lastPartialMs = 0;
     this.sampleBuffer = [];

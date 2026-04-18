@@ -6,7 +6,7 @@
  * exposed through React Native native modules.
  */
 
-import {NativeModules, Platform} from 'react-native';
+import {NativeModules} from 'react-native';
 
 const {SpeakerEmbeddingModule} = NativeModules;
 const FORCE_HEURISTIC_FALLBACK = false;

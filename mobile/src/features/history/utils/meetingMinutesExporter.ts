@@ -26,14 +26,9 @@ export type ExportFormat = 'full' | 'minutes' | 'summary' | 'highlights';
 // ============================================================================
 
 const SEPARATOR = '=============================================';
-const SUB_SEPARATOR = '────────────────────────────────-------------';
 
 function sectionHeader(title: string): string {
   return `${SEPARATOR}\n  ${title.toUpperCase()}\n${SEPARATOR}`;
-}
-
-function subHeader(title: string): string {
-  return `${SUB_SEPARATOR}\n  ${title}\n${SUB_SEPARATOR}`;
 }
 
 function blank(): string {

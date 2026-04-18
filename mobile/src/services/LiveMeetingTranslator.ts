@@ -46,7 +46,6 @@ class PlatformTranslationAdapter implements Adapter {
   }
 
   async translate(task: LiveTranslationTask): Promise<LiveTranslationResult> {
-    const startedAt = Date.now();
     const result = await translationService.translate(task.text, task.sourceLanguage);
 
     return {

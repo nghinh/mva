@@ -8,6 +8,7 @@
 import {useCallback, useEffect, useRef} from 'react';
 import {Platform} from 'react-native';
 import {useMeetingStore, TranscriptEntry, MeetingSession} from '../state/meetingStore';
+
 import {
   createPersistenceService,
   PersistenceService,
@@ -30,7 +31,6 @@ import {
   releaseMeetingPipelineInstance,
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
-import {useTargetLanguage} from '../../../shared/store';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
 import {
   getSpeakerEmbeddingService,
@@ -70,6 +70,8 @@ let realSpeechRecognizer: RealSpeechRecognizer | null = null;
 function isIosDebugLiveTranslationDisabled(): boolean {
   return false;
 }
+
+const ANDROID_ENABLE_DRAFT_TRANSLATION = false;
 
 type DeferredTranslationItem = {
   utteranceId: UtteranceId;
@@ -192,7 +194,6 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   const LIVE_SPEAKER_ASSIGNMENT_ENABLED = false;
   const IOS_DEBUG_TRANSLATION_SAFE_MODE = isIosDebugLiveTranslationDisabled();
   const store = useMeetingStore();
-  const preferredTargetLanguage = useTargetLanguage();
   const session = store.session;
   const pipelineRef = useRef<MeetingPipeline | null>(null);
   const realRecognizerRef = useRef<RealSpeechRecognizer | null>(null);
@@ -555,7 +556,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       `post ok c=${result.numSpeakers} seg=${result.segments.length} mapped=${assignments.size}`,
     );
     return true;
-  }, []);
+  }, [trimSamplesForSpeakerEmbedding]);
 
   const queueDeferredTranslation = useCallback((item: DeferredTranslationItem) => {
     deferredTranslationsRef.current.set(item.utteranceId, item);
@@ -576,7 +577,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     );
   }, []);
 
-  const processDeferredTranslationsAfterMeeting = useCallback(async (sessionId: SessionId, targetLanguage: TargetLanguage) => {
+  const processDeferredTranslationsAfterMeeting = useCallback(async (sessionId: SessionId, _targetLanguage: TargetLanguage) => {
     const pendingItems = Array.from(deferredTranslationsRef.current.values())
       .filter((item) => item.sessionId === sessionId)
       .sort((a, b) => a.timestampMs - b.timestampMs);
@@ -723,7 +724,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     };
 
     dispatchDraftTranslation().catch((error) => warnLog('[useMeetingSession] Draft translation dispatch failed:', error));
-  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE, preferredTargetLanguage]);
+  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE]);
 
   const handleIncomingPipelineEvent = useCallback((event: MeetingPipelineEvent) => {
     if (stoppingSessionRef.current && (event.type === 'stt_partial' || event.type === 'stt_final')) {
@@ -740,12 +741,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
 
     if (event.type === 'stt_partial') {
-      // Kick off a draft translation so the translation lane tracks the
-      // transcript in near-realtime instead of waiting for endpoint detection
-      // to fire stt_final (which adds ~800-1500ms silence + another full translation
-      // call). `maybeTranslateDraft` self-throttles by growth + interval so
-      // STT CPU stays available.
-      maybeTranslateDraft(event);
+      // Keep Android focused on STT quality first; draft translation is iOS-only
+      // for now to avoid CPU contention with live recognition.
+      if (Platform.OS !== 'android' || ANDROID_ENABLE_DRAFT_TRANSLATION) {
+        maybeTranslateDraft(event);
+      }
 
       // Record STT latency proxy: time from event timestamp to JS receipt.
       // architecture.md §5.1 targets STT partial ~200ms. This is the best available
@@ -937,10 +937,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
             useDeveloperMetricsStore.getState().recordTranslationLatency(latencyMs);
 
             const persistence = getPersistenceService();
-            const sessionId = useMeetingStore.getState().session.id ?? event.session_id;
+            const activeSessionId = useMeetingStore.getState().session.id ?? event.session_id;
             const utteranceData: UtteranceData = {
               id: event.utterance_id,
-              sessionId,
+              sessionId: activeSessionId,
               timestamp: event.timestamp_ms,
               isFinal: true,
                sourceText: event.text,
@@ -992,7 +992,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         warnLog('[useMeetingSession] Final translation dispatch failed:', error);
       });
     }
-  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE, applyOfflineDiarizationWindow, maybeTranslateDraft, persistUntranslatedFinal, preferredTargetLanguage, queueDeferredTranslation, trimSamplesForSpeakerEmbedding]);
+  }, [IOS_DEBUG_TRANSLATION_SAFE_MODE, LIVE_SPEAKER_ASSIGNMENT_ENABLED, applyOfflineDiarizationWindow, maybeTranslateDraft, persistUntranslatedFinal, queueDeferredTranslation, trimSamplesForSpeakerEmbedding]);
 
   useEffect(() => {
     meetingPipeline = getMeetingPipelineInstance();
@@ -1179,7 +1179,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       await persistence.saveSession(sessionData);
       debugLog('[useMeetingSession] Meeting started:', currentSession.id);
     },
-    [handleIncomingPipelineEvent, preferredTargetLanguage, store]
+    [IOS_DEBUG_TRANSLATION_SAFE_MODE, LIVE_SPEAKER_ASSIGNMENT_ENABLED, handleIncomingPipelineEvent, store]
   );
 
   const stopMeeting = useCallback(async () => {

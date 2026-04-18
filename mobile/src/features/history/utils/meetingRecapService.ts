@@ -153,9 +153,6 @@ function extractKeywords(text: string): string[] {
     .filter((w) => w.length >= 4 && !STOP_WORDS.has(w));
 }
 
-// Internal counter for anonymous speakers — incremented only when first anonymous utterance is encountered
-let _anonCounter = 0;
-
 /** Merges keyword counts across all texts, returning top N by frequency. */
 function topKeywords(texts: string[], topN = 5): Array<{word: string; count: number}> {
   const freq: Record<string, number> = {};

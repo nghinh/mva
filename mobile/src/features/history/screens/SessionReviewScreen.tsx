@@ -8,7 +8,7 @@
  * @see docs/implementation-artifacts/5-3-build-session-review-detail-screen.md
  */
 
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   View,
   Text,
@@ -253,7 +253,10 @@ export function SessionReviewScreen(): React.JSX.Element {
   const route = useRoute<SessionReviewRouteProp>();
   const sessionId = route.params?.sessionId;
   const fallbackSession = route.params?.fallbackSession as SessionData | undefined;
-  const fallbackUtterances = (route.params?.fallbackUtterances as UtteranceData[] | undefined) ?? [];
+  const fallbackUtterances = useMemo(
+    () => (route.params?.fallbackUtterances as UtteranceData[] | undefined) ?? [],
+    [route.params?.fallbackUtterances],
+  );
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [utterances, setUtterances] = useState<UtteranceData[]>([]);
@@ -261,7 +264,6 @@ export function SessionReviewScreen(): React.JSX.Element {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingRecap, setIsExportingRecap] = useState(false);
   const [isExportingMinutes, setIsExportingMinutes] = useState(false);
-  const [isRecalculating, setIsRecalculating] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('transcript');
 
   // ── Data loading ──
@@ -299,7 +301,7 @@ export function SessionReviewScreen(): React.JSX.Element {
     loadSession();
     const unsubscribe = persistence.subscribe(loadSession);
     return unsubscribe;
-  }, [sessionId]);
+  }, [fallbackSession, fallbackUtterances, sessionId]);
 
   // ── Derived state ──
   const summary = useMemo<SessionSummary | null>(

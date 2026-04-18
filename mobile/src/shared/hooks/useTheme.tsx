@@ -10,7 +10,6 @@ import React, {
   useMemo,
   useEffect,
   useState,
-  useCallback,
 } from 'react';
 import {Appearance, AccessibilityInfo} from 'react-native';
 import type {ColorMode} from '../theme/colors';
@@ -18,7 +17,6 @@ import {useThemeMode} from '../store/settingsStore';
 import {
   ThemeTokens,
   ThemeMode,
-  defaultThemeMode,
   getColorsForMode,
   typography,
   spacing,

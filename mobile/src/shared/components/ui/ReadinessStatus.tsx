@@ -91,7 +91,6 @@ export const ReadinessStatus: React.FC<ReadinessStatusProps> = ({
   label,
   description,
   progress,
-  latencyMs,
   error,
 }) => {
   const { colorSet, iconName, statusLabel } = getStatusDisplay(domain, status);

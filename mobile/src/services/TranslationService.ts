@@ -11,6 +11,8 @@ export interface TranslationResult {
   latencyMs: number;
 }
 
+type TranslationNativeModule = ReturnType<typeof getNativeAppleTranslator> | typeof MLKitTranslator;
+
 class TranslationService {
   async initialize(): Promise<boolean> {
     if (Platform.OS === 'ios') {
@@ -25,21 +27,22 @@ class TranslationService {
   async translate(text: string, srcLang: SourceLanguage, targetLang: TargetLanguage = 'vi'): Promise<TranslationResult> {
     const startedAt = Date.now();
 
-    if (srcLang === targetLang || srcLang === 'vi') {
+    if (srcLang === targetLang) {
       return {text, latencyMs: Date.now() - startedAt};
     }
 
     if (Platform.OS === 'ios') {
-      const translated = await getNativeAppleTranslator().translate(
+      const module = getNativeAppleTranslator();
+      const translated = await (module?.translate?.(
         text,
         this.mapLangToApple(srcLang),
         this.mapLangToApple(targetLang),
-      );
-      return {text: translated, latencyMs: Date.now() - startedAt};
-    } else {
-      const translated = await MLKitTranslator.translate(text, srcLang, targetLang);
+      ) ?? Promise.resolve(text));
       return {text: translated, latencyMs: Date.now() - startedAt};
     }
+
+    const translated = await MLKitTranslator.translate(text, srcLang, targetLang);
+    return {text: translated, latencyMs: Date.now() - startedAt};
   }
 
   async translateBatch(texts: string[], srcLang: SourceLanguage | 'vi', targetLang: TargetLanguage = 'vi'): Promise<TranslationResult[]> {
@@ -50,28 +53,26 @@ class TranslationService {
     }
 
     if (Platform.OS === 'ios') {
-      const translated = await getNativeAppleTranslator().translateBatch(
+      const module = getNativeAppleTranslator();
+      const translated = await (module?.translateBatch?.(
         texts,
         this.mapLangToApple(srcLang),
         this.mapLangToApple(targetLang),
-      );
-      return translated.map((text) => ({text, latencyMs: Date.now() - startedAt}));
-    } else {
-      const translated = await MLKitTranslator.translateBatch(texts, srcLang, targetLang);
-      return translated.map((text) => ({text, latencyMs: Date.now() - startedAt}));
+      ) ?? Promise.resolve(texts));
+      return translated.map((value) => ({text: value, latencyMs: Date.now() - startedAt}));
     }
+
+    const translated = await MLKitTranslator.translateBatch(texts, srcLang, targetLang);
+    return translated.map((value) => ({text: value, latencyMs: Date.now() - startedAt}));
   }
 
   async isAvailable(srcLang: SourceLanguage, tgtLang: TargetLanguage = 'vi'): Promise<boolean> {
-    if (srcLang === 'vi') {
-      return true;
+    if (Platform.OS === 'ios') {
+      const module = getNativeAppleTranslator();
+      return module?.isLanguageAvailable?.(this.mapLangToApple(srcLang), this.mapLangToApple(tgtLang)) ?? false;
     }
 
-    if (Platform.OS === 'ios') {
-      return getNativeAppleTranslator().isLanguageAvailable(this.mapLangToApple(srcLang), this.mapLangToApple(tgtLang));
-    } else {
-      return MLKitTranslator.isLanguageAvailable(srcLang, tgtLang);
-    }
+    return MLKitTranslator.isLanguageAvailable(srcLang, tgtLang);
   }
 
   async downloadAllPacks(): Promise<boolean> {
@@ -84,15 +85,16 @@ class TranslationService {
 
   async getPackStatus(): Promise<Record<string, boolean>> {
     if (Platform.OS === 'ios') {
-      const pairs = ['en', 'ja', 'ko', 'zh'];
+      const module = getNativeAppleTranslator();
+      const pairs: SourceLanguage[] = ['en', 'ja', 'ko', 'zh'];
       const status: Record<string, boolean> = {};
       for (const src of pairs) {
-        status[`${src}-vi`] = await getNativeAppleTranslator().isLanguageAvailable(src, 'vi');
+        status[`${src}-vi`] = await (module?.isLanguageAvailable?.(src, 'vi') ?? Promise.resolve(false));
       }
       return status;
-    } else {
-      return MLKitTranslator.getPackStatus();
     }
+
+    return MLKitTranslator.getPackStatus();
   }
 
   async deleteAllPacks(): Promise<boolean> {
@@ -105,18 +107,19 @@ class TranslationService {
 
   async unload(): Promise<void> {
     if (Platform.OS === 'ios') {
-      getNativeAppleTranslator().unload();
-    } else {
-      MLKitTranslator.cleanup();
+      await (getNativeAppleTranslator()?.unload?.() ?? Promise.resolve());
+      return;
     }
+
+    MLKitTranslator.cleanup();
   }
 
-  getNativeModule(): typeof getNativeAppleTranslator | typeof MLKitTranslator | null {
+  getNativeModule(): TranslationNativeModule | null {
     if (Platform.OS === 'ios') {
       return getNativeAppleTranslator();
-    } else {
-      return MLKitTranslator;
     }
+
+    return MLKitTranslator;
   }
 
   private mapLangToApple(lang: SourceLanguage | TargetLanguage): string {

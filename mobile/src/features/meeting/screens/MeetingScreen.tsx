@@ -156,7 +156,7 @@ export function MeetingScreen(): React.JSX.Element {
     }
 
     await handleStartMeeting();
-  }, [isActive, handleStopMeeting, canStartCapture, navigation, handleStartMeeting]);
+  }, [isActive, handleStopMeeting, sttReady, navigation, handleStartMeeting]);
 
   const getButtonLabel = (): string => {
     if (status === 'stopping') return 'Stopping...';
