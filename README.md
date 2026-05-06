@@ -76,17 +76,17 @@ Add real product media here to make repository more compelling.
 
 ```text
 README assets suggestion:
-- docs/media/meeting-screen.png
-- docs/media/history-list.png
-- docs/media/model-repository.png
-- docs/media/demo.gif
+- docs/media/meeting-screen.svg
+- docs/media/session-review.svg
+- docs/media/model-repository.svg
+- docs/media/demo.svg
 ```
 
 | Meeting | Review | Models |
 |---|---|---|
-| ![Meeting screen](docs/media/meeting-screen.png) | ![Session review](docs/media/session-review.png) | ![Model repository](docs/media/model-repository.png) |
+| ![Meeting screen](docs/media/meeting-screen.svg) | ![Session review](docs/media/session-review.svg) | ![Model repository](docs/media/model-repository.svg) |
 
-![Demo GIF](docs/media/demo.gif)
+![Demo GIF](docs/media/demo.svg)
 
 ## Tech stack
 
