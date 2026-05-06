@@ -9,6 +9,9 @@
 Mobile voice assistant for multilingual meetings.
 Private, offline-first, and built for teams that need fast transcription, translation, and post-meeting review directly on device.
 
+If you care about on-device AI, privacy-aware mobile UX, or multilingual meeting products, this repo is worth exploring.
+If this project is useful, consider giving it a star to support future development.
+
 ## Overview
 
 MVA is a mobile product for capturing and understanding conversations in multilingual meetings.
@@ -24,6 +27,15 @@ Unlike many meeting tools that depend heavily on cloud-only pipelines, MVA explo
 - React Native app with native iOS bridges
 - Local AI model management inside mobile UX
 - Release build already validated on a physical iPad
+
+## Why clone this repo
+
+Clone this repo if you want to study or build:
+- on-device speech products on mobile
+- multilingual meeting assistants
+- React Native apps with native AI integration
+- private, local-first product workflows
+- mobile UX for transcript, translation, and review
 
 ## Core capabilities
 
@@ -60,6 +72,18 @@ Unlike many meeting tools that depend heavily on cloud-only pipelines, MVA explo
 - Meeting review workflow
 - Native iOS integration points
 - Model management UX built into app
+
+## Feature checklist
+
+- [x] Multilingual meeting workflow
+- [x] Local-first mobile architecture
+- [x] Transcript and translation experience
+- [x] Session review flow
+- [x] Local model management
+- [x] iOS release build validation
+- [ ] Demo video
+- [ ] Public test build
+- [ ] One-command model setup
 
 ## App screens
 
@@ -183,6 +207,14 @@ This repo is a good fit for:
 - More export formats
 - Easier model setup
 - Stronger Android and iPad production polish
+
+## Support this project
+
+If MVA gave you ideas for your own app, helped your research, or saved you implementation time:
+- star repo
+- watch updates
+- open issue with feedback
+- share with teammates building AI mobile products
 
 ## Contributing
 
