@@ -70,23 +70,15 @@ Unlike many meeting tools that depend heavily on cloud-only pipelines, MVA explo
 - Model repository
 - Settings
 
-## Screenshots and demo
+## Screenshots
 
-Add real product media here to make repository more compelling.
+| Home | Meeting |
+|---|---|
+| ![Home screen](docs/media/photo_1_2026-05-06_15-51-52.jpg) | ![Meeting screen](docs/media/photo_2_2026-05-06_15-51-52.jpg) |
 
-```text
-README assets suggestion:
-- docs/media/meeting-screen.svg
-- docs/media/session-review.svg
-- docs/media/model-repository.svg
-- docs/media/demo.svg
-```
-
-| Meeting | Review | Models |
-|---|---|---|
-| ![Meeting screen](docs/media/meeting-screen.svg) | ![Session review](docs/media/session-review.svg) | ![Model repository](docs/media/model-repository.svg) |
-
-![Demo GIF](docs/media/demo.svg)
+| Session Review | Models / Settings |
+|---|---|
+| ![Session review](docs/media/photo_3_2026-05-06_15-51-52.jpg) | ![Models or settings screen](docs/media/photo_4_2026-05-06_15-51-52.jpg) |
 
 ## Tech stack
 
