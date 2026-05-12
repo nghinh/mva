@@ -1126,6 +1126,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       };
 
       let startedWithRealRecognizer = false;
+      let recognizerStartError: unknown = null;
       if (LIVE_SPEAKER_ASSIGNMENT_ENABLED) {
         getSpeakerEmbeddingService().initialize().catch((error) => {
           warnLog('[useMeetingSession] Speaker embedding init failed; continuing without diarization.', error);
@@ -1142,12 +1143,24 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           console.warn('[useMeetingSession] real recognizer start: success', {sessionId});
           startedWithRealRecognizer = true;
         } catch (error) {
+          recognizerStartError = error;
           console.warn('[useMeetingSession] real recognizer start: failed', {sessionId, error});
           warnLog('[useMeetingSession] Real recognizer failed to start:', error);
         }
       }
 
       if (!startedWithRealRecognizer) {
+        const message =
+          recognizerStartError instanceof Error
+            ? recognizerStartError.message
+            : 'Real speech recognizer failed to start.';
+        if (!__DEV__) {
+          warnLog('[useMeetingSession] Real recognizer unavailable in release build; simulated fallback is disabled.', recognizerStartError);
+          store.setPipelineStatus('error', message);
+          store.interruptSession();
+          return;
+        }
+
         warnLog('[useMeetingSession] Falling back to simulated pipeline');
         try {
           const pipeline = pipelineRef.current ?? meetingPipeline;
