@@ -208,7 +208,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  /usr/bin/env node \"$SRCROOT/../scripts/sync-metro-host.js\"\nfi\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\nif [ \"$CONFIGURATION\" = \"Debug\" ] && [ \"$PLATFORM_NAME\" = \"iphoneos\" ]; then\n  export FORCE_BUNDLING=1\nfi\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n\nMODEL_SRC=\"$SRCROOT/../assets/models\"\nMODEL_DST=\"$CONFIGURATION_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/models\"\nREQUIRED_MODEL_FILES=\"\nsherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/model.int8.onnx\nsherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/tokens.txt\n\"\nfor file in $REQUIRED_MODEL_FILES; do\n  if [ ! -f \"$MODEL_SRC/$file\" ]; then\n    echo \"error: Missing bundled model file: $MODEL_SRC/$file\" >&2\n    exit 1\n  fi\ndone\nif [ -d \"$MODEL_SRC\" ]; then\n  mkdir -p \"$MODEL_DST\"\n  cp -R \"$MODEL_SRC/.\" \"$MODEL_DST/\"\nfi\n";
+			shellScript = "set -e\n\nif [ \"$CONFIGURATION\" = \"Debug\" ]; then\n  /usr/bin/env node \"$SRCROOT/../scripts/sync-metro-host.js\"\nfi\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\nif [ \"$CONFIGURATION\" = \"Debug\" ] && [ \"$PLATFORM_NAME\" = \"iphoneos\" ]; then\n  export FORCE_BUNDLING=1\nfi\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n\nMODEL_DST=\"$CONFIGURATION_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/models\"\n/usr/bin/env node \"$SRCROOT/../scripts/copy-required-model-assets.js\" \"$MODEL_DST\"\n";
 		};
 		0EC18CED221E009EF591B56F /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -295,21 +295,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = L9FM8ZUG5H;
-				ENABLE_BITCODE = NO;
-				HEADER_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(SRCROOT)/../node_modules/react-native-sherpa-onnx/ios/Frameworks/sherpa_onnx.xcframework/ios-arm64/Headers",
-					"$(SRCROOT)/../node_modules/react-native-sherpa-onnx/ios/Frameworks/sherpa_onnx.xcframework/ios-arm64_x86_64-simulator/Headers",
-				);
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = VibeVoiceNative/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
+
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -333,7 +327,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = L9FM8ZUG5H;
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
@@ -346,7 +340,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
