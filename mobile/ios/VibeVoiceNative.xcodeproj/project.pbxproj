@@ -18,6 +18,8 @@
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		A1B2C3D01A68108700A75B9A /* AppleTranslatorModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D21A68108700A75B9A /* AppleTranslatorModule.swift */; };
 		A1B2C3D11A68108700A75B9A /* AppleTranslatorModule.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D31A68108700A75B9A /* AppleTranslatorModule.m */; };
+		A1B2C3D81A68108700A75B9A /* AudioSessionModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3DA1A68108700A75B9A /* AudioSessionModule.swift */; };
+		A1B2C3D91A68108700A75B9A /* AudioSessionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3DB1A68108700A75B9A /* AudioSessionModule.m */; };
 		D11E32137247258732D4CB5A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -37,6 +39,8 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = VibeVoiceNative/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A1B2C3D21A68108700A75B9A /* AppleTranslatorModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleTranslatorModule.swift; sourceTree = "<group>"; };
 		A1B2C3D31A68108700A75B9A /* AppleTranslatorModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppleTranslatorModule.m; sourceTree = "<group>"; };
+		A1B2C3DA1A68108700A75B9A /* AudioSessionModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionModule.swift; sourceTree = "<group>"; };
+		A1B2C3DB1A68108700A75B9A /* AudioSessionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AudioSessionModule.m; sourceTree = "<group>"; };
 		D50FA0E1583E5185294051C2 /* Pods-VibeVoiceNative.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VibeVoiceNative.debug.xcconfig"; path = "Target Support Files/Pods-VibeVoiceNative/Pods-VibeVoiceNative.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -61,6 +65,8 @@
 				76D7A0002DBB9001006654EE /* SceneDelegate.swift */,
 				A1B2C3D21A68108700A75B9A /* AppleTranslatorModule.swift */,
 				A1B2C3D31A68108700A75B9A /* AppleTranslatorModule.m */,
+				A1B2C3DA1A68108700A75B9A /* AudioSessionModule.swift */,
+				A1B2C3DB1A68108700A75B9A /* AudioSessionModule.m */,
 				76F100002DC00001006654EE /* SpeakerEmbeddingModule.swift */,
 				76F100022DC00002006654EE /* SpeakerEmbeddingModule.m */,
 				76F100042DC00003006654EE /* OfflineSpeakerDiarizationModule.swift */,
@@ -271,6 +277,8 @@
 				76D7A0012DBB9001006654EE /* SceneDelegate.swift in Sources */,
 				A1B2C3D01A68108700A75B9A /* AppleTranslatorModule.swift in Sources */,
 				A1B2C3D11A68108700A75B9A /* AppleTranslatorModule.m in Sources */,
+				A1B2C3D81A68108700A75B9A /* AudioSessionModule.swift in Sources */,
+				A1B2C3D91A68108700A75B9A /* AudioSessionModule.m in Sources */,
 				76F100012DC00001006654EE /* SpeakerEmbeddingModule.swift in Sources */,
 				76F100032DC00002006654EE /* SpeakerEmbeddingModule.m in Sources */,
 				76F100052DC00003006654EE /* OfflineSpeakerDiarizationModule.swift in Sources */,

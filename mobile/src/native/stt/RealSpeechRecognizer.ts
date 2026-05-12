@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { fileModelPath } from 'react-native-sherpa-onnx';
 import { createPcmLiveStream } from 'react-native-sherpa-onnx/audio';
 import { createSTT } from 'react-native-sherpa-onnx/stt';
@@ -6,7 +6,7 @@ import type { PcmLiveStreamHandle } from 'react-native-sherpa-onnx/audio';
 import type { SttEngine } from 'react-native-sherpa-onnx/stt';
 import type { SessionId, SourceLanguage, UtteranceId } from '../../shared/types/common';
 import type { MeetingPipelineEvent } from '../../shared/types/meeting';
-import { infoLog } from '../../shared/utils/logger';
+import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
 import { ensureBundledModelInstalled } from '../models/BundledModelInstaller';
 
@@ -87,6 +87,14 @@ const MAX_UTTERANCE_SAMPLES = SAMPLE_RATE * (IS_ANDROID ? 20 : 15);
 // Periodic diagnostic: emit raw-RMS stats every RMS_STATS_WINDOW_MS so a
 // field user can confirm their mic levels match our threshold expectations.
 const RMS_STATS_WINDOW_MS = 2000;
+
+type AudioSessionNativeModule = {
+  activateRecordingSession?: () => Promise<boolean>;
+  deactivateRecordingSession?: () => Promise<boolean>;
+};
+
+const audioSessionModule =
+  NativeModules.AudioSessionModule as AudioSessionNativeModule | undefined;
 
 interface FinalTranscriptionJob {
   snapshot: number[];
@@ -186,6 +194,8 @@ export class RealSpeechRecognizer {
       details: 'SenseVoice recognizer initialized',
     });
 
+    await this.activateAudioSession(emit);
+
     this.mic = createPcmLiveStream({ sampleRate: SAMPLE_RATE, channelCount: 1 });
 
     let hasSeenPcm = false;
@@ -258,6 +268,7 @@ export class RealSpeechRecognizer {
       await this.engine.destroy();
       this.engine = null;
     }
+    await this.deactivateAudioSession();
     if (this.sessionId) {
       emit({
         type: 'pipeline_status',
@@ -484,6 +495,37 @@ export class RealSpeechRecognizer {
     });
 
     return localModelDir;
+  }
+
+  private async activateAudioSession(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+    if (!audioSessionModule?.activateRecordingSession) {
+      warnLog('[RealSTT] AudioSessionModule unavailable; continuing without explicit AVAudioSession activation.');
+      return;
+    }
+    await audioSessionModule.activateRecordingSession();
+    if (this.sessionId) {
+      emit({
+        type: 'pipeline_status',
+        session_id: this.sessionId,
+        status: 'processing',
+        timestamp_ms: Date.now(),
+        details: 'iOS audio session active',
+      });
+    }
+  }
+
+  private async deactivateAudioSession(): Promise<void> {
+    if (Platform.OS !== 'ios' || !audioSessionModule?.deactivateRecordingSession) {
+      return;
+    }
+    try {
+      await audioSessionModule.deactivateRecordingSession();
+    } catch (error) {
+      warnLog('[RealSTT] Failed to deactivate iOS audio session:', error);
+    }
   }
 
   private scheduleInference(fn: () => Promise<void>): void {
