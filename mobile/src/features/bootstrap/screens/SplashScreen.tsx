@@ -130,6 +130,7 @@ export const SplashScreen: React.FC = () => {
     setModelDownloading,
     setModelDownloadProgress,
     setModelReady,
+    setModelError,
     setTranslatorModelDownloading,
     setTranslatorModelReady,
     setTranslatorModelError,
@@ -162,8 +163,11 @@ export const SplashScreen: React.FC = () => {
           await getSTTProcessorInstance().loadModel();
           setModelReady(MOCK_MODEL);
         } catch (error) {
+          const message = error instanceof Error ? error.message : 'STT model install/load failed.';
           warnLog('[SplashScreen] STT model install/load failed:', error);
-          setModelReady(MOCK_MODEL); // Still mark ready so we can try transcript-only mode
+          setModelError(message);
+          setIsInitializing(false);
+          return;
         }
 
         // Step 2: Initialize platform-native translation (Apple Translation on iOS, ML Kit on Android)
