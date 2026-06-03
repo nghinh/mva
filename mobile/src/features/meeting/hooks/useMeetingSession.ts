@@ -40,6 +40,7 @@ import {
 import {getOfflineSpeakerDiarizationService} from '../../../native/speaker/OfflineSpeakerDiarizationService';
 import {getSpeakerClusterService} from '../../../services/speaker/SpeakerClusterService';
 import {getSessionDiarizationWindowService} from '../../../services/speaker/SessionDiarizationWindowService';
+import {useDiarizationProgressStore} from '../store/diarizationProgressStore';
 
 export interface UseMeetingSessionReturn {
   isActive: boolean;
@@ -384,180 +385,175 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   }, []);
 
   const applyPostSessionDiarization = useCallback(async (sessionId: SessionId, sessionSamples: number[]) => {
-    const diarizationService = getOfflineSpeakerDiarizationService();
-    const initialized = diarizationService.isReady() ? true : await diarizationService.initialize();
-    if (!initialized) {
-      useDeveloperMetricsStore.getState().recordSpeakerDebug('post init-failed');
-      return false;
-    }
+    const CHUNK_SAMPLES = 16000 * 180; // 3 minutes per chunk (~11 MB bridge transfer)
+    const SAMPLE_RATE = 16000;
 
     const sessionAudio = getSessionDiarizationWindowService().buildWindow();
-    if (!sessionAudio || sessionSamples.length < sessionAudio.sampleRate * 3) {
+    if (!sessionAudio || sessionSamples.length < SAMPLE_RATE * 3) {
       useDeveloperMetricsStore.getState().recordSpeakerDebug(
         `post no-window samples=${sessionSamples.length}`,
       );
       return false;
     }
 
+    // Initialize diarization and embedding services
+    const diarizationService = getOfflineSpeakerDiarizationService();
+    const initialized = diarizationService.isReady() ? true : await diarizationService.initialize();
+    if (!initialized) {
+      useDeveloperMetricsStore.getState().recordSpeakerDebug('post init-failed');
+      return false;
+    }
+    const speakerService = getSpeakerEmbeddingService();
+    await speakerService.initialize();
+    const clusterService = getSpeakerClusterService();
+    clusterService.reset();
+
+    // Split session audio into 3-minute chunks
+    const chunks: Array<{samples: number[]; startSampleOffset: number}> = [];
+    for (let start = 0; start < sessionSamples.length; start += CHUNK_SAMPLES) {
+      chunks.push({
+        samples: sessionSamples.slice(start, start + CHUNK_SAMPLES),
+        startSampleOffset: start,
+      });
+    }
+
     useDeveloperMetricsStore.getState().recordSpeakerDebug(
-      `post start samples=${sessionSamples.length} utt=${sessionAudio.utterances.length}`,
+      `post chunked chunks=${chunks.length} utt=${sessionAudio.utterances.length}`,
     );
 
-    const result = await diarizationService.processPostSession(sessionSamples);
-    if (!result.segments.length) {
-      const speakerService = getSpeakerEmbeddingService();
-      await speakerService.initialize();
-      const utteranceEntries = getSessionDiarizationWindowService().getUtteranceEntries();
-      if (!speakerService.isReady() || utteranceEntries.length === 0) {
-        useDeveloperMetricsStore.getState().recordSpeakerDebug(
-          `post no-segments speakers=${result.numSpeakers}`,
-        );
-        return false;
-      }
+    // Start progress tracking — SessionReviewScreen subscribes to this
+    useDiarizationProgressStore.getState().startProgress(sessionId, chunks.length);
 
-      const clusterService = getSpeakerClusterService();
-      clusterService.reset();
-      const assignments = new Map<string, {speakerId: string; speakerLabel: string}>();
-      for (const utterance of utteranceEntries) {
-        if (utterance.samples.length < 16000) continue;
-        const trimmed = trimSamplesForSpeakerEmbedding(utterance.samples, sessionAudio.sampleRate);
-        if (trimmed.length < 16000) continue;
-        const embedding = await speakerService.extractEmbedding(trimmed, sessionAudio.sampleRate);
-        if (!embedding) continue;
-        const decision = clusterService.addEmbedding(
-          utterance.utteranceId,
-          Array.from(embedding),
-          utterance.endMs,
-          trimmed.length / sessionAudio.sampleRate,
-        );
-        if (decision.speakerId) {
-          assignments.set(utterance.utteranceId, {
-            speakerId: decision.speakerId,
-            speakerLabel: decision.speakerLabel,
-          });
-        }
-      }
+    const persistence = getPersistenceService();
 
-      if (assignments.size === 0) {
-        useDeveloperMetricsStore.getState().recordSpeakerDebug(
-          `post no-segments speakers=${result.numSpeakers}`,
-        );
-        return false;
-      }
-
-      const labels = Object.fromEntries(
-        clusterService.getClusters().map((cluster) => [cluster.speakerId, cluster.speakerLabel]),
-      );
+    const saveUtteranceAssignments = async (
+      assignments: Map<string, {speakerId: string; speakerLabel: string}>,
+    ) => {
+      if (assignments.size === 0) return;
       const storeState = useMeetingStore.getState();
       storeState.bulkUpdateSpeakers(assignments);
-      storeState.setSpeakerLabels(labels);
-      storeState.updateSpeakerCount(clusterService.getSpeakerCount());
-
-      const persistence = getPersistenceService();
       await Promise.all(
         Array.from(assignments.entries()).map(([utteranceId, assignment]) => {
-          const entry = useMeetingStore.getState().session.transcript.find((item) => item.id === utteranceId);
+          const entry = storeState.session.transcript.find((t) => t.id === utteranceId);
           if (!entry) return Promise.resolve();
           return persistence.saveUtterance({
-            id: entry.id,
-            sessionId,
-            timestamp: entry.timestamp,
-            isFinal: entry.isFinal,
-            sourceText: entry.sourceText,
-            sourceLanguage: entry.sourceLanguage,
+            id: entry.id, sessionId,
+            timestamp: entry.timestamp, isFinal: entry.isFinal,
+            sourceText: entry.sourceText, sourceLanguage: entry.sourceLanguage,
             translatedText: entry.translatedText,
             translationLatencyMs:
-              useMeetingStore.getState().session.translations.find((translation) => translation.utteranceId === entry.id)?.latencyMs ?? null,
+              storeState.session.translations.find((t) => t.utteranceId === entry.id)?.latencyMs ?? null,
             revision: entry.revision,
             speakerId: assignment.speakerId,
             speakerLabel: assignment.speakerLabel,
           });
         }),
       );
-      await persistence.updateSession(sessionId, {
-        speakerCount: clusterService.getSpeakerCount(),
-        speakerLabels: labels,
-      });
+    };
 
-      useDeveloperMetricsStore.getState().recordSpeakerDebug(
-        `post fallback-cluster mapped=${assignments.size} speakers=${clusterService.getSpeakerCount()}`,
+    for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+      const chunk = chunks[chunkIdx];
+      const chunkStartMs = sessionAudio.windowStartMs + (chunk.startSampleOffset / SAMPLE_RATE) * 1000;
+      const chunkEndMs = chunkStartMs + (chunk.samples.length / SAMPLE_RATE) * 1000;
+
+      // Utterances whose start falls within this chunk's time window
+      const chunkUtterances = sessionAudio.utterances.filter(
+        (u) => u.startMs >= chunkStartMs - 1000 && u.startMs < chunkEndMs + 1000,
       );
-      return true;
-    }
 
-    const utteranceToLocalSpeaker = new Map<UtteranceId, number>();
-    for (const utterance of sessionAudio.utterances) {
-      let bestSpeaker: number | null = null;
-      let bestOverlap = 0;
-      for (const segment of result.segments) {
-        const segStartMs = sessionAudio.windowStartMs + segment.startSec * 1000;
-        const segEndMs = sessionAudio.windowStartMs + segment.endSec * 1000;
-        const overlap = Math.max(0, Math.min(utterance.endMs, segEndMs) - Math.max(utterance.startMs, segStartMs));
-        if (overlap > bestOverlap) {
-          bestOverlap = overlap;
-          bestSpeaker = segment.speaker;
+      // PyAnnote segmentation for this chunk (ignore local speaker IDs)
+      const diarizationResult = await diarizationService.processChunk(chunk.samples);
+
+      const chunkAssignments = new Map<string, {speakerId: string; speakerLabel: string}>();
+
+      if (diarizationResult.segments.length > 0 && speakerService.isReady()) {
+        // Hybrid path: PyAnnote segment boundaries → CAM++ → SpeakerClusterService (global IDs)
+        for (let segIdx = 0; segIdx < diarizationResult.segments.length; segIdx++) {
+          const seg = diarizationResult.segments[segIdx];
+          const segAbsStartMs = chunkStartMs + seg.startSec * 1000;
+          const segAbsEndMs = chunkStartMs + seg.endSec * 1000;
+
+          const segStartSample = Math.floor(seg.startSec * SAMPLE_RATE);
+          const segEndSample = Math.floor(seg.endSec * SAMPLE_RATE);
+          const segAudio = chunk.samples.slice(segStartSample, segEndSample);
+          if (segAudio.length < SAMPLE_RATE) continue;
+
+          const trimmed = trimSamplesForSpeakerEmbedding(segAudio, SAMPLE_RATE);
+          if (trimmed.length < SAMPLE_RATE) continue;
+
+          const embedding = await speakerService.extractEmbedding(trimmed, SAMPLE_RATE);
+          if (!embedding) continue;
+
+          const segKey = `c${chunkIdx}_s${segIdx}`;
+          const decision = clusterService.addEmbedding(
+            segKey,
+            Array.from(embedding),
+            segAbsEndMs,
+            segAudio.length / SAMPLE_RATE,
+          );
+          if (!decision.speakerId) continue;
+
+          // Map utterances overlapping this segment
+          for (const utt of chunkUtterances) {
+            const overlap = Math.max(
+              0,
+              Math.min(utt.endMs, segAbsEndMs) - Math.max(utt.startMs, segAbsStartMs),
+            );
+            if (overlap > 0) {
+              chunkAssignments.set(utt.utteranceId, {
+                speakerId: decision.speakerId,
+                speakerLabel: decision.speakerLabel,
+              });
+            }
+          }
+        }
+      } else if (speakerService.isReady()) {
+        // Fallback: use SenseVoice utterance boundaries directly
+        for (const utt of chunkUtterances) {
+          if (utt.samples.length < SAMPLE_RATE) continue;
+          const trimmed = trimSamplesForSpeakerEmbedding(utt.samples, SAMPLE_RATE);
+          if (trimmed.length < SAMPLE_RATE) continue;
+          const embedding = await speakerService.extractEmbedding(trimmed, SAMPLE_RATE);
+          if (!embedding) continue;
+          const decision = clusterService.addEmbedding(
+            utt.utteranceId, Array.from(embedding), utt.endMs,
+            trimmed.length / SAMPLE_RATE,
+          );
+          if (decision.speakerId) {
+            chunkAssignments.set(utt.utteranceId, {
+              speakerId: decision.speakerId,
+              speakerLabel: decision.speakerLabel,
+            });
+          }
         }
       }
-      if (bestSpeaker != null && bestOverlap > 0) {
-        utteranceToLocalSpeaker.set(utterance.utteranceId, bestSpeaker);
-      }
-    }
-    if (utteranceToLocalSpeaker.size === 0) {
+
+      // Persist immediately → triggers SessionReview progressive reveal
+      await saveUtteranceAssignments(chunkAssignments);
+
       useDeveloperMetricsStore.getState().recordSpeakerDebug(
-        `post no-map seg=${result.segments.length} utt=${sessionAudio.utterances.length}`,
+        `post chunk=${chunkIdx + 1}/${chunks.length} seg=${diarizationResult.segments.length} mapped=${chunkAssignments.size}`,
       );
-      return false;
+
+      // Advance progress chip in SessionReviewScreen
+      useDiarizationProgressStore.getState().advanceChunk();
     }
 
-    const labels: Record<string, string> = {};
-    const localToGlobal = new Map<number, string>();
-    let nextSpeakerIndex = 1;
-    for (const localSpeaker of new Set(result.segments.map((s) => s.speaker))) {
-      const speakerId = `S${nextSpeakerIndex}`;
-      labels[speakerId] = `Speaker ${nextSpeakerIndex}`;
-      localToGlobal.set(localSpeaker, speakerId);
-      nextSpeakerIndex += 1;
-    }
-
-    const assignments = new Map<string, {speakerId: string; speakerLabel: string}>();
-    for (const [utteranceId, localSpeaker] of utteranceToLocalSpeaker.entries()) {
-      const globalSpeakerId = localToGlobal.get(localSpeaker);
-      if (!globalSpeakerId) continue;
-      assignments.set(utteranceId, {speakerId: globalSpeakerId, speakerLabel: labels[globalSpeakerId]});
-    }
-
-    const storeState = useMeetingStore.getState();
-    storeState.bulkUpdateSpeakers(assignments);
-    storeState.setSpeakerLabels(labels);
-    storeState.updateSpeakerCount(Object.keys(labels).length);
-
-    const persistence = getPersistenceService();
-    await Promise.all(
-      Array.from(assignments.entries()).map(([utteranceId, assignment]) => {
-        const entry = useMeetingStore.getState().session.transcript.find((item) => item.id === utteranceId);
-        if (!entry) return Promise.resolve();
-        return persistence.saveUtterance({
-          id: entry.id,
-          sessionId,
-          timestamp: entry.timestamp,
-          isFinal: entry.isFinal,
-          sourceText: entry.sourceText,
-          sourceLanguage: entry.sourceLanguage,
-          translatedText: entry.translatedText,
-          translationLatencyMs:
-            useMeetingStore.getState().session.translations.find((translation) => translation.utteranceId === entry.id)?.latencyMs ?? null,
-          revision: entry.revision,
-          speakerId: assignment.speakerId,
-          speakerLabel: assignment.speakerLabel,
-        });
-      }),
+    // Finalize: update session-level speaker labels + count
+    const labels = Object.fromEntries(
+      clusterService.getClusters().map((c) => [c.speakerId, c.speakerLabel]),
     );
+    const storeState = useMeetingStore.getState();
+    storeState.setSpeakerLabels(labels);
+    storeState.updateSpeakerCount(clusterService.getSpeakerCount());
     await persistence.updateSession(sessionId, {
-      speakerCount: Object.keys(labels).length,
+      speakerCount: clusterService.getSpeakerCount(),
       speakerLabels: labels,
     });
+
+    useDiarizationProgressStore.getState().complete();
     useDeveloperMetricsStore.getState().recordSpeakerDebug(
-      `post ok c=${result.numSpeakers} seg=${result.segments.length} mapped=${assignments.size}`,
+      `post complete speakers=${clusterService.getSpeakerCount()}`,
     );
     return true;
   }, [trimSamplesForSpeakerEmbedding]);

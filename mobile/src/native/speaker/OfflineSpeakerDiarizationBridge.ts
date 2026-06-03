@@ -12,6 +12,11 @@ type OfflineSpeakerDiarizationModule = {
     numSpeakers: number;
     segments: Array<{startSec: number; endSec: number; speaker: number}>;
   }>;
+  /** Process a post-session chunk without the 6-second limit (up to 3 min per chunk). */
+  processChunk: (samples: number[]) => Promise<{
+    numSpeakers: number;
+    segments: Array<{startSec: number; endSec: number; speaker: number}>;
+  }>;
   updateThreshold: (threshold: number) => Promise<boolean>;
   unload: () => void;
 };

@@ -8,7 +8,7 @@
  * @see docs/implementation-artifacts/5-3-build-session-review-detail-screen.md
  */
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,9 @@ import {
   Share,
   SafeAreaView,
   ScrollView,
+  Animated,
 } from 'react-native';
+import {useDiarizationProgressStore} from '../../meeting/store/diarizationProgressStore';
 import {useNavigation, useRoute, RouteProp} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
@@ -275,6 +277,23 @@ export function SessionReviewScreen(): React.JSX.Element {
   const [utterances, setUtterances] = useState<UtteranceData[]>(fallbackUtterances);
   const [isLoading, setIsLoading] = useState(!fallbackSession);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Diarization progress — drives animated chip + skeleton badges
+  const diarizationProgress = useDiarizationProgressStore();
+  const isDiarizingThisSession =
+    diarizationProgress.isProcessing && diarizationProgress.sessionId === sessionId;
+  const dotAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isDiarizingThisSession) { dotAnim.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotAnim, {toValue: 1, duration: 600, useNativeDriver: true}),
+        Animated.timing(dotAnim, {toValue: 0, duration: 600, useNativeDriver: true}),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isDiarizingThisSession, dotAnim]);
   const [isExportingRecap, setIsExportingRecap] = useState(false);
   const [isExportingMinutes, setIsExportingMinutes] = useState(false);
   const [isRecalculating] = useState(false);
@@ -447,8 +466,14 @@ export function SessionReviewScreen(): React.JSX.Element {
         <View style={styles.timelineContent}>
           {/* Speaker badge + Timestamp + language badge */}
           <View style={styles.entryMeta}>
-            {/* Speaker badge - shown before language badge if available */}
-            <SpeakerBadge speakerId={item.speakerId} label={item.speakerId} size="small" />
+            {/* Speaker badge: real label, skeleton when processing, hidden otherwise */}
+            {item.speakerId ? (
+              <SpeakerBadge speakerId={item.speakerId} label={item.speakerId} size="small" />
+            ) : isDiarizingThisSession ? (
+              <View style={styles.skeletonBadge}>
+                <Text style={styles.skeletonBadgeText}>···</Text>
+              </View>
+            ) : null}
             <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}>
               {formatTimestamp(item.timestamp)}
             </Text>
@@ -496,11 +521,20 @@ export function SessionReviewScreen(): React.JSX.Element {
         <Text style={[styles.headerIcon, {color: theme.colors.text.primary}]}>←</Text>
       </TouchableOpacity>
 
-      <Text
-        style={[styles.headerTitle, theme.typography.screenTitle, {color: theme.colors.text.primary}]}
-        numberOfLines={1}>
-        {summary ? `Meeting ${summary.dateLabel}` : 'Meeting Review'}
-      </Text>
+      <View style={styles.headerCenter}>
+        <Text
+          style={[styles.headerTitle, theme.typography.screenTitle, {color: theme.colors.text.primary}]}
+          numberOfLines={1}>
+          {summary ? `Meeting ${summary.dateLabel}` : 'Meeting Review'}
+        </Text>
+        {isDiarizingThisSession && (
+          <Animated.View style={[styles.diarizingChip, {opacity: dotAnim.interpolate({inputRange: [0, 1], outputRange: [0.6, 1]})}]}>
+            <Text style={styles.diarizingChipText}>
+              {`Nhận diện người nói ${diarizationProgress.chunksProcessed}/${diarizationProgress.totalChunks}`}
+            </Text>
+          </Animated.View>
+        )}
+      </View>
 
       <View style={styles.headerActions}>
         <TouchableOpacity activeOpacity={0.7} style={styles.headerIconBtn} onPress={handleExportTranscript}>
@@ -1110,9 +1144,40 @@ const styles = StyleSheet.create({
   headerIcon: {
     fontSize: 22,
   },
-  headerTitle: {
+  headerCenter: {
     flex: 1,
     marginLeft: 4,
+    gap: 3,
+  },
+  headerTitle: {
+    flex: 0,
+  },
+  diarizingChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(108,92,231,0.15)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(108,92,231,0.35)',
+  },
+  diarizingChipText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#A29BFE',
+    letterSpacing: 0.3,
+  },
+  skeletonBadge: {
+    backgroundColor: 'rgba(156,163,175,0.15)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  skeletonBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: 'rgba(156,163,175,0.6)',
+    letterSpacing: 1,
   },
   headerActions: {
     flexDirection: 'row',

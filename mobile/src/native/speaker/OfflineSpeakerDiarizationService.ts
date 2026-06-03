@@ -70,6 +70,23 @@ class OfflineSpeakerDiarizationService {
     }
   }
 
+  /**
+   * Process one 3-minute chunk of post-session audio.
+   * No 6-second limit — safe for chunks up to 180s (~11 MB transferred via bridge).
+   * Caller is responsible for splitting sessionSamples into chunks before calling.
+   */
+  async processChunk(samples: number[]): Promise<{numSpeakers: number; segments: DiarizationSegment[]}> {
+    if (!this.ready || !offlineSpeakerDiarizationNative) {
+      return {numSpeakers: 0, segments: []};
+    }
+    const nextThreshold = getDiarizationThreshold() || 0.55;
+    if (Math.abs(nextThreshold - this.threshold) > 0.0001) {
+      const ok = await offlineSpeakerDiarizationNative.updateThreshold(nextThreshold);
+      if (ok) this.threshold = nextThreshold;
+    }
+    return offlineSpeakerDiarizationNative.processChunk(samples);
+  }
+
   async processPostSession(samples: number[]): Promise<{numSpeakers: number; segments: DiarizationSegment[]}> {
     if (!this.ready || !offlineSpeakerDiarizationNative) {
       return {numSpeakers: 0, segments: []};

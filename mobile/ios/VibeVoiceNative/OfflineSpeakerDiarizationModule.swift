@@ -130,6 +130,55 @@ class OfflineSpeakerDiarizationModule: NSObject {
     }
   }
 
+  /// Process a post-session audio chunk without the 6-second limit.
+  /// Designed for chunked diarization where each chunk is up to 3 minutes (~11 MB).
+  /// Audio is passed from JS after slicing the full session buffer into safe pieces.
+  @objc(processChunk:resolver:rejecter:)
+  func processChunk(
+    _ samples: [NSNumber],
+    resolver resolve: @escaping (Any?) -> Void,
+    rejecter reject: @escaping (String?, String?, Error?) -> Void
+  ) {
+    queue.async { [weak self] in
+      guard let self = self else { return }
+      guard let diarizer = self.diarizer else {
+        DispatchQueue.main.async { reject("NOT_INITIALIZED", "Offline diarizer not initialized", nil) }
+        return
+      }
+
+      autoreleasepool {
+        let pcm = samples.map { Float($0.floatValue) }
+        guard !pcm.isEmpty else {
+          DispatchQueue.main.async { resolve(["numSpeakers": 0, "segments": []]) }
+          return
+        }
+
+        guard let result = SherpaOnnxOfflineSpeakerDiarizationProcess(diarizer, pcm, Int32(pcm.count)) else {
+          DispatchQueue.main.async { reject("PROCESS_ERROR", "Failed to run chunk diarization", nil) }
+          return
+        }
+
+        let numSegments = Int(SherpaOnnxOfflineSpeakerDiarizationResultGetNumSegments(result))
+        let numSpeakers = Int(SherpaOnnxOfflineSpeakerDiarizationResultGetNumSpeakers(result))
+        let sortedSegments = SherpaOnnxOfflineSpeakerDiarizationResultSortByStartTime(result)
+
+        var payload: [[String: Any]] = []
+        if let sortedSegments {
+          for i in 0..<numSegments {
+            let seg = sortedSegments.advanced(by: i).pointee
+            payload.append(["startSec": seg.start, "endSec": seg.end, "speaker": seg.speaker])
+          }
+          SherpaOnnxOfflineSpeakerDiarizationDestroySegment(sortedSegments)
+        }
+
+        SherpaOnnxOfflineSpeakerDiarizationDestroyResult(result)
+        DispatchQueue.main.async {
+          resolve(["numSpeakers": numSpeakers, "segments": payload])
+        }
+      }
+    }
+  }
+
   @objc(updateThreshold:resolver:rejecter:)
   func updateThreshold(
     _ threshold: Double,

@@ -14,6 +14,10 @@ RCT_EXTERN_METHOD(process:(NSArray<NSNumber *> *)samples
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(processChunk:(NSArray<NSNumber *> *)samples
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 RCT_EXTERN_METHOD(updateThreshold:(double)threshold
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
