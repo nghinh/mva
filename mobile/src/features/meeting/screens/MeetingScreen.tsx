@@ -414,8 +414,8 @@ export function MeetingScreen(): React.JSX.Element {
               canStartCapture ? t('startMeetingHint') : t('startMeetingSettingsHint')
             }>
             <View style={styles.primaryButtonContent}>
-              <AppIcon name="mic" size={20} color={theme.colors.text.primary} />
-              <Text style={[styles.primaryButtonText, {color: theme.colors.text.primary}]}>
+              <AppIcon name="mic" size={20} color="#FFFFFF" />
+              <Text style={[styles.primaryButtonText, {color: '#FFFFFF'}]}>
                 {getButtonLabel()}
               </Text>
             </View>
