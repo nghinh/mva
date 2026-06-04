@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   ambientTopGlow: {
     position: 'absolute',
-    top: -120,
+    top: 0,
     right: -60,
     width: 240,
     height: 240,
