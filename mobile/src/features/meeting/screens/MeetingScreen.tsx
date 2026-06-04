@@ -405,7 +405,7 @@ export function MeetingScreen(): React.JSX.Element {
             {backgroundColor: theme.colors.surface.primary},
           ]}>
           <TouchableOpacity
-            style={[styles.primaryButton, {backgroundColor: theme.colors.primary}]}
+            style={[styles.primaryButton, {backgroundColor: '#6C5CE7'}]}
             onPress={handlePrimaryButtonPress}
             activeOpacity={0.85}
             disabled={isButtonDisabled}
