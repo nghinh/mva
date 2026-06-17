@@ -25,7 +25,18 @@ ios/build/
 mobile/android/.gradle/
 mobile/android/app/.cxx/
 mobile/android/build/
+mobile/android/.kotlin/
 mobile/android/app/src/main/assets/index.android.bundle
+
+# Android local environment (machine-specific, never commit)
+mobile/android/local.properties
+
+# Android signing credentials (sensitive — back up separately)
+mobile/android/key.properties
+mobile/android/keyStore
+
+# Large bundled model binaries for Android (gitignored like iOS assets/models)
+mobile/android/app/src/main/assets/models/**/*.onnx
 
 # Local packaged archives / embedded debug bundles
 mobile.zip

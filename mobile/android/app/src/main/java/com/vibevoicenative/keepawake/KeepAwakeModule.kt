@@ -17,7 +17,7 @@ class KeepAwakeModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun activateKeepAwake(promise: Promise) {
     UiThreadUtil.runOnUiThread {
-      currentActivity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      reactApplicationContext.currentActivity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
       promise.resolve(true)
     }
   }
@@ -25,7 +25,7 @@ class KeepAwakeModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun deactivateKeepAwake(promise: Promise) {
     UiThreadUtil.runOnUiThread {
-      currentActivity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      reactApplicationContext.currentActivity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
       promise.resolve(true)
     }
   }
