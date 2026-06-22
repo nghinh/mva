@@ -190,7 +190,10 @@
     "ttsRateNormal": "Bình thường",
     "ttsRateFast": "Nhanh",
     "ttsVoiceEngine": "Giọng đọc",
-    "ttsEngineSystem": "Hệ thống iOS"
+    "ttsEngineSystem": "Hệ thống iOS",
+    "ttsEngineSystemAndroid": "Hệ thống Android",
+    "ttsVoiceNotInstalled": "Cần cài giọng đọc tiếng Việt",
+    "ttsVoiceInstallAction": "Cài đặt →"
   },
   "history": {
     "appTitle": "Executive MVA",

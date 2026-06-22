@@ -190,7 +190,10 @@
     "ttsRateNormal": "Normal",
     "ttsRateFast": "Fast",
     "ttsVoiceEngine": "Voice Engine",
-    "ttsEngineSystem": "System iOS"
+    "ttsEngineSystem": "System iOS",
+    "ttsEngineSystemAndroid": "System Android",
+    "ttsVoiceNotInstalled": "Vietnamese voice not installed",
+    "ttsVoiceInstallAction": "Install →"
   },
   "history": {
     "appTitle": "Executive MVA",
