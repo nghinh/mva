@@ -19,10 +19,10 @@ import {
   ActivityIndicator,
   LayoutAnimation,
   Linking,
+  AppState,
 } from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {useNavigation} from '../../../app/navigation/router';
-import {useFocusEffect} from '@react-navigation/native';
 import {checkAndroidTtsLanguage} from '../../../native/tts/NativeTTSSpeaker';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
@@ -96,13 +96,16 @@ export function SettingsScreen(): React.JSX.Element {
 
   const [androidVoiceReady, setAndroidVoiceReady] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS === 'android') {
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    checkAndroidTtsLanguage('vi').then(setAndroidVoiceReady);
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
         checkAndroidTtsLanguage('vi').then(setAndroidVoiceReady);
       }
-    }, []),
-  );
+    });
+    return () => sub.remove();
+  }, []);
 
   const openTtsSettings = useCallback(() => {
     if (Platform.OS === 'android') {
