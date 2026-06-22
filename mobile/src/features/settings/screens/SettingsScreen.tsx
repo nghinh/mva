@@ -18,9 +18,12 @@ import {
   Modal,
   ActivityIndicator,
   LayoutAnimation,
+  Linking,
 } from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {useNavigation} from '../../../app/navigation/router';
+import {useFocusEffect} from '@react-navigation/native';
+import {checkAndroidTtsLanguage} from '../../../native/tts/NativeTTSSpeaker';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
@@ -90,6 +93,20 @@ export function SettingsScreen(): React.JSX.Element {
   const ttsEnabled = useTtsEnabled();
   const ttsRate = useTtsRate();
   const {setTtsEnabled, setTtsRate} = useSettingsStore();
+
+  const [androidVoiceReady, setAndroidVoiceReady] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === 'android') {
+        checkAndroidTtsLanguage('vi').then(setAndroidVoiceReady);
+      }
+    }, []),
+  );
+
+  const openTtsSettings = useCallback(() => {
+    Linking.openSettings();
+  }, []);
 
   const [sessionDataSizeMB, setSessionDataSizeMB] = useState<number>(0);
   const [langSelectorVisible, setLangSelectorVisible] = useState(false);
@@ -357,11 +374,34 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Voice Output Section (iOS only) */}
-        {Platform.OS === 'ios' && (
-          <View style={styles.section}>
+        {/* Voice Output Section */}
+        <View style={styles.section}>
             <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>{t('sectionVoiceOutput')}</Text>
             <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>{t('sectionVoiceOutputSubtitle')}</Text>
+
+            {Platform.OS === 'android' && !androidVoiceReady && (
+              <TouchableOpacity
+                style={[styles.card, {
+                  backgroundColor: theme.colors.warning
+                    ? theme.colors.warning + '20'
+                    : '#F590201A',
+                  borderWidth: 1,
+                  borderColor: theme.colors.warning ?? '#F59020',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: spacing.sm,
+                }]}
+                onPress={openTtsSettings}
+                activeOpacity={0.8}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>
+                  {t('ttsVoiceNotInstalled')}
+                </Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.primary}]}>
+                  {t('ttsVoiceInstallAction')}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
               {/* Read aloud toggle */}
@@ -420,15 +460,14 @@ export function SettingsScreen(): React.JSX.Element {
                     </View>
                     <View style={[styles.inlineBadge, {backgroundColor: theme.colors.primary + '20', borderColor: theme.colors.primary + '40'}]}>
                       <Text style={[styles.inlineBadgeText, {color: theme.colors.primary}]}>
-                        {t('ttsEngineSystem')}
+                        {Platform.OS === 'ios' ? t('ttsEngineSystem') : t('ttsEngineSystemAndroid')}
                       </Text>
                     </View>
                   </View>
                 </>
               )}
             </View>
-          </View>
-        )}
+        </View>
 
         {/* AI Models Section */}
         <View style={styles.section}>
