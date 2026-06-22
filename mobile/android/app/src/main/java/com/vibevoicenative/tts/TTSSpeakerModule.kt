@@ -45,6 +45,23 @@ class TTSSpeakerModule(reactContext: ReactApplicationContext) :
   override fun onInit(status: Int) {
     if (status == TextToSpeech.SUCCESS) {
       isReady = true
+      tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) {
+          emitEvent(EVENT_STARTED)
+        }
+        override fun onDone(utteranceId: String?) {
+          emitEvent(EVENT_FINISHED)
+          UiThreadUtil.runOnUiThread { drainQueue() }
+        }
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) {
+          UiThreadUtil.runOnUiThread {
+            isBusy.set(false)
+            abandonAudioFocus()
+            drainQueue()
+          }
+        }
+      })
       // Drain any speak() calls that arrived before init completed
       UiThreadUtil.runOnUiThread { drainQueue() }
     }
@@ -73,7 +90,7 @@ class TTSSpeakerModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun isSpeaking(promise: Promise) {
-    promise.resolve(tts?.isSpeaking ?: false)
+    promise.resolve(isBusy.get())
   }
 
   @ReactMethod
@@ -95,7 +112,10 @@ class TTSSpeakerModule(reactContext: ReactApplicationContext) :
   }
 
   private fun speakItem(text: String, language: String, rate: Float) {
-    val ttsEngine = tts ?: return
+    val ttsEngine = tts ?: run {
+      isBusy.set(false)
+      return
+    }
     val locale = toLocale(language)
     val available = ttsEngine.isLanguageAvailable(locale)
     if (available >= TextToSpeech.LANG_AVAILABLE) {
@@ -108,24 +128,6 @@ class TTSSpeakerModule(reactContext: ReactApplicationContext) :
     val utteranceId = "utt_${utteranceCounter.incrementAndGet()}"
     val params = Bundle()
     params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-
-    ttsEngine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-      override fun onStart(utteranceId: String?) {
-        emitEvent(EVENT_STARTED)
-      }
-      override fun onDone(utteranceId: String?) {
-        emitEvent(EVENT_FINISHED)
-        UiThreadUtil.runOnUiThread { drainQueue() }
-      }
-      @Deprecated("Deprecated in Java")
-      override fun onError(utteranceId: String?) {
-        UiThreadUtil.runOnUiThread {
-          isBusy.set(false)
-          abandonAudioFocus()
-          drainQueue()
-        }
-      }
-    })
 
     ttsEngine.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
   }
@@ -170,6 +172,8 @@ class TTSSpeakerModule(reactContext: ReactApplicationContext) :
   }
 
   override fun invalidate() {
+    queue.clear()
+    isBusy.set(false)
     tts?.shutdown()
     tts = null
     super.invalidate()
