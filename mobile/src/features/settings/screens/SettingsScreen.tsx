@@ -105,7 +105,11 @@ export function SettingsScreen(): React.JSX.Element {
   );
 
   const openTtsSettings = useCallback(() => {
-    Linking.openSettings();
+    if (Platform.OS === 'android') {
+      Linking.openURL('android.settings.TTS_SETTINGS').catch(() => {
+        Linking.openSettings();
+      });
+    }
   }, []);
 
   const [sessionDataSizeMB, setSessionDataSizeMB] = useState<number>(0);
