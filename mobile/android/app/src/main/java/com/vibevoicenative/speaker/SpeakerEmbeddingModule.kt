@@ -29,11 +29,12 @@ class SpeakerEmbeddingModule(reactContext: ReactApplicationContext) :
                 if (success) {
                     isLoaded = true
                     embeddingDim = getEmbeddingDimNative()
-                    promise.resolve(mapOf(
-                        "success" to true,
-                        "embeddingDim" to embeddingDim,
-                        "error" to null
-                    ))
+                    val result = Arguments.createMap().apply {
+                        putBoolean("success", true)
+                        putInt("embeddingDim", embeddingDim)
+                        putNull("error")
+                    }
+                    promise.resolve(result)
                 } else {
                     promise.reject("INIT_ERROR", "Failed to initialize speaker embedding extractor")
                 }

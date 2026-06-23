@@ -50,6 +50,7 @@ import {
 } from '../../../shared/config/runtimeConfig';
 import {getPersistenceService} from '../../../services/persistence';
 import getNativeAppleTranslator, {LanguagePackStatus} from '../../../native/NativeAppleTranslator';
+import {translationService} from '../../../services/TranslationService';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
 import {spacing, borderRadius, typography} from '../../../shared/constants';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
@@ -130,34 +131,49 @@ export function SettingsScreen(): React.JSX.Element {
   const [packStatuses, setPackStatuses] = useState<Record<string, PackRowStatus>>({});
 
   const refreshPackStatuses = useCallback(async () => {
-    if (Platform.OS !== 'ios') { return; }
-    const nativeModule = getNativeAppleTranslator();
-    if (!nativeModule) { return; }
     const results: Record<string, PackRowStatus> = {};
-    await Promise.all(
-      LANG_PACKS.map(async ({srcLang}) => {
-        try {
-          results[srcLang] = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
-        } catch {
-          results[srcLang] = 'unknown';
-        }
-      }),
-    );
+    if (Platform.OS === 'ios') {
+      const nativeModule = getNativeAppleTranslator();
+      if (!nativeModule) { return; }
+      await Promise.all(
+        LANG_PACKS.map(async ({srcLang}) => {
+          try {
+            results[srcLang] = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
+          } catch {
+            results[srcLang] = 'unknown';
+          }
+        }),
+      );
+    } else {
+      await Promise.all(
+        LANG_PACKS.map(async ({srcLang}) => {
+          try {
+            const ok = await translationService.isAvailable(srcLang as any, targetLanguage as any);
+            results[srcLang] = ok ? 'installed' : 'available';
+          } catch {
+            results[srcLang] = 'unknown';
+          }
+        }),
+      );
+    }
     setPackStatuses(results);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetLanguage]);
 
   const handleDownloadPack = useCallback(async (srcLang: string) => {
-    const nativeModule = getNativeAppleTranslator();
-    if (!nativeModule) { return; }
     setPackStatuses(prev => ({...prev, [srcLang]: 'loading'}));
     try {
-      await nativeModule.downloadLanguageIfNeeded(srcLang, targetLanguage);
-    } catch { /* ignore */ }
-    // Re-check status after Apple sheet closes
-    try {
-      const status = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
-      setPackStatuses(prev => ({...prev, [srcLang]: status}));
+      if (Platform.OS === 'ios') {
+        const nativeModule = getNativeAppleTranslator();
+        if (!nativeModule) { return; }
+        await nativeModule.downloadLanguageIfNeeded(srcLang, targetLanguage);
+        const status = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
+        setPackStatuses(prev => ({...prev, [srcLang]: status}));
+      } else {
+        await translationService.downloadLanguagePack(srcLang, targetLanguage);
+        const ok = await translationService.isAvailable(srcLang as any, targetLanguage as any);
+        setPackStatuses(prev => ({...prev, [srcLang]: ok ? 'installed' : 'available'}));
+      }
     } catch {
       setPackStatuses(prev => ({...prev, [srcLang]: 'unknown'}));
     }
@@ -523,13 +539,12 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Translation Language Packs (iOS only) */}
-        {Platform.OS === 'ios' && (
-          <View style={styles.section}>
+        {/* Translation Language Packs */}
+        <View style={styles.section}>
             <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>{t('sectionLanguagePacks')}</Text>
             <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>{t('sectionLanguagePacksSubtitle')}</Text>
 
-            {!isAppleTranslationAvailable() && (
+            {Platform.OS === 'ios' && !isAppleTranslationAvailable() && (
               <View style={[styles.iosWarningBanner, {backgroundColor: theme.colors.error + '18', borderColor: theme.colors.error + '50'}]}>
                 <AppIcon name="error" size={18} color={theme.colors.error} />
                 <View style={styles.iosWarningText}>
@@ -584,7 +599,6 @@ export function SettingsScreen(): React.JSX.Element {
               })}
             </View>
           </View>
-        )}
 
         {/* Appearance Section */}
         <View style={styles.section}>

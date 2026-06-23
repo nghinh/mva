@@ -311,6 +311,8 @@ export function MeetingScreen(): React.JSX.Element {
           sessionStatus={status as SessionStatus}
           connectivity={connectivity as ConnectivityStatus}
           startedAt={session.startedAt}
+          pausedTotalMs={session.pausedTotalMs}
+          pausedAt={session.pausedAt}
           latencyMs={latencyMs}
           onStopMeeting={handleStopMeeting}
           onPauseMeeting={handlePauseMeeting}

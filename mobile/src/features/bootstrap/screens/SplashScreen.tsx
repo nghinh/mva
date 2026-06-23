@@ -232,8 +232,8 @@ export const SplashScreen: React.FC = () => {
           const {installed, missing, allSupported} = await checkLanguagePacksStatus(targetLanguage, t);
           warnLog(`[SplashScreen] Language packs: ${installed.length} installed, ${missing.length} missing for target ${targetLanguage}`);
 
-          if (installed.length === 0 && missing.length > 0 && Platform.OS === 'ios' && allSupported) {
-            const nativeModule = getNativeAppleTranslator();
+          if (installed.length === 0 && missing.length > 0 && allSupported) {
+            const nativeModule = Platform.OS === 'ios' ? getNativeAppleTranslator() : null;
             const allPacks = getLanguagePacksToCheck(targetLanguage, t);
             const missingObjs = allPacks.filter(p => missing.includes(p.displayName));
 
@@ -252,89 +252,103 @@ export const SplashScreen: React.FC = () => {
               markPacksSkipped();
               warnLog('[SplashScreen] User skipped language pack download');
             } else {
-              // Only download packs the user selected
               const selectedPacks = allPacks.filter(p => selectedSrcLangsRef.current.has(p.srcLang));
               let pendingPacks = [...selectedPacks];
               let keepRetrying = true;
 
-              // Initialize per-pack progress UI
               setPackDownloadItems(selectedPacks.map(p => ({...p, status: 'pending' as const})));
 
               while (keepRetrying && pendingPacks.length > 0) {
-                // --- Pre-check: skip download UI if packs are already installed ---
-                // Apple LanguageAvailability.status() can inconsistently report .supported
-                // for packs that are already installed, causing the progress card to flash
-                // briefly when downloadLanguageIfNeeded immediately resolves. Re-verify here.
-                if (nativeModule) {
-                  const preCheckStatuses = await Promise.all(
-                    pendingPacks.map(p =>
-                      nativeModule.getLanguagePackStatus(p.srcLang, targetLanguage).catch(() => 'unknown'),
-                    ),
-                  );
-                  const alreadyAllInstalled = preCheckStatuses.every(s => s === 'installed');
-                  if (alreadyAllInstalled) {
-                    markPacksDownloaded();
-                    warnLog('[SplashScreen] All packs already installed, skipping download UI');
-                    keepRetrying = false;
-                    break;
+                if (Platform.OS === 'ios') {
+                  // --- iOS: Pre-check to avoid flashing progress when packs already installed ---
+                  // Apple LanguageAvailability.status() can inconsistently report .supported
+                  // for installed packs, so re-verify before showing progress UI.
+                  if (nativeModule) {
+                    const preCheckStatuses = await Promise.all(
+                      pendingPacks.map(p =>
+                        nativeModule.getLanguagePackStatus(p.srcLang, targetLanguage).catch(() => 'unknown'),
+                      ),
+                    );
+                    const alreadyAllInstalled = preCheckStatuses.every(s => s === 'installed');
+                    if (alreadyAllInstalled) {
+                      markPacksDownloaded();
+                      warnLog('[SplashScreen] All packs already installed, skipping download UI');
+                      keepRetrying = false;
+                      break;
+                    }
+                    pendingPacks = pendingPacks.filter((_, i) => preCheckStatuses[i] !== 'installed');
                   }
-                  // Filter to only packs that genuinely need downloading
-                  pendingPacks = pendingPacks.filter((_, i) => preCheckStatuses[i] !== 'installed');
-                }
 
-                // --- Download phase ---
-                // Per-pack retry: popup re-opens automatically (via Swift dismissal monitor)
-                // until the pack is confirmed installed. 185s JS fallback is rarely needed.
-                const PACK_DOWNLOAD_TIMEOUT_MS = 185_000;
-                setLangPackStep('downloading');
+                  // --- iOS download: uses Apple system sheet, poll until confirmed installed ---
+                  const PACK_DOWNLOAD_TIMEOUT_MS = 185_000;
+                  setLangPackStep('downloading');
 
-                for (let i = 0; i < pendingPacks.length; i++) {
-                  const pack = pendingPacks[i];
-                  let packInstalled = false;
+                  for (let i = 0; i < pendingPacks.length; i++) {
+                    const pack = pendingPacks[i];
+                    let packInstalled = false;
 
-                  // Mark this pack as actively downloading
-                  setPackDownloadItems(prev => prev.map(item =>
-                    item.srcLang === pack.srcLang ? {...item, status: 'downloading' as const} : item,
-                  ));
+                    setPackDownloadItems(prev => prev.map(item =>
+                      item.srcLang === pack.srcLang ? {...item, status: 'downloading' as const} : item,
+                    ));
 
-                  while (!packInstalled && nativeModule) {
+                    while (!packInstalled && nativeModule) {
+                      try {
+                        await Promise.race([
+                          nativeModule.downloadLanguageIfNeeded(pack.srcLang, targetLanguage),
+                          new Promise<void>(r => setTimeout(r, PACK_DOWNLOAD_TIMEOUT_MS)),
+                        ]);
+                      } catch {
+                        warnLog(`[SplashScreen] downloadLanguageIfNeeded threw for ${pack.displayName}`);
+                      }
+
+                      const s = await nativeModule
+                        .getLanguagePackStatus(pack.srcLang, targetLanguage)
+                        .catch(() => 'unknown' as const);
+                      if (s === 'installed') {
+                        packInstalled = true;
+                      } else {
+                        await delay(700);
+                      }
+                    }
+
+                    setPackDownloadItems(prev => prev.map(item =>
+                      item.srcLang === pack.srcLang ? {...item, status: 'done' as const} : item,
+                    ));
+                    if (i < pendingPacks.length - 1) {
+                      await delay(500);
+                    }
+                  }
+                } else {
+                  // --- Android: direct ML Kit download, no system sheet ---
+                  setLangPackStep('downloading');
+
+                  for (let i = 0; i < pendingPacks.length; i++) {
+                    const pack = pendingPacks[i];
+                    setPackDownloadItems(prev => prev.map(item =>
+                      item.srcLang === pack.srcLang ? {...item, status: 'downloading' as const} : item,
+                    ));
                     try {
-                      await Promise.race([
-                        nativeModule.downloadLanguageIfNeeded(pack.srcLang, targetLanguage),
-                        new Promise<void>(r => setTimeout(r, PACK_DOWNLOAD_TIMEOUT_MS)),
-                      ]);
-                    } catch {
-                      warnLog(`[SplashScreen] downloadLanguageIfNeeded threw for ${pack.displayName}`);
+                      await translationService.downloadLanguagePack(pack.srcLang, targetLanguage);
+                    } catch (err) {
+                      warnLog(`[SplashScreen] ML Kit download failed for ${pack.displayName}:`, err);
                     }
-
-                    const s = await nativeModule
-                      .getLanguagePackStatus(pack.srcLang, targetLanguage)
-                      .catch(() => 'unknown' as const);
-                    if (s === 'installed') {
-                      packInstalled = true;
-                    } else {
-                      await delay(700);
+                    setPackDownloadItems(prev => prev.map(item =>
+                      item.srcLang === pack.srcLang ? {...item, status: 'done' as const} : item,
+                    ));
+                    if (i < pendingPacks.length - 1) {
+                      await delay(300);
                     }
-                  }
-
-                  // Mark done and wait for iOS to finish sheet dismissal
-                  setPackDownloadItems(prev => prev.map(item =>
-                    item.srcLang === pack.srcLang ? {...item, status: 'done' as const} : item,
-                  ));
-                  if (i < pendingPacks.length - 1) {
-                    await delay(500);
                   }
                 }
 
-                // --- Verify phase ---
+                // --- Verify phase (both platforms) ---
                 await delay(1000);
                 setIsVerifying(true);
                 const nowFailed: string[] = [];
                 for (const pack of selectedPacks) {
-                  if (!nativeModule) { nowFailed.push(pack.displayName); continue; }
                   try {
-                    const status = await nativeModule.getLanguagePackStatus(pack.srcLang, targetLanguage);
-                    if (status !== 'installed') { nowFailed.push(pack.displayName); }
+                    const ok = await translationService.isAvailable(pack.srcLang as any, targetLanguage as any);
+                    if (!ok) { nowFailed.push(pack.displayName); }
                   } catch {
                     nowFailed.push(pack.displayName);
                   }

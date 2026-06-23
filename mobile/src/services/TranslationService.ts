@@ -75,6 +75,13 @@ class TranslationService {
     return MLKitTranslator.isLanguageAvailable(srcLang, tgtLang);
   }
 
+  async downloadLanguagePack(srcLang: string, tgtLang: string): Promise<boolean> {
+    if (Platform.OS === 'ios') {
+      return true;
+    }
+    return MLKitTranslator.downloadLanguagePack(srcLang, tgtLang);
+  }
+
   async downloadAllPacks(): Promise<boolean> {
     if (Platform.OS === 'ios') {
       return true;

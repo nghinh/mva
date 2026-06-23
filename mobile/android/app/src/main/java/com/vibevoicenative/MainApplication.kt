@@ -14,6 +14,7 @@ import com.vibevoicenative.securestorage.SecureStorageBridgePackage
 import com.vibevoicenative.speaker.OfflineSpeakerDiarizationPackage
 import com.vibevoicenative.speaker.SpeakerEmbeddingPackage
 import com.vibevoicenative.translation.MLKitTranslatorPackage
+import com.vibevoicenative.tts.BackgroundRecordingPackage
 import com.vibevoicenative.tts.TTSSpeakerPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
               add(SpeakerEmbeddingPackage())
               add(MLKitTranslatorPackage())
               add(TTSSpeakerPackage())
+              add(BackgroundRecordingPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

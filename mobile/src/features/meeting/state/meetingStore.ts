@@ -56,6 +56,10 @@ export interface MeetingSession {
   speakerCount: number;
   /** Speaker metadata map: speakerId -> speakerLabel (e.g., S1 -> "Speaker 1") */
   speakerLabels: Record<string, string>;
+  /** Total ms spent in paused state (for accurate active-time display) */
+  pausedTotalMs: number;
+  /** Timestamp when the session was last paused (null if not paused) */
+  pausedAt: number | null;
 }
 
 const initialMeetingSession: MeetingSession = {
@@ -72,6 +76,8 @@ const initialMeetingSession: MeetingSession = {
   currentUtteranceId: null,
   speakerCount: 0,
   speakerLabels: {},
+  pausedTotalMs: 0,
+  pausedAt: null,
 };
 
 interface MeetingStore {
@@ -137,14 +143,15 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   pauseSession: () => {
     const {session} = get();
     if (session.id && session.status === 'recording') {
-      set({session: {...session, status: 'paused'}});
+      set({session: {...session, status: 'paused', pausedAt: Date.now()}});
     }
   },
 
   resumeSession: () => {
     const {session} = get();
     if (session.id && session.status === 'paused') {
-      set({session: {...session, status: 'recording'}});
+      const addedPause = session.pausedAt ? Date.now() - session.pausedAt : 0;
+      set({session: {...session, status: 'recording', pausedAt: null, pausedTotalMs: session.pausedTotalMs + addedPause}});
     }
   },
 
