@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_channel_meeting_recording">会议录音</string>
+    <string name="notification_recording">录音中:</string>
+    <string name="notification_action_pause">暂停</string>
+</resources>

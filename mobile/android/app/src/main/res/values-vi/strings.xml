@@ -1,0 +1,5 @@
+<resources>
+    <string name="notification_channel_meeting_recording">Ghi âm cuộc họp</string>
+    <string name="notification_recording">Đang ghi âm:</string>
+    <string name="notification_action_pause">Tạm dừng</string>
+</resources>
