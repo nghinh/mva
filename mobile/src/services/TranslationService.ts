@@ -45,10 +45,12 @@ class TranslationService {
     return {text: translated, latencyMs: Date.now() - startedAt};
   }
 
-  async translateBatch(texts: string[], srcLang: SourceLanguage | 'vi', targetLang: TargetLanguage = 'vi'): Promise<TranslationResult[]> {
+  async translateBatch(texts: string[], srcLang: SourceLanguage, targetLang: TargetLanguage = 'vi'): Promise<TranslationResult[]> {
     const startedAt = Date.now();
 
-    if (srcLang === targetLang || srcLang === 'vi') {
+    // Passthrough only when source and target match ('vi' is a valid SOURCE
+    // now that Vietnamese input exists — never skip it unconditionally).
+    if (srcLang === targetLang) {
       return texts.map((text) => ({text, latencyMs: 0}));
     }
 
@@ -83,13 +85,24 @@ class TranslationService {
     }
   }
 
-  async getPackStatus(): Promise<Record<string, boolean>> {
+  /**
+   * Pack availability keyed `${src}-${target}`. Default target 'vi' keeps the
+   * historical behavior for existing callers (Splash/Settings); pass the live
+   * target when Vietnamese is the INPUT so the vi→X pairs get checked instead.
+   */
+  async getPackStatus(targetLang: TargetLanguage = 'vi'): Promise<Record<string, boolean>> {
     if (Platform.OS === 'ios') {
       const module = getNativeAppleTranslator();
-      const pairs: SourceLanguage[] = ['en', 'ja', 'ko', 'zh'];
+      const sources: SourceLanguage[] = ['en', 'ja', 'ko', 'zh', 'vi'];
       const status: Record<string, boolean> = {};
-      for (const src of pairs) {
-        status[`${src}-vi`] = await (module?.isLanguageAvailable?.(src, 'vi') ?? Promise.resolve(false));
+      for (const src of sources) {
+        if (src === targetLang) {
+          continue;
+        }
+        status[`${src}-${targetLang}`] = await (module?.isLanguageAvailable?.(
+          this.mapLangToApple(src),
+          this.mapLangToApple(targetLang),
+        ) ?? Promise.resolve(false));
       }
       return status;
     }

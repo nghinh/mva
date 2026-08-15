@@ -37,6 +37,7 @@ import {
   useAppLanguage,
   useTtsEnabled,
   useTtsRate,
+  useInputLanguage,
 } from '../../../shared/store';
 import type {TtsRate} from '../../../shared/store/settingsStore';
 import {SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type AppLanguage} from '../../../i18n';
@@ -89,7 +90,8 @@ export function SettingsScreen(): React.JSX.Element {
   const {setAppLanguage} = useSettingsStore();
   const ttsEnabled = useTtsEnabled();
   const ttsRate = useTtsRate();
-  const {setTtsEnabled, setTtsRate} = useSettingsStore();
+  const inputLanguage = useInputLanguage();
+  const {setTtsEnabled, setTtsRate, setInputLanguage} = useSettingsStore();
 
   const [sessionDataSizeMB, setSessionDataSizeMB] = useState<number>(0);
   const [langSelectorVisible, setLangSelectorVisible] = useState(false);
@@ -353,6 +355,44 @@ export function SettingsScreen(): React.JSX.Element {
                 </View>
               </View>
 
+              {/* Input Language (iOS only — ViSpeechModule uses SFSpeechRecognizer) */}
+              {Platform.OS === 'ios' && (
+                <>
+                  <View style={[styles.divider, {backgroundColor: theme.colors.border.subtle}]} />
+                  <View style={styles.settingInfoNoMargin}>
+                    <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>{t('inputLanguage')}</Text>
+                    <Text style={[styles.settingDesc, {color: theme.colors.text.tertiary}]}>{t('inputLanguageDesc')}</Text>
+                  </View>
+                  <View style={styles.sttEngineRow}>
+                    {(['auto', 'vi'] as const).map((mode) => {
+                      const isActive = inputLanguage === mode;
+                      return (
+                        <TouchableOpacity
+                          key={mode}
+                          style={[
+                            styles.sttEngineButton,
+                            isActive
+                              ? {backgroundColor: theme.colors.primary + '25', borderColor: theme.colors.primary}
+                              : {backgroundColor: theme.colors.surface.secondary, borderColor: theme.colors.border.subtle},
+                          ]}
+                          onPress={() => {
+                            setInputLanguage(mode);
+                            // If switching to Vietnamese input while target is also Vietnamese,
+                            // auto-switch target to English so translation is not a no-op.
+                            if (mode === 'vi' && targetLanguage === 'vi') {
+                              setTargetLanguage('en');
+                            }
+                          }}
+                          activeOpacity={0.75}>
+                          <Text style={[styles.sttEngineLabel, {color: isActive ? theme.colors.primary : theme.colors.text.secondary}]}>
+                            {mode === 'auto' ? t('inputLangAuto') : t('inputLangVietnamese')}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
             </View>
           </View>
         </View>

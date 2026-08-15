@@ -73,6 +73,7 @@
     "tabLive": "ライブ",
     "tabNetwork": "ネットワーク",
     "ttsToggleLabel": "読み上げ切り替え",
+    "langSelectTarget": "翻訳言語"
   },
   "settings": {
     "title": "設定",
@@ -88,6 +89,10 @@
     "speechRecognitionDesc": "SenseVoiceがEN/JA/KO/ZHのオフライン音声認識に対応。",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
+    "inputLanguage": "入力言語",
+    "inputLanguageDesc": "会議で話す言語です。",
+    "inputLangAuto": "自動 (EN · JA · KO · ZH)",
+    "inputLangVietnamese": "ベトナム語",
     "sectionAiModels": "デバイス上のAI",
     "sectionAiModelsSubtitle": "音声認識と話者検出はデバイス上にローカル保存されています。",
     "modelSummaryTitle": "モデルサマリー",

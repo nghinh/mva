@@ -43,6 +43,16 @@ describe('copy-required-model-assets', () => {
         files: ['model.int8.onnx', 'tokens.txt'],
       },
       {
+        folder: 'sherpa-onnx-zipformer-vi-int8-2025-04-20',
+        files: [
+          'encoder-epoch-12-avg-8.int8.onnx',
+          'decoder-epoch-12-avg-8.onnx',
+          'joiner-epoch-12-avg-8.int8.onnx',
+          'tokens.txt',
+          'bpe.model',
+        ],
+      },
+      {
         folder: 'speaker-diarization',
         files: [
           'model.onnx',
