@@ -1,3 +1,7 @@
+// export rỗng: xem chú thích ở NativeBackgroundRecording.test.ts — đánh dấu file
+// là module để mockPlatform không va nhau ở global scope.
+export {};
+
 // Mock NativeModules before importing the module under test
 const mockSpeak = jest.fn();
 const mockStopAndClear = jest.fn().mockResolvedValue(true);
