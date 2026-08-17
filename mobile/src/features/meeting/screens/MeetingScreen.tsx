@@ -12,7 +12,7 @@
  * @see docs/implementation-artifacts/4-6-deliver-accessibility-and-dark-mode-for-meeting-screen.md
  */
 
-import React, {useCallback, useState, useEffect, useRef} from 'react';
+import React, {useCallback, useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -109,8 +109,6 @@ export function MeetingScreen(): React.JSX.Element {
 
   const {isSpeaking: isTtsSpeaking} = useTTSSpeaker(session?.translations ?? [], isActive, targetLanguage, ttsPaused);
 
-  const isPaused = status === 'paused';
-
   const latestDetectedLanguage =
     transcript.length > 0
       ? transcript[transcript.length - 1]?.sourceLanguage?.toUpperCase()
@@ -200,7 +198,7 @@ export function MeetingScreen(): React.JSX.Element {
     } finally {
       setIsStopping(false);
     }
-  }, [stopMeeting, navigation]);
+  }, [stopMeeting, navigation, t]);
 
   const sttReady = modelState.status === 'cached-ready';
   const translatorInstalled = translatorModelState.status === 'cached-ready';
@@ -251,7 +249,7 @@ export function MeetingScreen(): React.JSX.Element {
     }
 
     await handleStartMeeting();
-  }, [isActive, handleStopMeeting, sttReady, navigation, handleStartMeeting]);
+  }, [isActive, handleStopMeeting, sttReady, navigation, handleStartMeeting, t]);
 
   const getButtonLabel = (): string => {
     if (status === 'stopping') return t('buttonStopping');

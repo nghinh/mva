@@ -5,7 +5,7 @@
  * All AI inference runs locally — no network dependency.
  */
 
-import React, {useState, useCallback, useEffect, useRef} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {
   View,
   Text,
@@ -41,11 +41,7 @@ import {
 } from '../../../shared/store';
 import type {TtsRate} from '../../../shared/store/settingsStore';
 import {SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type AppLanguage} from '../../../i18n';
-import {
-  formatDiarizationThreshold,
-  getDiarizationThresholdLabel,
-  getDiarizationThresholdDescription,
-} from '../../../shared/config/runtimeConfig';
+import {formatDiarizationThreshold} from '../../../shared/config/runtimeConfig';
 import {getPersistenceService} from '../../../services/persistence';
 import getNativeAppleTranslator, {LanguagePackStatus} from '../../../native/NativeAppleTranslator';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
@@ -242,7 +238,7 @@ export function SettingsScreen(): React.JSX.Element {
       return;
     }
     setDevUnlockTapCount(nextCount);
-  }, [devUnlockTapCount, developerMode, setDeveloperMode]);
+  }, [devUnlockTapCount, developerMode, setDeveloperMode, t]);
 
   const getModelStatusDisplay = (status: string, isReady: boolean) => {
     if (isReady || status === 'cached-ready') {

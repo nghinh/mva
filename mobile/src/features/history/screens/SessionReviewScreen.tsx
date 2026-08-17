@@ -238,14 +238,6 @@ function buildMinutesData(
   return minutesBlocks;
 }
 
-// Language badge colors matching the mockup palette
-const LANG_COLORS: Record<string, {text: string; bg: string}> = {
-  EN: {text: '#c6bfff', bg: 'rgba(198,191,255,0.12)'},
-  JA: {text: '#44eeba', bg: 'rgba(68,238,186,0.12)'},
-  KO: {text: '#adc6ff', bg: 'rgba(173,198,255,0.12)'},
-  ZH: {text: '#ffb347', bg: 'rgba(255,179,71,0.12)'},
-};
-
 function getLanguageFlag(lang: string): string {
   switch (lang.toUpperCase()) {
     case 'EN': return '🇬🇧';
@@ -440,7 +432,6 @@ export function SessionReviewScreen(): React.JSX.Element {
   // ───────────────────────────────────────────────────────────────────────────
   const renderTimelineEntry = ({item, index}: {item: TimelineEntry; index: number}) => {
     const langUpper = item.sourceLanguage.toUpperCase();
-    const langStyle = LANG_COLORS[langUpper] ?? {text: theme.colors.text.tertiary, bg: `${theme.colors.text.tertiary}20`};
 
     return (
       <View style={styles.timelineEntry}>

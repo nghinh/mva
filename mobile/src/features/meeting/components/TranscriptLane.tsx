@@ -86,7 +86,6 @@ function getLanguageFlag(language: string): string {
 }
 
 function LanguageBadge({language}: {language: string | null}) {
-  const {theme} = useTheme();
   if (!language) return null;
   return (
     <View style={styles.languageBadge}>
@@ -207,8 +206,8 @@ export function TranscriptLane({
   const scrollViewRef = useRef<ScrollView>(null);
   const pillOpacity = useRef(new Animated.Value(0)).current;
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [, setContentHeight] = useState(0);
+  const [, setScrollViewHeight] = useState(0);
 
   const orderedEntries = useMemo(() => {
     return [...entries].sort((a, b) => {

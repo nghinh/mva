@@ -1,4 +1,4 @@
-import {NativeModules, Platform, TurboModuleRegistry} from 'react-native';
+import {NativeModules, TurboModuleRegistry} from 'react-native';
 import {
   decryptStoredValue,
   encryptStoredValue,

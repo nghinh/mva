@@ -151,7 +151,7 @@ export function ModelRepositoryScreen({onNavigateBack}: ModelRepositoryScreenPro
     } finally {
       setBusyModelId(null);
     }
-  }, [setModelDownloadProgress, setModelDownloading, setModelError, setModelReady]);
+  }, [setModelDownloadProgress, setModelDownloading, setModelError, setModelReady, t]);
 
   const handleRemove = useCallback((model: ModelInfo) => {
     Alert.alert(

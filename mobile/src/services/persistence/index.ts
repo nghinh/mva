@@ -217,7 +217,7 @@ export function createPersistenceService() {
   let utterancesCache: Map<SessionId, UtteranceData[]> = new Map();
   let translationsCache: Map<UtteranceId, TranslationData> = new Map();
   let sessionConfigCache: Map<SessionId, SessionConfigSnapshot> = new Map();
-  let initialized = false;
+  // Trạng thái "đã init" được theo dõi bằng initPromise (xem ensureInitialized).
   let initPromise: Promise<void> | null = null;
   let crashRecoveryRan = false;
   const listeners = new Set<PersistenceListener>();
@@ -261,7 +261,6 @@ export function createPersistenceService() {
           } else {
             debugLog('[Persistence] init: no stored data');
           }
-          initialized = true;
           debugLog('[Persistence] Initialized with', sessionsCache.length, 'sessions');
 
           // Crash recovery: run after initialization to catch sessions left in 'live' state
