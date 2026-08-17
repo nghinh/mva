@@ -73,6 +73,7 @@
     "tabLive": "라이브",
     "tabNetwork": "네트워크",
     "ttsToggleLabel": "읽기 토글",
+    "langSelectTarget": "번역 언어"
   },
   "settings": {
     "title": "설정",
@@ -88,6 +89,10 @@
     "speechRecognitionDesc": "SenseVoice가 오프라인 EN/JA/KO/ZH 음성 인식을 지원합니다.",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
+    "inputLanguage": "입력 언어",
+    "inputLanguageDesc": "회의에서 사용할 언어입니다.",
+    "inputLangAuto": "자동 (EN · JA · KO · ZH)",
+    "inputLangVietnamese": "베트남어",
     "sectionAiModels": "기기 내 AI",
     "sectionAiModelsSubtitle": "음성 인식 및 화자 감지는 기기에 로컬로 저장됩니다.",
     "modelSummaryTitle": "모델 요약",

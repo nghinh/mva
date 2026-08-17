@@ -1172,7 +1172,8 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           warnLog('[useMeetingSession] Speaker embedding init failed; continuing without diarization.', error);
         });
       }
-      // SenseVoice recognizer — EN / JA / KO / ZH auto-detection.
+      // Engine theo ngôn ngữ input: 'vi' → Zipformer-VI transducer, còn lại →
+      // SenseVoice auto-detect (EN/JA/KO/ZH). Chọn trong RealSpeechRecognizer.start().
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
         try {
           console.warn('[useMeetingSession] real recognizer start: entering', {platform: Platform.OS, sessionId});

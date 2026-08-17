@@ -22,12 +22,28 @@ const MODEL_ARCHIVE_CONFIG = {
     url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2',
     archiveFolder: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17',
   },
+  // Vietnamese input engine (Zipformer transducer int8, Apache-2.0, ~74MB).
+  // Must stay in sync with STT_VI_* in src/native/models/bundledModels.ts.
+  'sherpa-onnx-zipformer-vi-int8-2025-04-20': {
+    url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zipformer-vi-int8-2025-04-20.tar.bz2',
+    archiveFolder: 'sherpa-onnx-zipformer-vi-int8-2025-04-20',
+  },
 };
 
 const requiredModels = [
   {
     folder: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17',
     files: ['model.int8.onnx', 'tokens.txt'],
+  },
+  {
+    folder: 'sherpa-onnx-zipformer-vi-int8-2025-04-20',
+    files: [
+      'encoder-epoch-12-avg-8.int8.onnx',
+      'decoder-epoch-12-avg-8.onnx',
+      'joiner-epoch-12-avg-8.int8.onnx',
+      'tokens.txt',
+      'bpe.model',
+    ],
   },
   {
     folder: 'speaker-diarization',

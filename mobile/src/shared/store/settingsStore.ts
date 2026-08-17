@@ -56,6 +56,14 @@ export const DEFAULT_DIARIZATION_THRESHOLD = 0.55;
 export type SttEngineType = 'sense_voice';
 export const DEFAULT_STT_ENGINE: SttEngineType = 'sense_voice';
 
+/**
+ * Input language mode.
+ * - 'auto'  : SenseVoice handles EN / JA / KO / ZH with auto-detection (default).
+ * - 'vi'    : iOS SFSpeechRecognizer (vi-VN) handles Vietnamese input offline.
+ */
+export type InputLanguageMode = 'auto' | 'vi';
+export const DEFAULT_INPUT_LANGUAGE: InputLanguageMode = 'auto';
+
 export type {AppLanguage};
 
 interface SettingsState {
@@ -81,6 +89,12 @@ interface SettingsState {
   /** TTS playback rate (default: 'normal') */
   ttsRate: TtsRate;
   setTtsRate: (r: TtsRate) => void;
+  /**
+   * Input language mode (default: 'auto').
+   * 'auto' uses SenseVoice for EN/JA/KO/ZH; 'vi' uses iOS SFSpeechRecognizer.
+   */
+  inputLanguage: InputLanguageMode;
+  setInputLanguage: (mode: InputLanguageMode) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -106,10 +120,12 @@ export const useSettingsStore = create<SettingsState>()(
       setTtsEnabled: (v) => set({ttsEnabled: v}),
       ttsRate: 'normal',
       setTtsRate: (r) => set({ttsRate: r}),
+      inputLanguage: DEFAULT_INPUT_LANGUAGE,
+      setInputLanguage: (mode) => set({inputLanguage: mode}),
     }),
     {
       name: 'vibevoice-settings-store',
-      version: 10,
+      version: 11,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         developerMode: state.developerMode,
@@ -120,6 +136,7 @@ export const useSettingsStore = create<SettingsState>()(
         appLanguage: state.appLanguage,
         ttsEnabled: state.ttsEnabled,
         ttsRate: state.ttsRate,
+        inputLanguage: state.inputLanguage,
       }),
       migrate: (persistedState: unknown, version) => {
         const state = (persistedState ?? {}) as Partial<SettingsState>;
@@ -142,6 +159,8 @@ export const useSettingsStore = create<SettingsState>()(
           // Reset ttsEnabled to false on upgrade from v9 (VITS testing left it ON).
           ttsEnabled: version < 10 ? false : ((state as SettingsState).ttsEnabled ?? false),
           ttsRate: (state as SettingsState).ttsRate ?? 'normal',
+          // New in v11 — default to 'auto' (SenseVoice) for all existing installs.
+          inputLanguage: (state as SettingsState).inputLanguage ?? DEFAULT_INPUT_LANGUAGE,
         } as SettingsState;
       },
     }
@@ -156,4 +175,5 @@ export const useSttEngine = () => useSettingsStore((state) => state.sttEngine);
 export const useAppLanguage = () => useSettingsStore((state) => state.appLanguage);
 export const useTtsEnabled = () => useSettingsStore((state) => state.ttsEnabled);
 export const useTtsRate = () => useSettingsStore((state) => state.ttsRate);
+export const useInputLanguage = () => useSettingsStore((state) => state.inputLanguage);
 export type {TtsRate};

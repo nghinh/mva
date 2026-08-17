@@ -10,6 +10,7 @@ import type { MeetingPipelineEvent } from '../../shared/types/meeting';
 import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
 import { ensureBundledModelInstalled } from '../models/BundledModelInstaller';
+import { BUNDLED_MODEL_CONFIG, getSttModelIdForSource, type BundledModelId } from '../models/bundledModels';
 
 const SAMPLE_RATE = 16000;
 const IS_ANDROID = Platform.OS === 'android';
@@ -158,7 +159,13 @@ export class RealSpeechRecognizer {
   private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | null = null;
   private hardCapCount = 0;
 
-  async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void, _sourceLanguage?: SourceLanguage): Promise<void> {
+  // Engine selection for this session. 'vi' forces the dedicated Vietnamese
+  // transducer and pins every emitted event to language 'vi' (no heuristic
+  // detection); null keeps the SenseVoice auto-detect path (EN/JA/KO/ZH).
+  private forcedLanguage: SourceLanguage | null = null;
+  private enginePrefix: 'sense' | 'vi' = 'sense';
+
+  async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void, sourceLanguage?: SourceLanguage): Promise<void> {
     this.sessionId = sessionId;
     this.emitFn = emit;
     this.detector.setSession(sessionId);
@@ -167,36 +174,55 @@ export class RealSpeechRecognizer {
     this.speechCalibrationWindow = [];
     this.lastFinalizeReason = null;
     this.hardCapCount = 0;
+    this.forcedLanguage = sourceLanguage === 'vi' ? 'vi' : null;
+    this.enginePrefix = this.forcedLanguage === 'vi' ? 'vi' : 'sense';
+
+    const modelId: BundledModelId = getSttModelIdForSource(sourceLanguage);
+    const engineLabel = BUNDLED_MODEL_CONFIG[modelId].displayName;
 
     emit({
       type: 'pipeline_status',
       session_id: sessionId,
       status: 'processing',
       timestamp_ms: Date.now(),
-      details: 'Preparing SenseVoice bundled model',
+      details: `Preparing ${engineLabel} bundled model`,
     });
 
-    const modelDir = await this.prepareModelDirectory(emit);
+    const modelDir = await this.prepareModelDirectory(emit, modelId, engineLabel);
 
-    this.engine = await createSTT({
-      modelPath: fileModelPath(modelDir),
-      modelType: 'sense_voice',
-      preferInt8: true,
-      provider: 'cpu',
-      numThreads: 2,
-      modelOptions: {
-        senseVoice: {
-          useItn: true,
+    if (this.forcedLanguage === 'vi') {
+      // Offline transducer (Zipformer RNN-T). Non-autoregressive enough that
+      // the existing partial cadence + inferenceActive backpressure hold
+      // (bench/: RTF 0.025 on Mac CPU). No ITN option exists for transducer —
+      // numbers come out as words; accepted for v1 (see plan §risks).
+      this.engine = await createSTT({
+        modelPath: fileModelPath(modelDir),
+        modelType: 'transducer',
+        preferInt8: true,
+        provider: 'cpu',
+        numThreads: 2,
+      });
+    } else {
+      this.engine = await createSTT({
+        modelPath: fileModelPath(modelDir),
+        modelType: 'sense_voice',
+        preferInt8: true,
+        provider: 'cpu',
+        numThreads: 2,
+        modelOptions: {
+          senseVoice: {
+            useItn: true,
+          },
         },
-      },
-    });
+      });
+    }
 
     emit({
       type: 'pipeline_status',
       session_id: sessionId,
       status: 'processing',
       timestamp_ms: Date.now(),
-      details: 'SenseVoice recognizer initialized',
+      details: `${engineLabel} recognizer initialized`,
     });
 
     await this.activateAudioSession(emit);
@@ -336,7 +362,7 @@ export class RealSpeechRecognizer {
 
     if (isSpeech) {
       if (!this.currentUtteranceId) {
-        this.currentUtteranceId = `${sessionId}-sense-${++this.utteranceCounter}`;
+        this.currentUtteranceId = `${sessionId}-${this.enginePrefix}-${++this.utteranceCounter}`;
         this.currentRevision = 0;
         this.currentText = '';
         this.utteranceStartMs = now;
@@ -381,7 +407,7 @@ export class RealSpeechRecognizer {
         id: this.currentUtteranceId,
         samples: this.sampleBuffer.length,
         hardCapCount: this.hardCapCount,
-        engine: 'sense_voice',
+        engine: this.enginePrefix === 'vi' ? 'transducer_vi' : 'sense_voice',
       });
       this.finalizeUtterance(now, emit);
       return;
@@ -459,15 +485,18 @@ export class RealSpeechRecognizer {
     );
   }
 
-  private async prepareModelDirectory(emit: (event: MeetingPipelineEvent) => void): Promise<string> {
-    const modelId = 'stt';
+  private async prepareModelDirectory(
+    emit: (event: MeetingPipelineEvent) => void,
+    modelId: BundledModelId = 'stt',
+    engineLabel: string = 'SenseVoice',
+  ): Promise<string> {
     const localModelDir = await ensureBundledModelInstalled(modelId, (completed, total, file) => {
       emit({
         type: 'pipeline_status',
         session_id: this.sessionId!,
         status: 'processing',
         timestamp_ms: Date.now(),
-        details: `Installing bundled SenseVoice (${completed}/${total}): ${file}`,
+        details: `Installing bundled ${engineLabel} (${completed}/${total}): ${file}`,
       });
     });
 
@@ -830,6 +859,11 @@ export class RealSpeechRecognizer {
     langFromModel?: string,
     utteranceId?: UtteranceId | null,
   ): SourceLanguage {
+    // Forced-language session (Zipformer-VI): the engine only knows one
+    // language, so skip both the model hint and the text heuristic entirely.
+    if (this.forcedLanguage) {
+      return this.forcedLanguage;
+    }
     const normalized = (langFromModel ?? '').toLowerCase();
     if (normalized.startsWith('en')) return 'en';
     if (normalized.startsWith('ja') || normalized.startsWith('jp')) return 'ja';

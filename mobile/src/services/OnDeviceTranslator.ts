@@ -25,7 +25,9 @@ export function mapSourceLanguageToNllb(source: SourceLanguage): TranslationSour
 export interface TranslationRequest {
   text: string;
   sourceLanguage: TranslationSourceLanguage;
-  // targetLanguage is ignored - translationService always translates to VI
+  // Unused: translate() reads the LIVE target from the settings store on each
+  // call (vi by default, any SupportedTargetLanguage otherwise). Kept in the
+  // shape for callers that want to record intent.
   targetLanguage?: TargetLanguage;
   requestId?: number;
 }
