@@ -24,6 +24,7 @@ import {
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {AppIcon, SpeakerBadge} from '../../../shared/components/ui';
+import {getLanguageFlag} from '../../../shared/utils/languageFlag';
 import {TranscriptEntry} from '../state/meetingStore';
 
 interface TranscriptLaneProps {
@@ -74,16 +75,6 @@ function JumpToLatestPill({
 // =============================================================================
 // LanguageBadge
 // =============================================================================
-
-function getLanguageFlag(language: string): string {
-  switch (language.toLowerCase()) {
-    case 'en': return '🇬🇧';
-    case 'ja': return '🇯🇵';
-    case 'ko': return '🇰🇷';
-    case 'zh': return '🇨🇳';
-    default:   return '🌐';
-  }
-}
 
 function LanguageBadge({language}: {language: string | null}) {
   if (!language) return null;
