@@ -195,7 +195,10 @@
     "ttsRateNormal": "보통",
     "ttsRateFast": "빠르게",
     "ttsVoiceEngine": "음성 엔진",
-    "ttsEngineSystem": "시스템 iOS"
+    "ttsEngineSystem": "시스템 iOS",
+    "ttsEngineSystemAndroid": "Android 시스템",
+    "ttsVoiceNotInstalled": "베트남어 음성 미설치",
+    "ttsVoiceInstallAction": "설치 →"
   },
   "history": {
     "appTitle": "Executive MVA",

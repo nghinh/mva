@@ -195,7 +195,10 @@
     "ttsRateNormal": "普通",
     "ttsRateFast": "速く",
     "ttsVoiceEngine": "音声エンジン",
-    "ttsEngineSystem": "システム iOS"
+    "ttsEngineSystem": "システム iOS",
+    "ttsEngineSystemAndroid": "Android システム",
+    "ttsVoiceNotInstalled": "ベトナム語の音声が未インストール",
+    "ttsVoiceInstallAction": "インストール →"
   },
   "history": {
     "appTitle": "Executive MVA",

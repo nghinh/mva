@@ -1,0 +1,6 @@
+<resources>
+    <string name="notification_channel_meeting_recording">会議録音</string>
+    <string name="notification_recording">録音中:</string>
+    <string name="notification_action_pause">一時停止</string>
+    <string name="notification_action_resume">再開</string>
+</resources>

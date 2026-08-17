@@ -195,7 +195,10 @@
     "ttsRateNormal": "正常",
     "ttsRateFast": "快",
     "ttsVoiceEngine": "语音引擎",
-    "ttsEngineSystem": "系统 iOS"
+    "ttsEngineSystem": "系统 iOS",
+    "ttsEngineSystemAndroid": "Android 系统",
+    "ttsVoiceNotInstalled": "越南语语音未安装",
+    "ttsVoiceInstallAction": "安装 →"
   },
   "history": {
     "appTitle": "Executive MVA",

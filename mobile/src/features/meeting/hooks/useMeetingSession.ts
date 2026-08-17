@@ -7,6 +7,13 @@
 
 import {useCallback, useEffect, useRef} from 'react';
 import {AppState, Platform} from 'react-native';
+import {
+  startBackgroundRecording,
+  stopBackgroundRecording,
+  pauseBackgroundRecording,
+  resumeBackgroundRecording,
+  BackgroundRecordingEmitter,
+} from '../../../native/backgroundRecording/NativeBackgroundRecording';
 import {isAppleTranslationAvailable, getIOSVersion} from '../../../shared/utils/platformSupport';
 import {useMeetingStore, TranscriptEntry, MeetingSession} from '../state/meetingStore';
 
@@ -1209,6 +1216,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         status: 'live',
       };
       await persistence.saveSession(sessionData);
+      if (Platform.OS === 'android') {
+        startBackgroundRecording(
+          'MVA',
+          useMeetingStore.getState().session.startedAt ?? Date.now(),
+        ).catch(() => undefined);
+      }
       debugLog('[useMeetingSession] Meeting started:', currentSession.id);
     },
     [IOS_DEBUG_TRANSLATION_SAFE_MODE, LIVE_SPEAKER_ASSIGNMENT_ENABLED, handleIncomingPipelineEvent, store]
@@ -1219,14 +1232,49 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     if (!recognizer) return;
     store.pauseSession();
     await recognizer.pause();
+    if (Platform.OS === 'android') pauseBackgroundRecording();
   }, [store]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    console.warn('[BG] registering meeting_bg_pause listener, emitter=', !!BackgroundRecordingEmitter);
+    const sub = BackgroundRecordingEmitter?.addListener(
+      'meeting_bg_pause',
+      () => {
+        console.warn('[BG] meeting_bg_pause received');
+        useMeetingStore.getState().pauseSession();
+        realRecognizerRef.current?.pause();
+      },
+    );
+    return () => sub?.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const resumeMeeting = useCallback(async () => {
     const recognizer = realRecognizerRef.current;
     if (!recognizer) return;
     await recognizer.resume();
     store.resumeSession();
+    if (Platform.OS === 'android') {
+      const {pausedTotalMs} = useMeetingStore.getState().session;
+      resumeBackgroundRecording(pausedTotalMs);
+    }
   }, [store]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    console.warn('[BG] registering meeting_bg_resume listener, emitter=', !!BackgroundRecordingEmitter);
+    const sub = BackgroundRecordingEmitter?.addListener(
+      'meeting_bg_resume',
+      () => {
+        console.warn('[BG] meeting_bg_resume received');
+        realRecognizerRef.current?.resume();
+        useMeetingStore.getState().resumeSession();
+      },
+    );
+    return () => sub?.remove();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stopMeeting = useCallback(async () => {
     const persistence = getPersistenceService();
@@ -1262,6 +1310,9 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     // Snapshot session AFTER recognizer/pipeline stop so any flushed final
     // utterance is included before we hand off to the review screen.
     const currentSession = useMeetingStore.getState().session;
+    if (Platform.OS === 'android') {
+      stopBackgroundRecording();
+    }
     store.stopSession();
 
     if (!currentSession.id) {

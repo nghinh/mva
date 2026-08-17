@@ -16,12 +16,13 @@ import {SessionStatus, ConnectivityStatus} from '../state/meetingStore';
 // Helpers
 // =============================================================================
 
-function formatTime(startedAt: number | null): string {
+function formatTime(startedAt: number | null, pausedTotalMs: number = 0): string {
   if (!startedAt) return '00:00:00';
-  const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-  const hours = Math.floor(elapsed / 3600);
-  const minutes = Math.floor((elapsed % 3600) / 60);
-  const seconds = elapsed % 60;
+  const elapsed = Math.floor((Date.now() - startedAt - pausedTotalMs) / 1000);
+  const clamped = Math.max(0, elapsed);
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  const seconds = clamped % 60;
   const pad = (n: number) => n.toString().padStart(2, '0');
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
@@ -118,6 +119,8 @@ export interface MeetingStatusBarProps {
   sessionStatus: SessionStatus;
   connectivity: ConnectivityStatus;
   startedAt: number | null;
+  pausedTotalMs?: number;
+  pausedAt?: number | null;
   latencyMs?: number | null;
   onStopMeeting?: () => void;
   onPauseMeeting?: () => void;
@@ -136,6 +139,8 @@ export function MeetingStatusBar({
   sessionStatus,
   connectivity,
   startedAt,
+  pausedTotalMs = 0,
+  pausedAt = null,
   latencyMs,
   onStopMeeting,
   onPauseMeeting,
@@ -168,18 +173,27 @@ export function MeetingStatusBar({
     checkReducedMotion();
   }, []);
 
-  // Timer update — tiếp tục đếm khi pause (thời gian tổng session)
+  // Timer: only counts active recording time (excludes paused duration)
   useEffect(() => {
-    if ((sessionStatus === 'recording' || sessionStatus === 'paused') && startedAt) {
-      const updateTime = () => setElapsedTime(formatTime(startedAt));
+    if (sessionStatus === 'recording' && startedAt) {
+      const updateTime = () => setElapsedTime(formatTime(startedAt, pausedTotalMs));
       updateTime();
       intervalRef.current = setInterval(updateTime, 1000);
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
     }
-    setElapsedTime('00:00:00');
-  }, [sessionStatus, startedAt]);
+    if (sessionStatus === 'paused' && startedAt && pausedAt) {
+      // Freeze at the moment pause started
+      const frozenMs = pausedAt - startedAt - pausedTotalMs;
+      const elapsed = Math.floor(Math.max(0, frozenMs) / 1000);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setElapsedTime(`${pad(Math.floor(elapsed / 3600))}:${pad(Math.floor((elapsed % 3600) / 60))}:${pad(elapsed % 60)}`);
+    }
+    if (sessionStatus !== 'recording' && sessionStatus !== 'paused') {
+      setElapsedTime('00:00:00');
+    }
+  }, [sessionStatus, startedAt, pausedTotalMs, pausedAt]);
 
   const isRecording = sessionStatus === 'recording';
   const isPaused = sessionStatus === 'paused';

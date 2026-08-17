@@ -108,6 +108,25 @@ class MLKitTranslatorModule(reactContext: ReactApplicationContext)
     }
 
     @ReactMethod
+    fun downloadLanguagePack(srcLang: String, tgtLang: String, promise: Promise) {
+        val srcCode = langMap[srcLang]
+        val tgtCode = langMap[tgtLang]
+        if (srcCode == null || tgtCode == null) {
+            promise.reject("INVALID_LANG", "Unsupported language: $srcLang→$tgtLang")
+            return
+        }
+        scope.launch {
+            try {
+                val translator = getOrCreateTranslator(srcCode, tgtCode)
+                translator.downloadModelIfNeeded().await()
+                promise.resolve(true)
+            } catch (e: Exception) {
+                promise.reject("DOWNLOAD_ERROR", "Pack download failed: ${e.message}", e)
+            }
+        }
+    }
+
+    @ReactMethod
     fun downloadAllLanguagePacks(promise: Promise) {
         scope.launch {
             try {

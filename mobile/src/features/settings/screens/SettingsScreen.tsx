@@ -18,9 +18,12 @@ import {
   Modal,
   ActivityIndicator,
   LayoutAnimation,
+  Linking,
+  AppState,
 } from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {useNavigation} from '../../../app/navigation/router';
+import {checkAndroidTtsLanguage} from '../../../native/tts/NativeTTSSpeaker';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
@@ -44,6 +47,7 @@ import {SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type AppLanguage} from '../../../i
 import {formatDiarizationThreshold} from '../../../shared/config/runtimeConfig';
 import {getPersistenceService} from '../../../services/persistence';
 import getNativeAppleTranslator, {LanguagePackStatus} from '../../../native/NativeAppleTranslator';
+import {translationService} from '../../../services/TranslationService';
 import {getSpeakerClusterService, type SpeakerClusterConfig} from '../../../services/speaker/SpeakerClusterService';
 import {spacing, borderRadius, typography} from '../../../shared/constants';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
@@ -89,6 +93,27 @@ export function SettingsScreen(): React.JSX.Element {
   const inputLanguage = useInputLanguage();
   const {setTtsEnabled, setTtsRate, setInputLanguage} = useSettingsStore();
 
+  const [androidVoiceReady, setAndroidVoiceReady] = useState(true);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    checkAndroidTtsLanguage('vi').then(setAndroidVoiceReady);
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        checkAndroidTtsLanguage('vi').then(setAndroidVoiceReady);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  const openTtsSettings = useCallback(() => {
+    if (Platform.OS === 'android') {
+      Linking.openURL('android.settings.TTS_SETTINGS').catch(() => {
+        Linking.openSettings();
+      });
+    }
+  }, []);
+
   const [sessionDataSizeMB, setSessionDataSizeMB] = useState<number>(0);
   const [langSelectorVisible, setLangSelectorVisible] = useState(false);
   const [appLangSelectorVisible, setAppLangSelectorVisible] = useState(false);
@@ -104,34 +129,49 @@ export function SettingsScreen(): React.JSX.Element {
   const [packStatuses, setPackStatuses] = useState<Record<string, PackRowStatus>>({});
 
   const refreshPackStatuses = useCallback(async () => {
-    if (Platform.OS !== 'ios') { return; }
-    const nativeModule = getNativeAppleTranslator();
-    if (!nativeModule) { return; }
     const results: Record<string, PackRowStatus> = {};
-    await Promise.all(
-      LANG_PACKS.map(async ({srcLang}) => {
-        try {
-          results[srcLang] = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
-        } catch {
-          results[srcLang] = 'unknown';
-        }
-      }),
-    );
+    if (Platform.OS === 'ios') {
+      const nativeModule = getNativeAppleTranslator();
+      if (!nativeModule) { return; }
+      await Promise.all(
+        LANG_PACKS.map(async ({srcLang}) => {
+          try {
+            results[srcLang] = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
+          } catch {
+            results[srcLang] = 'unknown';
+          }
+        }),
+      );
+    } else {
+      await Promise.all(
+        LANG_PACKS.map(async ({srcLang}) => {
+          try {
+            const ok = await translationService.isAvailable(srcLang as any, targetLanguage as any);
+            results[srcLang] = ok ? 'installed' : 'available';
+          } catch {
+            results[srcLang] = 'unknown';
+          }
+        }),
+      );
+    }
     setPackStatuses(results);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetLanguage]);
 
   const handleDownloadPack = useCallback(async (srcLang: string) => {
-    const nativeModule = getNativeAppleTranslator();
-    if (!nativeModule) { return; }
     setPackStatuses(prev => ({...prev, [srcLang]: 'loading'}));
     try {
-      await nativeModule.downloadLanguageIfNeeded(srcLang, targetLanguage);
-    } catch { /* ignore */ }
-    // Re-check status after Apple sheet closes
-    try {
-      const status = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
-      setPackStatuses(prev => ({...prev, [srcLang]: status}));
+      if (Platform.OS === 'ios') {
+        const nativeModule = getNativeAppleTranslator();
+        if (!nativeModule) { return; }
+        await nativeModule.downloadLanguageIfNeeded(srcLang, targetLanguage);
+        const status = await nativeModule.getLanguagePackStatus(srcLang, targetLanguage);
+        setPackStatuses(prev => ({...prev, [srcLang]: status}));
+      } else {
+        await translationService.downloadLanguagePack(srcLang, targetLanguage);
+        const ok = await translationService.isAvailable(srcLang as any, targetLanguage as any);
+        setPackStatuses(prev => ({...prev, [srcLang]: ok ? 'installed' : 'available'}));
+      }
     } catch {
       setPackStatuses(prev => ({...prev, [srcLang]: 'unknown'}));
     }
@@ -393,11 +433,34 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Voice Output Section (iOS only) */}
-        {Platform.OS === 'ios' && (
-          <View style={styles.section}>
+        {/* Voice Output Section */}
+        <View style={styles.section}>
             <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>{t('sectionVoiceOutput')}</Text>
             <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>{t('sectionVoiceOutputSubtitle')}</Text>
+
+            {Platform.OS === 'android' && !androidVoiceReady && (
+              <TouchableOpacity
+                style={[styles.card, {
+                  backgroundColor: theme.colors.warning
+                    ? theme.colors.warning + '20'
+                    : '#F590201A',
+                  borderWidth: 1,
+                  borderColor: theme.colors.warning ?? '#F59020',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: spacing.sm,
+                }]}
+                onPress={openTtsSettings}
+                activeOpacity={0.8}>
+                <Text style={[styles.settingLabel, {color: theme.colors.text.primary}]}>
+                  {t('ttsVoiceNotInstalled')}
+                </Text>
+                <Text style={[styles.settingDesc, {color: theme.colors.primary}]}>
+                  {t('ttsVoiceInstallAction')}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={[styles.card, {backgroundColor: theme.colors.surface.primary}]}>
               {/* Read aloud toggle */}
@@ -456,15 +519,14 @@ export function SettingsScreen(): React.JSX.Element {
                     </View>
                     <View style={[styles.inlineBadge, {backgroundColor: theme.colors.primary + '20', borderColor: theme.colors.primary + '40'}]}>
                       <Text style={[styles.inlineBadgeText, {color: theme.colors.primary}]}>
-                        {t('ttsEngineSystem')}
+                        {Platform.OS === 'ios' ? t('ttsEngineSystem') : t('ttsEngineSystemAndroid')}
                       </Text>
                     </View>
                   </View>
                 </>
               )}
             </View>
-          </View>
-        )}
+        </View>
 
         {/* AI Models Section */}
         <View style={styles.section}>
@@ -513,13 +575,12 @@ export function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* Translation Language Packs (iOS only) */}
-        {Platform.OS === 'ios' && (
-          <View style={styles.section}>
+        {/* Translation Language Packs */}
+        <View style={styles.section}>
             <Text style={[styles.sectionLabel, {color: theme.colors.text.tertiary}]}>{t('sectionLanguagePacks')}</Text>
             <Text style={[styles.sectionSubtitle, {color: theme.colors.text.tertiary}]}>{t('sectionLanguagePacksSubtitle')}</Text>
 
-            {!isAppleTranslationAvailable() && (
+            {Platform.OS === 'ios' && !isAppleTranslationAvailable() && (
               <View style={[styles.iosWarningBanner, {backgroundColor: theme.colors.error + '18', borderColor: theme.colors.error + '50'}]}>
                 <AppIcon name="error" size={18} color={theme.colors.error} />
                 <View style={styles.iosWarningText}>
@@ -574,7 +635,6 @@ export function SettingsScreen(): React.JSX.Element {
               })}
             </View>
           </View>
-        )}
 
         {/* Appearance Section */}
         <View style={styles.section}>
