@@ -1,115 +1,113 @@
-# VibeVoice - Meeting Voice Assistant
+# VibeVoice — Meeting Voice Assistant (mobile app)
 
-A mobile AI assistant for enterprise multilingual meetings.
+The React Native app. `vibevoice` is the internal package name; the product is Meeting Voice Assistant (MVA).
 
-## Project Overview
+For product and architecture context, start at [`../docs/project-context.md`](../docs/project-context.md).
 
-VibeVoice is a React Native (Expo) application that provides:
-- On-device speech-to-text transcription
-- Real-time translation
-- AI-powered meeting assistance
-- Offline-first operation
+## Stack
 
-## Architecture
+| Layer | Choice |
+|-------|--------|
+| Framework | React Native 0.85 (bare — **not** Expo), React 19.2.3, TypeScript 5.6 |
+| Navigation | Custom lightweight router in `src/app/navigation/` — React Navigation 7 is a dependency but does not drive routing |
+| State | Zustand 5 |
+| i18n | i18next + react-i18next — VI / EN / JA / KO / ZH |
+| Inference | `react-native-sherpa-onnx` ^0.4.2 |
+| Storage | AsyncStorage (Android) / `@dr.pogodin/react-native-fs` JSON files (iOS), AES-GCM encrypted |
+| Native | Swift + Objective-C on iOS, Kotlin on Android |
 
-This project follows the architecture defined in `/docs/planning-artifacts/architecture.md`.
+Node ≥ 20. iOS deployment target 18.0. Android `minSdk 24`, `compileSdk`/`targetSdk 36`.
 
-### Key Technologies
-
-- **Expo SDK 52** with file-based routing
-- **React Navigation 7** for navigation
-- **TanStack Query 5** for server state
-- **Zustand 4** for UI state
-- **TypeScript** for type safety
-
-### Project Structure
+## Project structure
 
 ```
 mobile/
 ├── src/
-│   ├── app/              # App entry point and navigation
-│   ├── features/         # Feature modules
-│   │   ├── bootstrap/    # Splash/initialization screens
-│   │   ├── models/       # Model management screens
-│   │   └── settings/     # Settings screens
-│   ├── native/           # Native module interfaces
-│   │   └── model_manager/
-│   └── shared/           # Shared code
-│       ├── components/ui/ # Reusable UI components
-│       ├── constants/    # Theme and constants
-│       ├── store/        # Zustand stores
-│       └── types/        # TypeScript types
-├── assets/               # Images and fonts
-├── App.tsx               # Expo Router entry
-└── package.json
+│   ├── app/navigation/       # RootNavigator + router
+│   ├── features/
+│   │   ├── bootstrap/        # Splash: model install, pack setup, readiness
+│   │   ├── meeting/          # Meeting screen, useMeetingSession orchestrator
+│   │   ├── history/          # Session list, review, recap, exporters
+│   │   ├── models/           # Bundled model repository screen
+│   │   └── settings/         # Settings screen
+│   ├── native/
+│   │   ├── stt/              # RealSpeechRecognizer (live), MeetingPipeline (simulator)
+│   │   ├── vad/              # VADProcessor — simulator path only
+│   │   ├── speaker/          # Embedding + offline diarization bridges
+│   │   ├── models/           # bundledModels, BundledModelInstaller
+│   │   ├── tts/              # NativeTTSSpeaker
+│   │   ├── backgroundRecording/
+│   │   └── model_manager/    # dead code — mock download interface, no callers
+│   ├── services/             # TranslationService, persistence, clustering, TTS
+│   ├── shared/               # store, theme, ui components, utils, config
+│   └── i18n/
+├── assets/models/            # model source of truth (binaries gitignored)
+├── scripts/copy-required-model-assets.js
+├── ios/                      # native modules + VibeVoiceNative Xcode project
+└── android/                  # native modules + foreground service
 ```
 
-## Epic 1: Bootstrap/Model UX Slice
-
-This implementation covers Stories 1-2, 1-3, and 1-4:
-
-### Story 1-2: Secure App Bootstrap and Startup Readiness Flow
-- Splash/initialization screen with model, pre-warm, and server status
-- Combined readiness orchestration via Zustand store
-- Actionable failure and degraded states
-
-### Story 1-3: Model Download, Cache, and Local Lifecycle Management
-- Model repository screen with available models
-- Download progress visualization
-- Delete functionality with confirmation
-
-### Story 1-4: Pre-warm the STT Model
-- Pre-warm state tracking in bootstrap store
-- Integration with splash screen readiness display
-
-## Components
-
-### Reusable UI Components
-
-- `ReadinessStatus` - Shows readiness state for model/prewarm/server
-- `ProgressCard` - Model download progress display
-- `ModelCard` - Model information and actions
-- `ServerSettingsForm` - Server URL configuration
-
-### State Management
-
-- `useBootstrapStore` - Zustand store for bootstrap state
-  - `model` - Model state (status, currentModel, downloadProgress)
-  - `prewarm` - Pre-warm state (status, startedAt, completedAt)
-  - `server` - Server state (status, url, latencyMs)
-
-## Running the App
+## Running
 
 ```bash
-cd mobile
 npm install
-npm start
+npm run start            # Metro
+npm run ios              # iOS debug
+npm run ios:release      # iOS release
+npm run android          # Android debug
+npm run build:android:release
 ```
 
-## iOS Setup
+### iOS setup
 
-Run this once after cloning or pulling iOS dependency changes:
+Run once after cloning, or after any iOS dependency change:
 
 ```bash
-cd mobile
 npm ci
 npm run ios:pods
 npm run ios:open
 ```
 
-Build from `ios/VibeVoiceNative.xcworkspace`, not `ios/VibeVoiceNative.xcodeproj`. The workspace includes the CocoaPods project and the generated `Pods/Target Support Files` configs that Xcode needs.
+Build from `ios/VibeVoiceNative.xcworkspace`, **not** `ios/VibeVoiceNative.xcodeproj` — the workspace carries the CocoaPods project and the generated `Pods/Target Support Files` configs Xcode needs.
 
-## Development Notes
+TestFlight and device-build specifics: [`ios/BUILD-TESTFLIGHT.md`](ios/BUILD-TESTFLIGHT.md).
 
-- Mock data/state is used where real backend/native integration is not yet available
-- State is shaped for model, prewarm, and server readiness
-- Dark mode first, executive product tone
+For a physical device on the LAN:
 
-## Design Tokens
+```bash
+npm run start:lan
+npm run ios:device       # runs sync-metro-host.js first
+```
 
-See `/mobile/src/shared/constants/theme.ts` for the complete design system including:
-- Color palette (dark mode primary)
-- Typography scale
-- Spacing scale
-- Border radius
-- Shadow definitions
+## Quality checks
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+```
+
+Test coverage is thin — 9 test files. Anything you touch is worth a test.
+
+## Model assets
+
+Model `.onnx` binaries are gitignored. `scripts/copy-required-model-assets.js` downloads the archives from the sherpa-onnx releases when they are missing, and the Xcode build phase invokes it automatically, so an iOS build is self-sufficient. For Android, put the model folders under `android/app/src/main/assets/models/`.
+
+At runtime `BundledModelInstaller` copies the model folders out of the app bundle into `Documents/models/` (excluded from iCloud backup on iOS) and every engine loads from there.
+
+| Folder | Purpose |
+|--------|---------|
+| `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17` | STT auto mode — EN/JA/KO/ZH |
+| `sherpa-onnx-zipformer-vi-int8-2025-04-20` | STT Vietnamese mode |
+| `speaker-diarization` | Segmentation placeholder + CAM++ embedding |
+
+Keep the folder names in `src/native/models/bundledModels.ts` and in `scripts/copy-required-model-assets.js` in sync — they are duplicated by design and drift silently.
+
+## Things worth knowing before you edit
+
+- **`RealSpeechRecognizer` is the live STT path.** `MeetingPipeline` + `VADProcessor` + `AudioCaptureSimulator` are the simulator path used by tests. Do not assume a change to one affects the other.
+- **Speech detection is energy-based**, with deliberately different thresholds per platform — iOS receives AGC'd audio, Android receives unprocessed audio. Aligning them breaks Android end-of-utterance detection. See `architecture.md` ADR-007.
+- **`src/native/model_manager/` is dead code** — a download interface with a mock implementation and no callers. Models are bundled.
+- **Storage is key-value, not SQLite.** The SQLite schema in the header of `src/services/persistence/index.ts` is the migration target, not the current state.
+- **Diarization, recap, and TTS must stay non-fatal.** A failure in any of them has to leave transcript and translation working.
+- Two theme locations exist: `src/shared/theme/` (tokens) and `src/shared/constants/theme.ts`. Check which one a component uses before editing.

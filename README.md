@@ -7,92 +7,50 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Mobile voice assistant for multilingual meetings.
-Private, offline-first, and built for teams that need fast transcription, translation, and post-meeting review directly on device.
+Transcription, translation, and speaker attribution run on the phone — meeting audio never leaves the device.
 
 If you care about on-device AI, privacy-aware mobile UX, or multilingual meeting products, this repo is worth exploring.
-If this project is useful, consider giving it a star to support future development.
 
 ## Overview
 
-MVA is a mobile product for capturing and understanding conversations in multilingual meetings.
-It focuses on a local-first workflow: record what matters, turn speech into structured meeting content, translate across languages, and make the session easy to review afterward.
+MVA captures a multilingual meeting, transcribes it, translates it, attributes each utterance to a speaker, and turns the result into something reviewable afterwards. All of that happens on the device.
 
-Unlike many meeting tools that depend heavily on cloud-only pipelines, MVA explores a more privacy-aware approach with on-device AI workflows, native mobile UX, and local model lifecycle management.
+Unlike meeting tools that stream audio to a cloud pipeline, MVA keeps the entire meeting path local: on-device speech recognition, platform-native translation engines, embedding-based speaker clustering, and encrypted local storage.
 
-## Why MVA is interesting
-
-- Built for multilingual meeting scenarios
-- Offline-first product direction
-- On-device speech workflow integration
-- React Native app with native iOS bridges
-- Local AI model management inside mobile UX
-- Release build already validated on a physical iPad
-
-## Why clone this repo
-
-Clone this repo if you want to study or build:
-- on-device speech products on mobile
-- multilingual meeting assistants
-- React Native apps with native AI integration
-- private, local-first product workflows
-- mobile UX for transcript, translation, and review
+**One honest caveat up front:** the app is offline *during meetings*, not offline in absolute terms. Translation language packs (Apple on iOS, Google ML Kit on Android) are downloaded once during setup. After that, a meeting runs fine in airplane mode. There is no backend, no telemetry, and no meeting content ever leaves the phone.
 
 ## Core capabilities
 
 ### Live meeting workspace
-- Live transcript lane
-- Translation lane
-- Meeting status bar
-- Active session state handling
+- Transcript lane and translation lane, with a split/single toggle
+- Language badges (EN/JA/KO/ZH/VI) and speaker badges (S1/S2/S3…)
+- Draft translations for in-progress speech, promoted when the utterance finalizes
+- Recording indicator, session timer, auto-scroll with jump-to-latest
+- Capture survives screen lock and backgrounding
+- Optional spoken read-back of the translation lane
 
 ### Session history and review
-- Browse saved sessions
-- Review transcripts after meetings
-- Generate recap content
-- Export transcript artifacts
+- Browse saved sessions with date, duration, languages, and speaker count
+- Review tabs: Transcript · Insights · Media · Export
+- Deterministic recap — key points, key moments, speaker and language statistics, each labeled with the rule that produced it
+- Recalculate speakers on a saved session
+- Export transcript, recap, or full minutes as Markdown
 
-### Local AI model lifecycle
-- Browse available models
-- Download and cache models
-- Track readiness and progress
-- Remove local assets when needed
+### On-device engines
+- **STT (auto):** SenseVoice-Small int8 — EN/JA/KO/ZH — with inverse text normalization
+- **STT (Vietnamese):** Zipformer-VI int8 offline transducer, selected in Settings
+- **Translation:** Apple Translation Framework (iOS) · Google ML Kit Translate (Android)
+- **Speaker diarization:** CAM++ 192-dim embeddings, clustered in TypeScript
+- **Recap:** rule-based TypeScript — no AI, no LLM, no cloud
 
-### Startup readiness flow
-- Bootstrap checks for app state
-- Prewarm visibility
-- Server connectivity status
-- Actionable degraded and failure states
-
-## Product highlights
-
-- Mobile-first experience
-- Privacy-aware local-first direction
-- On-device speech-to-text pipeline
-- Real-time translation flow
-- Meeting review workflow
-- Native iOS integration points
-- Model management UX built into app
-
-## Feature checklist
-
-- [x] Multilingual meeting workflow
-- [x] Local-first mobile architecture
-- [x] Transcript and translation experience
-- [x] Session review flow
-- [x] Local model management
-- [x] iOS release build validation
-- [ ] Demo video
-- [ ] Public test build
-- [ ] One-command model setup
+### Setup and readiness
+- Bundled models installed from the app bundle on first launch
+- Language-pack setup with per-pair status
+- Readiness surface before Start: model, prewarm, translator, and missing-pack states, each with an action
 
 ## App screens
 
-- Splash / bootstrap readiness
-- Meeting screen
-- History list
-- Session review
-- Model repository
-- Settings
+Splash / bootstrap · Meeting · History (home) · Session review · Model repository · Settings
 
 ## Screenshots
 
@@ -106,30 +64,29 @@ Clone this repo if you want to study or build:
 
 ## Tech stack
 
-- React Native 0.85
-- React 19
-- TypeScript
-- React Navigation 7
-- TanStack Query 5
-- Zustand
-- Swift / Objective-C bridge on iOS
-- `react-native-sherpa-onnx` for on-device inference integration
+- React Native 0.85, React 19, TypeScript 5.6
+- Zustand 5 for state
+- i18next — the UI itself ships in Vietnamese, English, Japanese, Korean, and Chinese
+- `react-native-sherpa-onnx` for on-device inference
+- Swift / Objective-C native modules on iOS, Kotlin on Android
+- Encrypted local storage: AsyncStorage (Android) / JSON files (iOS), AES-GCM with keys in Keychain / Keystore
 
 ## Repository structure
 
 ```text
 .
+├── bench/                      # Phase 0 STT benchmark harness + results
+├── docs/
+│   ├── planning-artifacts/     # PRD · architecture · epics · UX spec
+│   └── implementation-artifacts/
 └── mobile/
     ├── src/
-    │   ├── app/
-    │   ├── features/
-    │   │   ├── bootstrap/
-    │   │   ├── history/
-    │   │   ├── meeting/
-    │   │   ├── models/
-    │   │   └── settings/
-    │   ├── native/
-    │   └── shared/
+    │   ├── app/                # navigation
+    │   ├── features/           # bootstrap · meeting · history · models · settings
+    │   ├── native/             # stt · vad · speaker · tts · models · bridges
+    │   ├── services/           # translation · persistence · speaker · tts
+    │   ├── shared/             # store · theme · components · utils
+    │   └── i18n/
     ├── ios/
     └── android/
 ```
@@ -138,8 +95,8 @@ Clone this repo if you want to study or build:
 
 ### Requirements
 - Node.js 20+
-- Xcode for iOS
-- Android Studio for Android
+- Xcode for iOS (deployment target 18.0)
+- Android Studio for Android (minSdk 24, target 36)
 - CocoaPods for iOS dependencies
 
 ### Install and start
@@ -150,73 +107,76 @@ npm install
 npm run start
 ```
 
-### Run on iOS
+### Run
 
 ```bash
-cd mobile
-npm run ios
+npm run ios                    # iOS debug
+npm run ios:release            # iOS release
+npm run android                # Android debug
+npm run build:android:release  # Android release APK
 ```
 
-### Run iOS release build
+### Quality checks
 
 ```bash
-cd mobile
-npm run ios:release
-```
-
-### Run on Android
-
-```bash
-cd mobile
-npm run android
-```
-
-### Build Android release
-
-```bash
-cd mobile
-npm run build:android:release
-```
-
-## Quality checks
-
-```bash
-cd mobile
 npm run lint
 npm run typecheck
 npm test
 ```
 
-## Notes for cloning
+## Model assets
 
-Large local model artifacts and machine-specific files are intentionally excluded from git history.
-If you want full offline AI flows, prepare local model assets separately after cloning.
+Model binaries are gitignored — a fresh clone has the folder structure and READMEs but no `.onnx` files.
 
-## Who this repo is for
+`mobile/scripts/copy-required-model-assets.js` downloads the archives from the [sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases) and is wired into the Xcode build phase, so an iOS build fetches them automatically. For Android, place them under `mobile/android/app/src/main/assets/models/`.
 
-This repo is a good fit for:
-- Engineers exploring on-device AI on mobile
-- Product teams prototyping multilingual meeting assistants
-- Developers learning React Native plus native bridge integration
-- Builders interested in privacy-aware speech products
+| Model | Purpose | Disk |
+|-------|---------|------|
+| `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17` | STT, EN/JA/KO/ZH | ~234MB |
+| `sherpa-onnx-zipformer-vi-int8-2025-04-20` | STT, Vietnamese | ~74MB |
+| `speaker-diarization/` | Segmentation placeholder + CAM++ embedding | ~35MB |
+
+Translation adds nothing to the bundle — it uses the platform language packs.
+
+## Benchmarks
+
+Vietnamese STT was chosen from measurement, not assertion. FLEURS-vi, 200 utterances, Mac CPU, 4 threads:
+
+| Model | WER | RTF | Verdict |
+|---|---:|---:|---|
+| `zipformer-vi` (Apache-2.0) | **10.09%** | 0.025 | Chosen |
+| `zipformer-vi-30m` (CC-BY-NC-ND) | 9.51% | 0.023 | Better, but not shippable |
+| `sense-voice` | 99.71% | 0.046 | Unusable for Vietnamese |
+| `omnilingual-300m` | 26.77% | 0.234 | Rejected |
+
+See [`bench/README.md`](bench/README.md) to reproduce, including how to run the harness against your own meeting audio.
+
+## Project status
+
+Feature-complete for a demo. **Not validated for release.**
+
+The Vietnamese WER above is the only measured number in this project, and FLEURS is clean read speech — an optimistic upper bound by construction. On-device RTF, end-to-end latency, RAM, and battery drain have not been measured on a phone, and the formal go/no-go gate (WER on consented real meeting audio) has not been run. That work is tracked as Epic 8 in [`docs/planning-artifacts/epics.md`](docs/planning-artifacts/epics.md).
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [PRD](docs/planning-artifacts/prd.md) | Requirements, status per requirement, decision log |
+| [Architecture](docs/planning-artifacts/architecture.md) | Components, data flow, ADRs, known debt |
+| [Epics](docs/planning-artifacts/epics.md) | Story status across nine epics |
+| [Story catalog](docs/implementation-artifacts/index.md) | Per-story status, and which story files are stale |
+| [Project context](docs/project-context.md) | Orientation, and the traps new contributors hit |
+
+The PRD, architecture, epics, story index, and project context were reconciled against the code on 2026-08-17. The UX design specification has not been — it still describes an earlier version of the product.
 
 ## Roadmap
 
-- Better diarization UX
-- Richer meeting summaries
-- More export formats
-- Easier model setup
-- Stronger Android and iPad production polish
-
-## Support this project
-
-If MVA gave you ideas for your own app, helped your research, or saved you implementation time:
-- star repo
-- watch updates
-- open issue with feedback
-- share with teammates building AI mobile products
+- Measure everything on device (Epic 8) — the blocker for any release commitment
+- Real segmentation model for diarization, replacing the placeholder
+- Action-item detection and topic segmentation in the recap
+- SQLite migration for session storage
+- Stronger Android and iPad polish
 
 ## Contributing
 
-Issues and pull requests are welcome.
-
+Issues and pull requests are welcome. If you change a threshold, a model, or a storage key, update `docs/planning-artifacts/architecture.md` in the same change — this repository has been through one documentation drift already.
