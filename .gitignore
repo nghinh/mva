@@ -52,3 +52,6 @@ mobile/assets/models/**/vocab.json
 # Temporary extracted speaker diarization archives
 mobile/assets/models/speaker-diarization/*.tar.bz2
 mobile/assets/models/speaker-diarization/sherpa-onnx-pyannote-segmentation-3-0/
+
+# Brainstorming mockups (visual companion)
+.superpowers/
