@@ -14,6 +14,29 @@ jestGlobal.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jestGlobal.fn((key) => { delete asyncStorageStore[key]; return Promise.resolve(); }),
 }));
 
+/**
+ * IN-MEMORY FILESYSTEM mock cho @dr.pogodin/react-native-fs.
+ *
+ * Module thật là ESM và gọi TurboModuleRegistry.getEnforcing() ngay khi import,
+ * nên bất kỳ test nào chạm tới persistence service đều chết lúc load. Trên iOS
+ * persistence ghi bằng file (safeGetItem/safeSetItem/safeRemoveItem), vì vậy mock
+ * phải giữ được dữ liệu giữa các lần gọi chứ không chỉ trả về giá trị rỗng.
+ */
+const fsStore = {};
+
+jestGlobal.mock('@dr.pogodin/react-native-fs', () => ({
+  DocumentDirectoryPath: '/mock-documents',
+  exists: jestGlobal.fn((path) => Promise.resolve(Object.prototype.hasOwnProperty.call(fsStore, path))),
+  readFile: jestGlobal.fn((path) => (
+    Object.prototype.hasOwnProperty.call(fsStore, path)
+      ? Promise.resolve(fsStore[path])
+      : Promise.reject(new Error(`ENOENT: no such file or directory, open '${path}'`))
+  )),
+  writeFile: jestGlobal.fn((path, contents) => { fsStore[path] = String(contents); return Promise.resolve(); }),
+  unlink: jestGlobal.fn((path) => { delete fsStore[path]; return Promise.resolve(); }),
+  mkdir: jestGlobal.fn(() => Promise.resolve()),
+}));
+
 jestGlobal.mock('react-native-safe-area-context', () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,

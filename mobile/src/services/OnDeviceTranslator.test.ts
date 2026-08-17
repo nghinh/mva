@@ -6,12 +6,15 @@ const mockInitialize = jest.fn().mockResolvedValue(true);
 const mockUnload = jest.fn().mockResolvedValue(undefined);
 const mockIsAvailable = jest.fn().mockResolvedValue(true);
 
+// Factory được jest.mock hoist lên đầu file và chạy ngay khi OnDeviceTranslator
+// require('./TranslationService') — lúc đó các const mock* ở trên còn chưa gán.
+// Vì vậy phải tham chiếu chúng lazy bên trong hàm, không gán trực tiếp.
 jest.mock('./TranslationService', () => ({
   translationService: {
-    initialize: mockInitialize,
-    translate: mockTranslate,
-    unload: mockUnload,
-    isAvailable: mockIsAvailable,
+    initialize: (...args: unknown[]) => mockInitialize(...args),
+    translate: (...args: unknown[]) => mockTranslate(...args),
+    unload: (...args: unknown[]) => mockUnload(...args),
+    isAvailable: (...args: unknown[]) => mockIsAvailable(...args),
   },
 }));
 
