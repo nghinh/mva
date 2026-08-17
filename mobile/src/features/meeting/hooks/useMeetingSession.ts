@@ -507,26 +507,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
             }
           }
         }
-      } else if (speakerService.isReady()) {
-        // Fallback: use SenseVoice utterance boundaries directly
-        for (const utt of chunkUtterances) {
-          if (utt.samples.length < SAMPLE_RATE) continue;
-          const trimmed = trimSamplesForSpeakerEmbedding(utt.samples, SAMPLE_RATE);
-          if (trimmed.length < SAMPLE_RATE) continue;
-          const embedding = await speakerService.extractEmbedding(trimmed, SAMPLE_RATE);
-          if (!embedding) continue;
-          const decision = clusterService.addEmbedding(
-            utt.utteranceId, Array.from(embedding), utt.endMs,
-            trimmed.length / SAMPLE_RATE,
-          );
-          if (decision.speakerId) {
-            chunkAssignments.set(utt.utteranceId, {
-              speakerId: decision.speakerId,
-              speakerLabel: decision.speakerLabel,
-            });
-          }
-        }
       }
+      // Không còn nhánh fallback theo utterance boundaries: `sessionAudio.utterances`
+      // chỉ mang {utteranceId, startMs, endMs} nên nhánh cũ truy cập `utt.samples`
+      // (undefined) sẽ ném lỗi ngay khi PyAnnote trả về 0 segment. Khi không có
+      // segment, chunk này đơn giản là không có assignment.
 
       // Persist immediately → triggers SessionReview progressive reveal
       await saveUtteranceAssignments(chunkAssignments);
