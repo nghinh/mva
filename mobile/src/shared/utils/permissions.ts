@@ -1,8 +1,37 @@
-import {Platform, PermissionsAndroid, Alert, Linking} from 'react-native';
+import {Platform, PermissionsAndroid, Alert, Linking, NativeModules} from 'react-native';
+
+type IosMicrophonePermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unknown';
+
+type IosMicrophonePermissionModule = {
+  checkPermission: () => Promise<IosMicrophonePermissionStatus>;
+  requestPermission: () => Promise<IosMicrophonePermissionStatus>;
+};
+
+const iosMicrophonePermission =
+  NativeModules.MicrophonePermissionModule as IosMicrophonePermissionModule | undefined;
+
+function showIosMicrophoneSettingsAlert(): void {
+  Alert.alert(
+    'Microphone Permission Required',
+    'MVA needs microphone access to transcribe meetings. Please enable microphone access in Settings.',
+    [
+      {text: 'Cancel', style: 'cancel'},
+      {text: 'Open Settings', onPress: () => Linking.openSettings()},
+    ],
+  );
+}
 
 export async function checkAudioPermission(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    if (!iosMicrophonePermission) {
+      return false;
+    }
+    const status = await iosMicrophonePermission.checkPermission();
+    return status === 'granted';
+  }
+
   if (Platform.OS !== 'android') {
-    return true;
+    return false;
   }
 
   const result = await PermissionsAndroid.check(
@@ -12,8 +41,31 @@ export async function checkAudioPermission(): Promise<boolean> {
 }
 
 export async function requestAudioPermission(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    if (!iosMicrophonePermission) {
+      showIosMicrophoneSettingsAlert();
+      return false;
+    }
+
+    const currentStatus = await iosMicrophonePermission.checkPermission();
+    const nextStatus =
+      currentStatus === 'undetermined'
+        ? await iosMicrophonePermission.requestPermission()
+        : currentStatus;
+
+    if (nextStatus === 'granted') {
+      return true;
+    }
+
+    if (nextStatus === 'denied') {
+      showIosMicrophoneSettingsAlert();
+    }
+
+    return false;
+  }
+
   if (Platform.OS !== 'android') {
-    return true;
+    return false;
   }
 
   const hasPermission = await checkAudioPermission();
