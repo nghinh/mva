@@ -812,16 +812,17 @@ export class RealSpeechRecognizer {
       // không ném ra ngoài làm hỏng processingChain của cả phiên.
       let senseResult: {text?: string; lang?: string} = {};
       let viResult: {text?: string} = {};
-      let anyDecodeOk = false;
+      let senseOk = false;
+      let viOk = false;
       try {
         senseResult = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
-        anyDecodeOk = true;
+        senseOk = true;
       } catch (error) {
         warnLog('[RealSTT] gate: sense decode failed for this utterance:', error);
       }
       try {
         viResult = await this.viGateEngine.transcribeSamples(snapshot, SAMPLE_RATE);
-        anyDecodeOk = true;
+        viOk = true;
       } catch (error) {
         warnLog('[RealSTT] gate: vi decode failed for this utterance:', error);
       }
@@ -836,9 +837,11 @@ export class RealSpeechRecognizer {
           {text: viText},
           tallyLeader(this.gateTally),
         );
-        // Chỉ ghi tally khi có ít nhất một decode chạy được — không để một
-        // engine hỏng "thắng" bằng cách bên kia im lặng vì lỗi kỹ thuật.
-        if (anyDecodeOk) {
+        // Chỉ ghi tally khi CẢ HAI decode đều chạy được: một lỗi kỹ thuật
+        // một phía không được tính là chiến thắng cho bên còn lại, nếu không
+        // một engine hỏng lặp lại sẽ làm lệch quyết định khóa. Văn bản vẫn
+        // được phát bình thường — chỉ việc ghi điểm là chặt hơn.
+        if (senseOk && viOk) {
           recordWin(this.gateTally, winner);
         }
         if (winner === 'vi') {
