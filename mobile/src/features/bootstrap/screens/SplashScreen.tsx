@@ -61,6 +61,9 @@ const MOCK_MODEL: ModelInfo = {
   isOptimizedFor: ['iPhone 15 Pro'],
 };
 
+// Bootstrap chỉ được chạy một lần mỗi process — xem comment tại chỗ dùng.
+let bootstrapHasRunThisLaunch = false;
+
 const PLATFORM_TRANSLATION_MODEL: ModelInfo = {
   id: Platform.OS === 'ios' ? 'apple-translation' : 'ml-kit-translation',
   name: Platform.OS === 'ios' ? 'Apple Translation' : 'Google ML Kit Translation',
@@ -211,7 +214,6 @@ export const SplashScreen: React.FC = () => {
   const userChoiceRef = useRef<((confirmed: boolean) => void) | null>(null);
   /** Set while a bounded pack run is in flight so the user can abandon it. */
   const cancelSignalRef = useRef<{cancelled: boolean} | null>(null);
-  const hasBootstrappedRef = useRef(false);
   const navigationRef = useRef(navigation);
   navigationRef.current = navigation;
 
@@ -241,10 +243,15 @@ export const SplashScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (hasBootstrappedRef.current) {
+    // Guard Ở MỨC MODULE, không phải useRef: NavigatorContent unmount/remount
+    // SplashScreen mỗi khi overallStatus đổi, và useRef mới sinh theo mỗi mount
+    // sẽ cho run() chạy LẠI từ đầu → vòng lặp splash ↔ meeting tự duy trì
+    // (mỗi run() flip prewarm status → remount → run() mới). Cờ module sống
+    // theo process nên bootstrap chỉ chạy đúng một lần mỗi lần mở app.
+    if (bootstrapHasRunThisLaunch) {
       return;
     }
-    hasBootstrappedRef.current = true;
+    bootstrapHasRunThisLaunch = true;
 
     const run = async () => {
       try {
@@ -275,6 +282,21 @@ export const SplashScreen: React.FC = () => {
           setModelError(message);
           setIsInitializing(false);
           return;
+        }
+
+        // Step 1b: Benchmark STT một lần mỗi bản cài để phân tier máy
+        // (language gate). Chạy Ở ĐÂY — trước khi translator ready — vì lúc
+        // này overallStatus chắc chắn còn 'initializing' nên splash hiển thị
+        // ổn định suốt thời gian đo; nếu đặt giữa startPrewarm/completePrewarm
+        // sẽ kéo dài cửa sổ 'warming' và gây nhấp nháy splash ↔ meeting.
+        // Mọi lỗi bên trong runSttBenchmark đã được nuốt → tier 'low' an toàn.
+        {
+          const {sttBenchmark, setSttBenchmark} = useSettingsStore.getState();
+          if (!sttBenchmark) {
+            const benchmarkResult = await runSttBenchmark();
+            setSttBenchmark(benchmarkResult);
+            warnLog('[SplashScreen] STT benchmark:', benchmarkResult);
+          }
         }
 
         // Step 2: Initialize platform-native translation (Apple Translation on iOS, ML Kit on Android)
@@ -395,17 +417,10 @@ export const SplashScreen: React.FC = () => {
         // pressure on physical devices. Diarization is only needed after the
         // meeting or when live speaker assignment is explicitly enabled, so it
         // is initialized lazily at point-of-use instead.
+        // startPrewarm → completePrewarm phải liền kề (cùng một batch React):
+        // mọi khoảng chờ chen giữa sẽ mở cửa sổ overallStatus='initializing'
+        // khiến NavigatorContent nhấp nháy về splash.
         startPrewarm();
-
-        // Benchmark STT một lần mỗi bản cài để phân tier máy (language gate).
-        // Mọi lỗi bên trong runSttBenchmark đã được nuốt → tier 'low' an toàn.
-        const {sttBenchmark, setSttBenchmark} = useSettingsStore.getState();
-        if (!sttBenchmark) {
-          const benchmarkResult = await runSttBenchmark();
-          setSttBenchmark(benchmarkResult);
-          warnLog('[SplashScreen] STT benchmark:', benchmarkResult);
-        }
-
         completePrewarm();
         setIsInitializing(false);
         navigationRef.current.replace('Meeting');
