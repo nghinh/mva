@@ -224,7 +224,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   const draftLastTimestampRef = useRef(new Map<UtteranceId, number>());
   // Language used for the last size measurement above, so a gate-leader flip
   // mid-utterance (see maybeTranslateDraft) can be detected and reset.
-  const draftLastLangRef = useRef(new Map<UtteranceId, string>());
+  const draftLastLangRef = useRef(new Map<UtteranceId, SourceLanguage>());
 
   const trimSamplesForSpeakerEmbedding = useCallback((samples: number[], sampleRate: number): number[] => {
     if (samples.length === 0) {
