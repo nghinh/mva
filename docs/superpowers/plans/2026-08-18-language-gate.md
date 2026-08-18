@@ -228,7 +228,12 @@ export function scoreUtterance(
     return enSignal(sense) >= EN_SIGNAL_STRONG ? 'sense' : 'vi';
   }
 
-  // Rule 3: both signals present (garbage-mirror zone) or neither → leader.
+  // Rule 3: sense has strong English signal and vi is not strong → sense.
+  // (Cần thiết cho fixture 'english sense output…': viDiacriticRatio 0.0698
+  // dưới ngưỡng 0.08 nên rơi khỏi Rule 2 — không có nhánh này sẽ trả 'vi' sai.)
+  if (!viStrong && enSignal(sense) >= EN_SIGNAL_STRONG) return 'sense';
+
+  // Rule 4: both signals present (garbage-mirror zone) or neither → leader.
   return leader;
 }
 
