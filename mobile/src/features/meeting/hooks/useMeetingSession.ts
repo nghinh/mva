@@ -59,7 +59,11 @@ export interface UseMeetingSessionReturn {
   transcript: TranscriptEntry[];
   partialTranscript: string;
   currentUtteranceId: UtteranceId | null;
-  startMeeting: (sourceLanguage?: SourceLanguage, targetLanguage?: TargetLanguage) => Promise<void>;
+  startMeeting: (
+    sourceLanguage?: SourceLanguage,
+    targetLanguage?: TargetLanguage,
+    options?: {gateMode?: boolean},
+  ) => Promise<void>;
   stopMeeting: () => Promise<{sessionId: string | null; fallbackSession: SessionData | null; fallbackUtterances: UtteranceData[]}>;
   pauseMeeting: () => Promise<void>;
   resumeMeeting: () => Promise<void>;
@@ -218,6 +222,9 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   // not starve STT CPU.
   const draftLastSizeRef = useRef(new Map<UtteranceId, number>());
   const draftLastTimestampRef = useRef(new Map<UtteranceId, number>());
+  // Language used for the last size measurement above, so a gate-leader flip
+  // mid-utterance (see maybeTranslateDraft) can be detected and reset.
+  const draftLastLangRef = useRef(new Map<UtteranceId, string>());
 
   const trimSamplesForSpeakerEmbedding = useCallback((samples: number[], sampleRate: number): number[] => {
     if (samples.length === 0) {
@@ -666,7 +673,14 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
 
     const now = Date.now();
-    const lastSize = draftLastSizeRef.current.get(event.utterance_id) ?? 0;
+    // In gate mode the gate leader can flip mid-utterance (e.g. vi -> en between
+    // partials), which flips the measurement unit above (words vs characters).
+    // Comparing sizes across that flip goes deeply negative and would stall
+    // drafts for the rest of the utterance, so treat a language change as a
+    // fresh utterance for growth-tracking purposes.
+    const lastLang = draftLastLangRef.current.get(event.utterance_id);
+    const languageFlipped = lastLang !== undefined && lastLang !== event.language;
+    const lastSize = languageFlipped ? 0 : draftLastSizeRef.current.get(event.utterance_id) ?? 0;
     const lastAt = draftLastTimestampRef.current.get(event.utterance_id) ?? 0;
     const grewEnough = size - lastSize >= growthGate;
     const elapsedEnough = now - lastAt >= MIN_INTERVAL_MS;
@@ -675,6 +689,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
     draftLastSizeRef.current.set(event.utterance_id, size);
     draftLastTimestampRef.current.set(event.utterance_id, now);
+    draftLastLangRef.current.set(event.utterance_id, event.language);
 
     const dispatchDraftTranslation = async () => {
       const translator = getOnDeviceTranslator();
@@ -729,6 +744,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       // entry itself.
       draftLastSizeRef.current.delete(event.utterance_id);
       draftLastTimestampRef.current.delete(event.utterance_id);
+      draftLastLangRef.current.delete(event.utterance_id);
       translationVersionRef.current.delete(event.utterance_id);
     }
 
@@ -752,6 +768,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       // will arrive for it.
       draftLastSizeRef.current.delete(event.utterance_id);
       draftLastTimestampRef.current.delete(event.utterance_id);
+      draftLastLangRef.current.delete(event.utterance_id);
 
       // Record STT latency for final emissions as well
       const eventTime = event.timestamp_ms ?? Date.now();
@@ -1124,7 +1141,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   );
 
   const startMeeting = useCallback(
-    async (sourceLanguage: SourceLanguage = 'en', targetLanguage: TargetLanguage = 'vi') => {
+    async (
+      sourceLanguage: SourceLanguage = 'en',
+      targetLanguage: TargetLanguage = 'vi',
+      options?: {gateMode?: boolean},
+    ) => {
       const effectiveSourceLanguage: SourceLanguage = sourceLanguage;
 
       console.warn('[useMeetingSession] startMeeting: entered', {effectiveSourceLanguage, targetLanguage});
@@ -1165,7 +1186,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           realSpeechRecognizer = getRealSpeechRecognizer();
           console.warn('[useMeetingSession] real recognizer start: instance ready', {hasInstance: !!realSpeechRecognizer});
           realRecognizerRef.current = realSpeechRecognizer;
-          await realSpeechRecognizer.start(sessionId, handleIncomingPipelineEvent, effectiveSourceLanguage);
+          await realSpeechRecognizer.start(
+            sessionId,
+            handleIncomingPipelineEvent,
+            effectiveSourceLanguage,
+            {gateMode: options?.gateMode === true},
+          );
           console.warn('[useMeetingSession] real recognizer start: success', {sessionId});
           startedWithRealRecognizer = true;
         } catch (error) {
