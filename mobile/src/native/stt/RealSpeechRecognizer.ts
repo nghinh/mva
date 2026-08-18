@@ -328,6 +328,7 @@ export class RealSpeechRecognizer {
       this.viGateEngine = null;
     }
     this.gateActive = false;
+    this.gateStartMs = 0;
     this.gateTally = createGateTally();
     await this.deactivateAudioSession();
     if (this.sessionId) {
@@ -775,6 +776,7 @@ export class RealSpeechRecognizer {
         reason: 'too_short',
       });
       infoLog('[RealSTT] utterance_cancel too_short', { id: utteranceId, elapsedMs });
+      await this.maybeLockGate(emit);
       return;
     }
 
@@ -824,6 +826,7 @@ export class RealSpeechRecognizer {
         samples: snapshot.length,
         durationMs: elapsedMs,
       });
+      await this.maybeLockGate(emit);
       return;
     }
 
@@ -852,6 +855,13 @@ export class RealSpeechRecognizer {
       avgRawRms: this.rmsStatsCount > 0 ? Number((this.rmsStatsSum / this.rmsStatsCount).toFixed(5)) : 0,
     });
 
+    await this.maybeLockGate(emit);
+  }
+
+  // Gọi trên MỌI đường thoát của runFinalTranscription (kể cả too_short /
+  // empty_result) để một quãng lặng ngay tại mốc 5 phút không giữ hai engine
+  // sống vô thời hạn chờ một final thành công.
+  private async maybeLockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
     if (this.gateActive && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
       await this.lockGate(emit);
     }
