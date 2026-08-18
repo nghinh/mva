@@ -637,6 +637,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
       return;
     }
+    // Câu nói trùng ngôn ngữ đích (vd gate nhận vi, target=vi) không cần dịch
+    // — trước đây passthrough làm lane Dịch lặp lại nguyên văn, gây thừa.
+    if (event.language === useMeetingStore.getState().session.targetLanguage) {
+      return;
+    }
     const translator = getOnDeviceTranslator();
     // HARD GATE 1: until splash/meeting has warmed the translator, drafts would pay the
     // ~multi-second decoder_model lazy-load themselves and stall every
@@ -897,6 +902,16 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           revision: event.revision,
           timestampMs: event.timestamp_ms,
         };
+
+        // Câu nói trùng ngôn ngữ đích (vd vi khi target=vi) → không dịch,
+        // không tạo entry ở lane Dịch; chỉ lưu utterance với translatedText
+        // null. KHÔNG đưa vào deferred queue — không có gì để dịch về sau.
+        if (event.language === currentStore.session.targetLanguage) {
+          persistUntranslatedFinal(untranslatedItem).catch((err) =>
+            warnLog('[useMeetingSession] Failed to persist same-language utterance:', err),
+          );
+          return;
+        }
 
         if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
           queueDeferredTranslation(untranslatedItem);
