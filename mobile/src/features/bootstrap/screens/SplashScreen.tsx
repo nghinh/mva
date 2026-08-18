@@ -16,6 +16,8 @@ import {ensureBundledModelInstalled, areInstalledModelFilesPresent} from '../../
 import getNativeAppleTranslator from '../../../native/NativeAppleTranslator';
 import {markPacksDownloaded, markPacksSkipped} from '../../../services/languagePackStatus';
 import {runLanguagePackSetup, PackTranslatorPort} from '../utils/languagePackSetup';
+import {runSttBenchmark} from '../../../native/stt/sttBenchmark';
+import {useSettingsStore} from '../../../shared/store/settingsStore';
 
 /**
  * One port over both translation backends so the setup flow has a single shape.
@@ -395,7 +397,15 @@ export const SplashScreen: React.FC = () => {
         // is initialized lazily at point-of-use instead.
         startPrewarm();
 
-        await delay(300);
+        // Benchmark STT một lần mỗi bản cài để phân tier máy (language gate).
+        // Mọi lỗi bên trong runSttBenchmark đã được nuốt → tier 'low' an toàn.
+        const {sttBenchmark, setSttBenchmark} = useSettingsStore.getState();
+        if (!sttBenchmark) {
+          const benchmarkResult = await runSttBenchmark();
+          setSttBenchmark(benchmarkResult);
+          warnLog('[SplashScreen] STT benchmark:', benchmarkResult);
+        }
+
         completePrewarm();
         setIsInitializing(false);
         navigationRef.current.replace('Meeting');
@@ -626,11 +636,6 @@ export const SplashScreen: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 
 const styles = StyleSheet.create({
   container: {flex: 1},
