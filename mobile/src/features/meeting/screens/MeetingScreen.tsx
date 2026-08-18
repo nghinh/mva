@@ -22,7 +22,6 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {useNavigation} from '../../../app/navigation/router';
@@ -31,14 +30,14 @@ import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
 import {useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
-import {useDeveloperMode, useTargetLanguage, useTtsEnabled, useInputLanguage, useSttBenchmark, useSettingsStore, TARGET_LANGUAGE_OPTIONS} from '../../../shared/store/settingsStore';
+import {useDeveloperMode, useTargetLanguage, useTtsEnabled, useInputLanguage, useSttBenchmark, useSettingsStore} from '../../../shared/store/settingsStore';
 import {ttsService} from '../../../services/tts/TTSService';
 import {useTTSSpeaker} from '../hooks/useTTSSpeaker';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
 import {DeveloperMetricsOverlay} from '../components/DeveloperMetricsOverlay/DeveloperMetricsOverlay';
 import {TranscriptLane} from '../components/TranscriptLane';
 import {TranslationLane} from '../components/TranslationLane';
-import {InputLanguageModal} from '../components/InputLanguageModal';
+import {MeetingStartModal} from '../components/MeetingStartModal';
 import {useMeetingSession} from '../hooks/useMeetingSession';
 import {requestAudioPermission} from '../../../shared/utils/permissions';
 import {isAppleTranslationAvailable} from '../../../shared/utils/platformSupport';
@@ -49,14 +48,6 @@ import {useDeveloperMetrics} from '../store/developerMetricsStore';
 
 type MeetingNavigationProp = StackNavigationProp<RootStackParamList, 'Meeting'>;
 type LaneFocusMode = 'original' | 'split' | 'translation';
-
-const LANG_FLAGS: Record<string, string> = {
-  en: '🇬🇧',
-  vi: '🇻🇳',
-  zh: '🇨🇳',
-  ko: '🇰🇷',
-  ja: '🇯🇵',
-};
 
 const APP_NAME = 'Executive MVA';
 
@@ -80,8 +71,7 @@ export function MeetingScreen(): React.JSX.Element {
   const sttBenchmark = useSttBenchmark();
   const {setInputLanguage, setTargetLanguage} = useSettingsStore();
   const [ttsPaused, setTtsPaused] = useState(false);
-  const [targetLangModalVisible, setTargetLangModalVisible] = useState(false);
-  const [inputLangModalVisible, setInputLangModalVisible] = useState(false);
+  const [startModalVisible, setStartModalVisible] = useState(false);
 
   const {
     session,
@@ -141,24 +131,27 @@ export function MeetingScreen(): React.JSX.Element {
   const isStartingRef = useRef(false);
 
   const beginMeeting = useCallback(
-    async (choice: 'auto' | 'vi' | 'gate') => {
+    async ({input, target}: {input: 'auto' | 'vi'; target: typeof targetLanguage}) => {
       if (isStartingRef.current) return;
       isStartingRef.current = true;
       try {
-        if (choice === 'gate') {
-          await startMeeting('en', targetLanguage, {gateMode: true});
+        // Luôn tự lưu lựa chọn cuối làm mặc định (hiển thị lại trong Settings).
+        if (target !== targetLanguage) setTargetLanguage(target);
+        if (sttBenchmark?.tier === 'strong') {
+          // Máy khỏe: gate tự nhận diện input, chỉ cần target từ popup.
+          await startMeeting('en', target, {gateMode: true});
           return;
         }
-        setInputLanguage(choice);
+        setInputLanguage(input);
         // Input vi mà target cũng vi → chuyển target sang en để bản dịch không no-op.
-        const effectiveTarget = choice === 'vi' && targetLanguage === 'vi' ? 'en' : targetLanguage;
-        if (effectiveTarget !== targetLanguage) setTargetLanguage(effectiveTarget);
-        await startMeeting(choice === 'vi' ? 'vi' : 'en', effectiveTarget);
+        const effectiveTarget = input === 'vi' && target === 'vi' ? 'en' : target;
+        if (effectiveTarget !== target) setTargetLanguage(effectiveTarget);
+        await startMeeting(input === 'vi' ? 'vi' : 'en', effectiveTarget);
       } finally {
         isStartingRef.current = false;
       }
     },
-    [startMeeting, targetLanguage, setInputLanguage, setTargetLanguage],
+    [startMeeting, targetLanguage, sttBenchmark, setInputLanguage, setTargetLanguage],
   );
 
   const handleStartMeeting = useCallback(async () => {
@@ -167,13 +160,9 @@ export function MeetingScreen(): React.JSX.Element {
     if (!hasPermission) {
       return;
     }
-    if (sttBenchmark?.tier === 'strong') {
-      await beginMeeting('gate');
-    } else {
-      // Máy yếu (hoặc chưa benchmark): hỏi input language, nhớ lựa chọn cũ.
-      setInputLangModalVisible(true);
-    }
-  }, [beginMeeting, sttBenchmark]);
+    // Mọi máy đều qua popup chọn "Dịch sang"; máy yếu có thêm phần chọn input.
+    setStartModalVisible(true);
+  }, []);
 
   const handlePauseMeeting = useCallback(async () => {
     await pauseMeeting();
@@ -447,11 +436,11 @@ export function MeetingScreen(): React.JSX.Element {
             styles.footerIdle,
             {backgroundColor: theme.colors.surface.primary},
           ]}>
-          {/* Single row: Start button (flex 3 ≈ 75%) + lang picker column (flex 1 ≈ 25%) */}
+          {/* Start button chiếm toàn hàng — chọn ngôn ngữ chuyển hết vào popup lúc bấm Start */}
           <View style={styles.footerRow}>
             {/* Start / Open Settings button */}
             <TouchableOpacity
-              style={[styles.primaryButton, {flex: 3, backgroundColor: '#6C5CE7'}]}
+              style={[styles.primaryButton, {flex: 1, backgroundColor: '#6C5CE7'}]}
               onPress={handlePrimaryButtonPress}
               activeOpacity={0.85}
               disabled={isButtonDisabled}
@@ -467,82 +456,21 @@ export function MeetingScreen(): React.JSX.Element {
               </View>
             </TouchableOpacity>
 
-            {/* Language picker: target chip only (input language now decided by tier/modal) */}
-            <View style={styles.langPickerCol}>
-              {/* Target: flag ▾ */}
-              <TouchableOpacity
-                style={[
-                  styles.langChipCol,
-                  {backgroundColor: theme.colors.surface.secondary, borderColor: theme.colors.border.subtle},
-                ]}
-                onPress={() => setTargetLangModalVisible(true)}
-                activeOpacity={0.7}
-                accessibilityLabel="Select target language">
-                <Text style={styles.langFlagCol}>{LANG_FLAGS[targetLanguage] ?? '🌐'}</Text>
-                <Text style={[styles.langCaretCol, {color: theme.colors.text.tertiary}]}>▾</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       )}
 
-      {/* Target Language Selector Modal */}
-      <Modal
-        visible={targetLangModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTargetLangModalVisible(false)}>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setTargetLangModalVisible(false)}>
-          <View style={[styles.modalCard, {backgroundColor: theme.colors.surface.primary}]}>
-            <Text style={[styles.modalTitle, {color: theme.colors.text.primary}]}>
-              {t('langSelectTarget')}
-            </Text>
-            {TARGET_LANGUAGE_OPTIONS.map((opt, index) => (
-              <TouchableOpacity
-                key={opt.code}
-                style={[
-                  styles.modalOption,
-                  index < TARGET_LANGUAGE_OPTIONS.length - 1 && {
-                    borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.border.subtle,
-                  },
-                  targetLanguage === opt.code && {backgroundColor: theme.colors.surface.container},
-                ]}
-                onPress={() => {
-                  setTargetLanguage(opt.code);
-                  setTargetLangModalVisible(false);
-                }}
-                activeOpacity={0.7}>
-                <Text style={styles.modalOptionFlag}>{LANG_FLAGS[opt.code] ?? '🌐'}</Text>
-                <View style={styles.modalOptionInfo}>
-                  <Text style={[styles.modalOptionNative, {color: theme.colors.text.primary}]}>
-                    {opt.nativeLabel}
-                  </Text>
-                  <Text style={[styles.modalOptionLang, {color: theme.colors.text.tertiary}]}>
-                    {opt.label}
-                  </Text>
-                </View>
-                {targetLanguage === opt.code && (
-                  <AppIcon name="check-circle" size={20} color={theme.colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Input Language Modal — low-tier (or not-yet-benchmarked) devices only */}
-      <InputLanguageModal
-        visible={inputLangModalVisible}
-        initialChoice={inputLanguage}
-        onConfirm={(choice) => {
-          setInputLangModalVisible(false);
-          beginMeeting(choice);
+      {/* Popup bắt đầu họp: chọn "Dịch sang" (mọi máy) + input (máy yếu) */}
+      <MeetingStartModal
+        visible={startModalVisible}
+        showInputSection={sttBenchmark?.tier !== 'strong'}
+        initialInput={inputLanguage}
+        initialTarget={targetLanguage}
+        onConfirm={(selection) => {
+          setStartModalVisible(false);
+          beginMeeting(selection);
         }}
-        onCancel={() => setInputLangModalVisible(false)}
+        onCancel={() => setStartModalVisible(false)}
       />
     </SafeAreaView>
     {!isLiveWorkspace && <AppBottomNav activeTab="live" />}
@@ -688,30 +616,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     gap: 8,
   },
-  langPickerCol: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 3,
-  },
-  langChipCol: {
-    flex: 1,
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 4,
-  },
-  langFlagCol: {
-    fontSize: 15,
-  },
-  langCaretCol: {
-    fontSize: 8,
-  },
   stoppingOverlay: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -724,49 +628,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
-  },
-  // Target language modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 320,
-    borderRadius: 20,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 4,
-    gap: 12,
-  },
-  modalOptionFlag: {
-    fontSize: 24,
-  },
-  modalOptionInfo: {
-    flex: 1,
-  },
-  modalOptionNative: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  modalOptionLang: {
-    fontSize: 12,
-    marginTop: 1,
   },
 });
 

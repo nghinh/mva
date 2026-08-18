@@ -7,4 +7,4 @@
 export {MeetingStatusBar} from './MeetingStatusBar';
 export {TranscriptLane} from './TranscriptLane';
 export {TranslationLane} from './TranslationLane';
-export {InputLanguageModal} from './InputLanguageModal';
+export {MeetingStartModal} from './MeetingStartModal';
