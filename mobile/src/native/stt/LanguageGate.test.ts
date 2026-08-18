@@ -1,11 +1,13 @@
 import {
   GATE_WINDOW_MS,
   STRONG_RTF_THRESHOLD,
+  GATE_EARLY_LOCK_MIN_WINS,
   scoreUtterance,
   createGateTally,
   recordWin,
   tallyLeader,
   decideLock,
+  decideEarlyLock,
 } from './LanguageGate';
 
 describe('constants', () => {
@@ -88,6 +90,29 @@ describe('scoreUtterance', () => {
   it('both empty → leader', () => {
     expect(scoreUtterance({text: ''}, {text: ''}, 'vi')).toBe('vi');
   });
+
+  it('english WITHOUT stopwords, sense tag en, low-density vi garbage → sense', () => {
+    // "send email to peter about the quarterly report" nói tiếng Anh: transducer
+    // vi phát ra rác thưa dấu (ratio ~0.09, trên strong 0.08 nhưng dưới
+    // dominant 0.13) — tag 'en' của SenseVoice phải thắng.
+    expect(
+      scoreUtterance(
+        {text: 'send email to peter about quarterly report', lang: 'en'},
+        {text: 'sen mêu tú pi tơ bao cua li ri po'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('dominant vi diacritic density beats sense en tag', () => {
+    expect(
+      scoreUtterance(
+        {text: 'hom nay chung ta hop ve ke hoach quy ba', lang: 'en'},
+        {text: 'hôm nay chúng ta họp về kế hoạch quý ba'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
 });
 
 describe('tally + lock', () => {
@@ -110,5 +135,24 @@ describe('tally + lock', () => {
 
   it('empty tally → sense', () => {
     expect(decideLock(createGateTally())).toBe('sense');
+  });
+
+  it('early lock: unanimous after minimum wins', () => {
+    const t = createGateTally();
+    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS; i += 1) recordWin(t, 'vi');
+    expect(decideEarlyLock(t)).toBe('vi');
+  });
+
+  it('early lock: not before minimum wins', () => {
+    const t = createGateTally();
+    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS - 1; i += 1) recordWin(t, 'sense');
+    expect(decideEarlyLock(t)).toBeNull();
+  });
+
+  it('early lock: mixed evidence never locks early', () => {
+    const t = createGateTally();
+    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS; i += 1) recordWin(t, 'sense');
+    recordWin(t, 'vi');
+    expect(decideEarlyLock(t)).toBeNull();
   });
 });

@@ -13,6 +13,7 @@ import { normalizeViCase } from './viTextNormalizer';
 import {
   GATE_WINDOW_MS,
   createGateTally,
+  decideEarlyLock,
   decideLock,
   recordWin,
   scoreUtterance,
@@ -957,11 +958,18 @@ export class RealSpeechRecognizer {
   // empty_result) để một quãng lặng ngay tại mốc 5 phút không giữ hai engine
   // sống vô thời hạn chờ một final thành công.
   private async maybeLockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
-    // Cần bằng chứng mới khóa: một phiên im lặng suốt cả cửa sổ sẽ có tally
-    // rỗng, khóa lúc đó là chọn engine bằng mặc định chứ không phải bằng dữ
-    // liệu — chờ utterance có kết quả đầu tiên rồi mới khóa.
+    if (!this.gateActive) return;
+    // Khóa sớm: bằng chứng tuyệt đối một chiều (≥ GATE_EARLY_LOCK_MIN_WINS
+    // final, phía kia 0) — họp đơn ngữ thoát chi phí dual-decode sau ~1 phút.
+    if (decideEarlyLock(this.gateTally) !== null) {
+      await this.lockGate(emit);
+      return;
+    }
+    // Hết cửa sổ: cần bằng chứng mới khóa — một phiên im lặng suốt cả cửa sổ
+    // sẽ có tally rỗng, khóa lúc đó là chọn engine bằng mặc định chứ không
+    // phải bằng dữ liệu; chờ utterance có kết quả đầu tiên rồi mới khóa.
     const decided = this.gateTally.sense + this.gateTally.vi > 0;
-    if (this.gateActive && decided && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
+    if (decided && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
       await this.lockGate(emit);
     }
   }

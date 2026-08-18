@@ -39,7 +39,13 @@ const EN_COMMON_WORDS = [
 const NEAR_EMPTY_MAX = 2;
 const FULL_SENTENCE_MIN = 6;
 const VI_DIACRITIC_STRONG_RATIO = 0.08;
+// Tiếng Việt THẬT có mật độ dấu ~0.15–0.3; rác-vi do transducer nghe tiếng Anh
+// thường < 0.12. Trên ngưỡng này vi thắng bất chấp lang tag của SenseVoice.
+const VI_DIACRITIC_DOMINANT_RATIO = 0.13;
 const EN_SIGNAL_STRONG = 0.5;
+
+/** Số final tối thiểu để khóa sớm khi bằng chứng tuyệt đối một chiều. */
+export const GATE_EARLY_LOCK_MIN_WINS = 6;
 
 function viDiacriticRatio(text: string): number {
   if (!text) return 0;
@@ -76,19 +82,33 @@ export function scoreUtterance(
     (senseLang.startsWith('ja') || senseLang.startsWith('ko') ||
       senseLang.startsWith('zh') || senseLang.startsWith('cn')) &&
     CJK_KANA_HANGUL_RE.test(senseText);
-  const viStrong = viDiacriticRatio(viText) >= VI_DIACRITIC_STRONG_RATIO;
+  const viRatio = viDiacriticRatio(viText);
+  const viStrong = viRatio >= VI_DIACRITIC_STRONG_RATIO;
+  const viDominant = viRatio >= VI_DIACRITIC_DOMINANT_RATIO;
+  const senseEnTag = senseLang.startsWith('en');
 
-  // Rule 2: exactly one side shows its native-script signal.
+  // Rule 2: sense shows CJK script and vi lacks its signal → sense.
   if (senseCjk && !viStrong) return 'sense';
+
+  // Rule 3: mật độ dấu ÁP ĐẢO = tiếng Việt thật (rác-vi từ tiếng Anh hiếm khi
+  // đạt mức này) → vi thắng, kể cả khi SenseVoice tag 'en'.
+  if (viDominant && !senseCjk) return 'vi';
+
+  // Rule 4: SenseVoice có LID head thật — tag 'en' với text Latin đáng tin hơn
+  // rác-vi mật độ dấu thấp. Đây là fix cho "nói tiếng Anh nhận thành tiếng
+  // Việt": câu Anh không chứa stopword trước đây thua oan ở Rule 5.
+  if (senseEnTag && !senseCjk) return 'sense';
+
+  // Rule 5: vi có dấu (nhưng chưa áp đảo) và sense không có tín hiệu gì → vi,
+  // trừ khi stopword tiếng Anh dày đặc.
   if (viStrong && !senseCjk) {
-    // Latin sense output: only a strong English signal outranks vi diacritics.
     return enSignal(sense) >= EN_SIGNAL_STRONG ? 'sense' : 'vi';
   }
 
-  // Rule 3: sense has strong English signal and vi is not strong → sense.
+  // Rule 6: sense has strong English signal and vi is not strong → sense.
   if (!viStrong && enSignal(sense) >= EN_SIGNAL_STRONG) return 'sense';
 
-  // Rule 4: both signals present (garbage-mirror zone) or neither → leader.
+  // Rule 7: both signals present (garbage-mirror zone) or neither → leader.
   return leader;
 }
 
@@ -108,4 +128,18 @@ export function tallyLeader(tally: GateTally): GateEngine {
 /** Final lock decision at end of gate window. Tie → sense. Kept separate from tallyLeader as an intentional seam for future lock policies (e.g., minimum-utterance-count). */
 export function decideLock(tally: GateTally): GateEngine {
   return tallyLeader(tally);
+}
+
+/**
+ * Khóa SỚM (trước GATE_WINDOW_MS) khi bằng chứng tuyệt đối một chiều: đủ
+ * GATE_EARLY_LOCK_MIN_WINS final và phía kia trắng tay. Họp đơn ngữ — trường
+ * hợp phổ biến nhất — nhờ đó thoát chi phí dual-decode (độ trễ final x2) sau
+ * ~1 phút thay vì chịu đủ 5 phút; phiên trộn ngôn ngữ (cả hai phía có điểm)
+ * vẫn giữ nguyên cửa sổ đầy đủ. Trả về engine thắng, hoặc null nếu chưa đủ.
+ */
+export function decideEarlyLock(tally: GateTally): GateEngine | null {
+  if (tally.sense + tally.vi < GATE_EARLY_LOCK_MIN_WINS) return null;
+  if (tally.vi === 0) return 'sense';
+  if (tally.sense === 0) return 'vi';
+  return null;
 }
