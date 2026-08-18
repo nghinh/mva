@@ -78,7 +78,8 @@
     "inputLangModalAuto": "자동 (EN · JA · KO · ZH)",
     "inputLangModalVi": "베트남어",
     "inputLangModalStart": "회의 시작",
-    "inputLangModalCancel": "취소"
+    "inputLangModalCancel": "취소",
+    "gateIdentifying": "언어 확인 중…"
   },
   "settings": {
     "title": "설정",

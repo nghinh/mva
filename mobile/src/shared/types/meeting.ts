@@ -91,6 +91,11 @@ export interface STTPartialEvent {
   language: SourceLanguage;
   offset_ms: number;
   revision: number;
+  /**
+   * Gate chưa có bằng chứng ngôn ngữ (utterance đầu tiên của phiên): text rỗng,
+   * UI hiển thị placeholder "Đang xác định ngôn ngữ…" thay vì live text.
+   */
+  gate_pending?: boolean;
 }
 
 export interface STTFinalEvent {

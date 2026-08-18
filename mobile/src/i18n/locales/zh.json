@@ -78,7 +78,8 @@
     "inputLangModalAuto": "自动 (EN · JA · KO · ZH)",
     "inputLangModalVi": "越南语",
     "inputLangModalStart": "开始会议",
-    "inputLangModalCancel": "取消"
+    "inputLangModalCancel": "取消",
+    "gateIdentifying": "正在识别语言…"
   },
   "settings": {
     "title": "设置",

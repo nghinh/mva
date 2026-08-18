@@ -181,6 +181,9 @@ export class RealSpeechRecognizer {
   private gateStartMs = 0;
   private gateTally: GateTally = createGateTally();
   private viGateEngine: SttEngine | null = null;
+  // Utterance đã emit placeholder "đang xác định ngôn ngữ" (cửa sổ tally rỗng)
+  // — mỗi utterance chỉ emit đúng một lần.
+  private gatePendingEmittedFor: UtteranceId | null = null;
 
   async start(
     sessionId: SessionId,
@@ -201,6 +204,7 @@ export class RealSpeechRecognizer {
     this.gateActive = false;
     this.gateStartMs = 0;
     this.gateTally = createGateTally();
+    this.gatePendingEmittedFor = null;
     if (this.viGateEngine) {
       try {
         await this.viGateEngine.destroy();
@@ -342,6 +346,7 @@ export class RealSpeechRecognizer {
       await viEngine.destroy();
     }
     this.gateTally = createGateTally();
+    this.gatePendingEmittedFor = null;
     await this.deactivateAudioSession();
     if (this.sessionId) {
       emit({
@@ -741,37 +746,73 @@ export class RealSpeechRecognizer {
     }
     const bufferToTranscribe = this.sampleBuffer;
     const uttId = this.currentUtteranceId;
-    // Gate: partial chỉ decode bằng engine đang dẫn tally — giữ nguyên chi phí
-    // inference của partial so với chế độ 1 engine.
+    // Gate: partial thường chỉ decode bằng engine đang dẫn tally — giữ nguyên
+    // chi phí inference của partial so với chế độ 1 engine. NGOẠI LỆ: khi tally
+    // còn rỗng (utterance đầu tiên của phiên, chưa có bằng chứng nào), leader
+    // mặc định 'sense' sẽ render tiếng Việt thành chữ Hán rác suốt ~10s đầu —
+    // nên trong cửa sổ đó partial cũng dual-decode + chấm điểm để hiển thị
+    // đúng ngay từ câu đầu. Chi phí x2 chỉ giới hạn trong utterance đầu tiên.
+    const noEvidenceYet = this.gateTally.sense + this.gateTally.vi === 0;
     const leader: GateEngine = this.gateActive ? tallyLeader(this.gateTally) : 'sense';
-    const partialEngine =
-      this.gateActive && leader === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
-    let result: Awaited<ReturnType<SttEngine['transcribeSamples']>>;
-    if (this.gateActive) {
-      // Trong gate, một partial hỏng chỉ được phép mất chính partial đó —
-      // không được ném ra ngoài và làm hỏng processingChain.
-      try {
-        result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
-      } catch (error) {
-        warnLog('[RealSTT] gate: partial decode failed, skipping this partial:', error);
+    let text: string;
+    let forcedVi = false;
+    let modelLangHint: string | undefined;
+    if (this.gateActive && this.viGateEngine && noEvidenceYet) {
+      // Chưa có bằng chứng ngôn ngữ nào (utterance đầu tiên của phiên): mọi
+      // lựa chọn engine cho partial đều là đoán mò — thay vì render tiếng Việt
+      // thành chữ Hán rác (hoặc ngược lại), KHÔNG decode partial mà báo UI
+      // hiển thị placeholder "Đang xác định ngôn ngữ…". Final của utterance
+      // này vẫn dual-decode + chấm điểm và thay placeholder bằng text đúng.
+      if (this.gatePendingEmittedFor === uttId) {
         return;
       }
+      this.gatePendingEmittedFor = uttId;
+      this.currentRevision += 1;
+      emit({
+        type: 'stt_partial',
+        session_id: this.sessionId,
+        utterance_id: uttId,
+        text: '',
+        gate_pending: true,
+        timestamp_ms: now,
+        language: 'en',
+        offset_ms: now - this.utteranceStartMs,
+        revision: this.currentRevision,
+      });
+      return;
     } else {
-      result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      const partialEngine =
+        this.gateActive && leader === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
+      let result: Awaited<ReturnType<SttEngine['transcribeSamples']>>;
+      if (this.gateActive) {
+        // Trong gate, một partial hỏng chỉ được phép mất chính partial đó —
+        // không được ném ra ngoài và làm hỏng processingChain.
+        try {
+          result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+        } catch (error) {
+          warnLog('[RealSTT] gate: partial decode failed, skipping this partial:', error);
+          return;
+        }
+      } else {
+        result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      }
+      text = (result.text ?? '').trim();
+      forcedVi = this.gateActive && leader === 'vi';
+      modelLangHint = result.lang;
     }
     // State may have changed while we awaited; re-check before emitting so
     // partials from a finalized utterance don't leak into a new one.
     if (this.currentUtteranceId !== uttId) {
       return;
     }
-    const text = (result.text ?? '').trim();
     if (!text || text === this.currentText) {
       return;
     }
     this.currentText = text;
     this.currentRevision += 1;
-    const lang =
-      this.gateActive && leader === 'vi' ? 'vi' : this.detectLanguage(text, result.lang);
+    // detectLanguage có side-effect (emit language_detected) nên chỉ gọi SAU
+    // các guard ở trên — giữ đúng thứ tự của code trước gate.
+    const lang: SourceLanguage = forcedVi ? 'vi' : this.detectLanguage(text, modelLangHint);
     emit({
       type: 'stt_partial',
       session_id: this.sessionId,

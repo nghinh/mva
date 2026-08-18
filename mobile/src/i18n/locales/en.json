@@ -78,7 +78,8 @@
     "inputLangModalAuto": "Auto (EN · JA · KO · ZH)",
     "inputLangModalVi": "Vietnamese",
     "inputLangModalStart": "Start Meeting",
-    "inputLangModalCancel": "Cancel"
+    "inputLangModalCancel": "Cancel",
+    "gateIdentifying": "Identifying language…"
   },
   "settings": {
     "title": "Settings",

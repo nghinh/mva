@@ -78,7 +78,8 @@
     "inputLangModalAuto": "Tự động (EN · JA · KO · ZH)",
     "inputLangModalVi": "Tiếng Việt",
     "inputLangModalStart": "Bắt đầu họp",
-    "inputLangModalCancel": "Hủy"
+    "inputLangModalCancel": "Hủy",
+    "gateIdentifying": "Đang xác định ngôn ngữ…"
   },
   "settings": {
     "title": "Cài đặt",

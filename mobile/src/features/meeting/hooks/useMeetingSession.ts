@@ -734,7 +734,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   }, [IOS_DEBUG_TRANSLATION_SAFE_MODE]);
 
   const handleIncomingPipelineEvent = useCallback((event: MeetingPipelineEvent) => {
-    if (stoppingSessionRef.current && (event.type === 'stt_partial' || event.type === 'stt_final')) {
+    // Khi đang stop, chỉ chặn PARTIAL (không còn ý nghĩa hiển thị). stt_final
+    // PHẢI được cho qua: recognizer.stop() drain chính là để bắn final của
+    // utterance dở dang — chặn nó sẽ mất câu cuối và (trong cửa sổ gate) lưu
+    // hàng placeholder trống vào history.
+    if (stoppingSessionRef.current && event.type === 'stt_partial') {
       return;
     }
     useMeetingStore.getState().handlePipelineEvent(event);
@@ -1362,7 +1366,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       speakerLabels: currentSession.speakerLabels,
     };
 
-    const utterances: UtteranceData[] = currentSession.transcript.map((entry) => ({
+    // Chỉ lưu utterance đã final — entry non-final còn sót (partial/placeholder
+    // gate) không được phép vào history.
+    const utterances: UtteranceData[] = currentSession.transcript
+      .filter((entry) => entry.isFinal)
+      .map((entry) => ({
       id: entry.id,
       sessionId: entry.sessionId,
       timestamp: entry.timestamp,
