@@ -9,6 +9,16 @@ import type { SessionId, SourceLanguage, UtteranceId } from '../../shared/types/
 import type { MeetingPipelineEvent } from '../../shared/types/meeting';
 import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
+import {
+  GATE_WINDOW_MS,
+  createGateTally,
+  decideLock,
+  recordWin,
+  scoreUtterance,
+  tallyLeader,
+  type GateEngine,
+  type GateTally,
+} from './LanguageGate';
 import { ensureBundledModelInstalled } from '../models/BundledModelInstaller';
 import { BUNDLED_MODEL_CONFIG, getSttModelIdForSource, type BundledModelId } from '../models/bundledModels';
 
@@ -165,7 +175,19 @@ export class RealSpeechRecognizer {
   private forcedLanguage: SourceLanguage | null = null;
   private enginePrefix: 'sense' | 'vi' = 'sense';
 
-  async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void, sourceLanguage?: SourceLanguage): Promise<void> {
+  // Gate mode (máy khỏe): giữ engine VI thứ hai trong 5 phút đầu, dual-decode
+  // final từng utterance, khóa engine thắng đa số tại GATE_WINDOW_MS.
+  private gateActive = false;
+  private gateStartMs = 0;
+  private gateTally: GateTally = createGateTally();
+  private viGateEngine: SttEngine | null = null;
+
+  async start(
+    sessionId: SessionId,
+    emit: (event: MeetingPipelineEvent) => void,
+    sourceLanguage?: SourceLanguage,
+    options?: {gateMode?: boolean},
+  ): Promise<void> {
     this.sessionId = sessionId;
     this.emitFn = emit;
     this.detector.setSession(sessionId);
@@ -176,6 +198,9 @@ export class RealSpeechRecognizer {
     this.hardCapCount = 0;
     this.forcedLanguage = sourceLanguage === 'vi' ? 'vi' : null;
     this.enginePrefix = this.forcedLanguage === 'vi' ? 'vi' : 'sense';
+    this.gateActive = false;
+    this.gateStartMs = 0;
+    this.gateTally = createGateTally();
 
     const modelId: BundledModelId = getSttModelIdForSource(sourceLanguage);
     const engineLabel = BUNDLED_MODEL_CONFIG[modelId].displayName;
@@ -215,6 +240,37 @@ export class RealSpeechRecognizer {
           },
         },
       });
+    }
+
+    if (options?.gateMode === true && this.forcedLanguage === null) {
+      try {
+        const viModelDir = await this.prepareModelDirectory(
+          emit,
+          'stt_vi',
+          BUNDLED_MODEL_CONFIG.stt_vi.displayName,
+        );
+        this.viGateEngine = await createSTT({
+          modelPath: fileModelPath(viModelDir),
+          modelType: 'transducer',
+          preferInt8: true,
+          provider: 'cpu',
+          numThreads: 2,
+        });
+        this.gateActive = true;
+        this.gateStartMs = Date.now();
+        emit({
+          type: 'pipeline_status',
+          session_id: sessionId,
+          status: 'processing',
+          timestamp_ms: Date.now(),
+          details: 'Language gate active (dual-decode window)',
+        });
+      } catch (error) {
+        // Fallback an toàn: chạy 1 engine SenseVoice như hiện tại.
+        warnLog('[RealSTT] Gate: failed to load Zipformer-VI, running single-engine:', error);
+        this.viGateEngine = null;
+        this.gateActive = false;
+      }
     }
 
     emit({
@@ -267,6 +323,12 @@ export class RealSpeechRecognizer {
       await this.engine.destroy();
       this.engine = null;
     }
+    if (this.viGateEngine) {
+      await this.viGateEngine.destroy();
+      this.viGateEngine = null;
+    }
+    this.gateActive = false;
+    this.gateTally = createGateTally();
     await this.deactivateAudioSession();
     if (this.sessionId) {
       emit({
@@ -666,7 +728,12 @@ export class RealSpeechRecognizer {
     }
     const bufferToTranscribe = this.sampleBuffer;
     const uttId = this.currentUtteranceId;
-    const result = await this.engine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+    // Gate: partial chỉ decode bằng engine đang dẫn tally — giữ nguyên chi phí
+    // inference của partial so với chế độ 1 engine.
+    const leader: GateEngine = this.gateActive ? tallyLeader(this.gateTally) : 'sense';
+    const partialEngine =
+      this.gateActive && leader === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
+    const result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
     // State may have changed while we awaited; re-check before emitting so
     // partials from a finalized utterance don't leak into a new one.
     if (this.currentUtteranceId !== uttId) {
@@ -678,7 +745,8 @@ export class RealSpeechRecognizer {
     }
     this.currentText = text;
     this.currentRevision += 1;
-    const lang = this.detectLanguage(text, result.lang);
+    const lang =
+      this.gateActive && leader === 'vi' ? 'vi' : this.detectLanguage(text, result.lang);
     emit({
       type: 'stt_partial',
       session_id: this.sessionId,
@@ -710,8 +778,37 @@ export class RealSpeechRecognizer {
       return;
     }
 
-    const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
-    const text = (result.text ?? '').trim();
+    let text: string;
+    let lang: SourceLanguage;
+    if (this.gateActive && this.viGateEngine) {
+      // Dual-decode tuần tự trên cùng snapshot — đỉnh RAM activation không đổi.
+      const senseResult = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
+      const viResult = await this.viGateEngine.transcribeSamples(snapshot, SAMPLE_RATE);
+      const senseText = (senseResult.text ?? '').trim();
+      const viText = (viResult.text ?? '').trim();
+      if (!senseText && !viText) {
+        text = '';
+        lang = 'en';
+      } else {
+        const winner = scoreUtterance(
+          {text: senseText, lang: senseResult.lang},
+          {text: viText},
+          tallyLeader(this.gateTally),
+        );
+        recordWin(this.gateTally, winner);
+        if (winner === 'vi') {
+          text = viText;
+          lang = 'vi';
+        } else {
+          text = senseText;
+          lang = this.detectLanguage(senseText, senseResult.lang, utteranceId);
+        }
+      }
+    } else {
+      const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
+      text = (result.text ?? '').trim();
+      lang = text ? this.detectLanguage(text, result.lang, utteranceId) : 'en';
+    }
     if (!text) {
       this.lastFinalizeReason = 'empty_result';
       emit({
@@ -730,7 +827,6 @@ export class RealSpeechRecognizer {
       return;
     }
 
-    const lang = this.detectLanguage(text, result.lang, utteranceId);
     emit({
       type: 'stt_final',
       session_id: sessionId,
@@ -755,6 +851,41 @@ export class RealSpeechRecognizer {
       hardCapCount: this.hardCapCount,
       avgRawRms: this.rmsStatsCount > 0 ? Number((this.rmsStatsSum / this.rmsStatsCount).toFixed(5)) : 0,
     });
+
+    if (this.gateActive && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
+      await this.lockGate(emit);
+    }
+  }
+
+  // Chốt engine tại cuối cửa sổ gate. Chạy BÊN TRONG processingChain (được gọi
+  // từ runFinalTranscription) nên không có inference nào khác in-flight —
+  // destroy engine thua ở đây là an toàn.
+  private async lockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
+    if (!this.gateActive || !this.viGateEngine) return;
+    const winner = decideLock(this.gateTally);
+    const loser = winner === 'vi' ? this.engine : this.viGateEngine;
+    infoLog('[RealSTT] gate lock', {winner, tally: {...this.gateTally}});
+    if (winner === 'vi') {
+      this.engine = this.viGateEngine;
+      this.forcedLanguage = 'vi';
+      this.enginePrefix = 'vi';
+    }
+    this.viGateEngine = null;
+    this.gateActive = false;
+    try {
+      await loser?.destroy();
+    } catch (error) {
+      warnLog('[RealSTT] gate: failed to destroy losing engine (leaked until stop):', error);
+    }
+    if (this.sessionId) {
+      emit({
+        type: 'pipeline_status',
+        session_id: this.sessionId,
+        status: 'processing',
+        timestamp_ms: Date.now(),
+        details: `Gate locked: ${winner === 'vi' ? BUNDLED_MODEL_CONFIG.stt_vi.displayName : BUNDLED_MODEL_CONFIG.stt.displayName}`,
+      });
+    }
   }
 
   private applySttInputGain(samples: Float32Array): Float32Array {
