@@ -118,12 +118,15 @@ export function SettingsScreen(): React.JSX.Element {
   const [devUnlockTapCount, setDevUnlockTapCount] = useState(0);
 
   type PackRowStatus = LanguagePackStatus | 'loading';
+  // Cặp src === targetLanguage bị lọc bỏ: không tồn tại (và không cần) gói
+  // "dịch X sang chính X" — hiển thị nó sẽ ra badge "Không có" gây hiểu nhầm.
   const LANG_PACKS: {srcLang: string; flag: string; labelKey: string; toKey: string}[] = [
     {srcLang: 'en', flag: '🇬🇧', labelKey: 'englishLabel', toKey: 'englishToLabel'},
     {srcLang: 'ja', flag: '🇯🇵', labelKey: 'japaneseLabel', toKey: 'japaneseToLabel'},
     {srcLang: 'ko', flag: '🇰🇷', labelKey: 'koreanLabel', toKey: 'koreanToLabel'},
     {srcLang: 'zh', flag: '🇨🇳', labelKey: 'chineseLabel', toKey: 'chineseToLabel'},
-  ];
+    {srcLang: 'vi', flag: '🇻🇳', labelKey: 'vietnameseLabel', toKey: 'vietnameseToLabel'},
+  ].filter((pack) => pack.srcLang !== targetLanguage);
   const [packStatuses, setPackStatuses] = useState<Record<string, PackRowStatus>>({});
 
   const refreshPackStatuses = useCallback(async () => {

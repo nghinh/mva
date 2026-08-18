@@ -249,6 +249,7 @@
     "japaneseToLabel": "Japanese → {{lang}}",
     "koreanToLabel": "Korean → {{lang}}",
     "chineseToLabel": "Chinese → {{lang}}",
+    "vietnameseToLabel": "Vietnamese → {{lang}}",
     "vietnameseLabel": "Vietnamese",
     "englishLabel": "English",
     "chineseLabel": "Chinese",
