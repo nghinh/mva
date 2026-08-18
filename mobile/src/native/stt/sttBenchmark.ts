@@ -64,12 +64,24 @@ export async function runSttBenchmark(
   deps: BenchmarkDeps = {createEngine: createRealEngine, now: Date.now, timeoutMs: BENCHMARK_TIMEOUT_MS},
 ): Promise<SttBenchmarkResult> {
   let engine: BenchmarkEngine | null = null;
+  let abandoned = false;
+  let timerId: ReturnType<typeof setTimeout> | undefined;
   try {
-    const timeout = new Promise<'timeout'>((resolve) =>
-      setTimeout(() => resolve('timeout'), deps.timeoutMs),
-    );
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timerId = setTimeout(() => resolve('timeout'), deps.timeoutMs);
+    });
     const run = (async (): Promise<SttBenchmarkResult> => {
-      engine = await deps.createEngine();
+      const created = await deps.createEngine();
+      if (abandoned) {
+        // Race đã thua từ trước khi model load xong — tự dọn engine của mình.
+        try {
+          await created.destroy();
+        } catch {
+          // engine chết cùng process nếu destroy fail — không chặn splash.
+        }
+        return FAILED;
+      }
+      engine = created;
       const samples = Array.from(makeBenchmarkSamples());
       const t0 = deps.now();
       await engine.transcribeSamples(samples, SAMPLE_RATE);
@@ -78,6 +90,7 @@ export async function runSttBenchmark(
     })();
     const result = await Promise.race([run, timeout]);
     if (result === 'timeout') {
+      abandoned = true;
       warnLog('[sttBenchmark] timed out — classifying device as low tier');
       return FAILED;
     }
@@ -86,6 +99,9 @@ export async function runSttBenchmark(
     warnLog('[sttBenchmark] failed — classifying device as low tier:', error);
     return FAILED;
   } finally {
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
+    }
     // destroy sau khi race xong; engine treo trong nhánh timeout sẽ bị hủy ở đây.
     try {
       await (engine as BenchmarkEngine | null)?.destroy();

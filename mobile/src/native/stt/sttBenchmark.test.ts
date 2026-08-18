@@ -66,4 +66,21 @@ describe('runSttBenchmark', () => {
     });
     expect(result).toEqual({rtf: -1, tier: 'low'});
   });
+
+  it('createEngine resolving after timeout → engine destroyed, tier low', async () => {
+    let destroyed = false;
+    let resolveCreate: (e: any) => void = () => {};
+    const result = await runSttBenchmark({
+      createEngine: () => new Promise((res) => { resolveCreate = res; }),
+      now: Date.now,
+      timeoutMs: 50,
+    });
+    expect(result).toEqual({rtf: -1, tier: 'low'});
+    resolveCreate({
+      transcribeSamples: async () => ({text: '', lang: ''}),
+      destroy: async () => { destroyed = true; },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(destroyed).toBe(true);
+  });
 });
