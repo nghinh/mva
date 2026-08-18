@@ -1,6 +1,10 @@
 import {useSettingsStore} from './settingsStore';
 
 describe('settingsStore sttBenchmark (v12)', () => {
+  afterEach(() => {
+    useSettingsStore.setState({sttBenchmark: null});
+  });
+
   it('defaults to null', () => {
     expect(useSettingsStore.getState().sttBenchmark).toBeNull();
   });
@@ -8,7 +12,6 @@ describe('settingsStore sttBenchmark (v12)', () => {
   it('setter stores result', () => {
     useSettingsStore.getState().setSttBenchmark({rtf: 0.2, tier: 'strong'});
     expect(useSettingsStore.getState().sttBenchmark).toEqual({rtf: 0.2, tier: 'strong'});
-    useSettingsStore.getState().setSttBenchmark(null);
   });
 
   it('migrate from v11 keeps inputLanguage and adds null benchmark', () => {
