@@ -68,6 +68,16 @@ describe('scoreUtterance', () => {
     ).toBe('sense');
   });
 
+  it('vi phrase using previously-missing diacritics (ơ, ấ, ả) → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: 'cam on rat nhieu', lang: 'en'},
+        {text: 'cảm ơn rất nhiều bạn nhé'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
   it('ambiguous (sense CJK AND strong vi diacritics) → falls back to leader', () => {
     const sense = {text: '我们今天讨论第三季度的计划', lang: 'zh'};
     const vi = {text: 'hôm nay chúng ta họp về kế hoạch quý ba'};

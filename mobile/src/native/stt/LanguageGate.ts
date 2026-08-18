@@ -29,7 +29,7 @@ export interface GateTally {
 
 // Reused shape from LanguageDetector's vi heuristic, as a counting regex.
 const VI_DIACRITICS_RE =
-  /[àáâãèéêìíòóôõùúýăắằẳẵặầẩẫậếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỷỹđ]/gi;
+  /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/gi;
 const CJK_KANA_HANGUL_RE = /[一-鿿぀-ゟ゠-ヿ가-힯]/;
 const EN_COMMON_WORDS = [
   'the', 'is', 'are', 'was', 'were', 'have', 'has', 'will', 'would', 'could',
@@ -105,7 +105,7 @@ export function tallyLeader(tally: GateTally): GateEngine {
   return tally.vi > tally.sense ? 'vi' : 'sense';
 }
 
-/** Final lock decision at end of gate window. Tie → sense. */
+/** Final lock decision at end of gate window. Tie → sense. Kept separate from tallyLeader as an intentional seam for future lock policies (e.g., minimum-utterance-count). */
 export function decideLock(tally: GateTally): GateEngine {
   return tallyLeader(tally);
 }
