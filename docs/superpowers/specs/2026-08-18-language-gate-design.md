@@ -71,15 +71,17 @@ Module mới, chứa toàn bộ logic chấm điểm + tally + quyết định k
 không side effect, không giữ tham chiếu engine.
 
 `scoreUtterance(senseOut: {text, lang}, viOut: {text}): 'sense' | 'vi'` — quy
-tắc v1 theo thứ tự:
+tắc v1 theo thứ tự (đã reconcile với implementation + fixture tests):
 
-1. SenseVoice trả lang tag `ja/ko/zh` **và** text chứa ký tự CJK/Kana/Hangul
-   thật → `'sense'` (Zipformer không thể đúng).
-2. Cả hai ra Latin: so **mật độ dấu tiếng Việt** trên output Zipformer (regex
-   diacritics tái dùng từ `LanguageDetector`) với **tín hiệu tiếng Anh** trên
-   output SenseVoice (tag `en` + từ thông dụng). Điểm cao hơn thắng; hòa →
+1. Một bên rỗng/≤2 ký tự, bên kia ra câu hoàn chỉnh (≥6 ký tự) → bên dài thắng.
+2. Đúng một bên có tín hiệu chữ viết bản địa: SenseVoice tag `ja/ko/zh` + text
+   chứa CJK/Kana/Hangul thật → `'sense'`; mật độ dấu tiếng Việt ≥ 0.08 trên
+   output Zipformer → `'vi'`, trừ khi output SenseVoice có tín hiệu tiếng Anh
+   mạnh (tag `en` + từ thông dụng, điểm ≥ 0.5) → `'sense'`.
+3. Không bên nào có tín hiệu nhưng SenseVoice có tín hiệu tiếng Anh mạnh →
+   `'sense'`.
+4. Cả hai cùng có tín hiệu (vùng "garbage-mirror") hoặc không phân định được →
    nghiêng về engine đang dẫn tally (chống dao động).
-3. Một bên rỗng/≤2 ký tự, bên kia ra câu hoàn chỉnh → bên dài thắng.
 
 `GateTally`: đếm số utterance thắng mỗi engine trong cửa sổ;
 `decideLock(tally): 'sense' | 'vi'` — đa số thắng; hòa → `'sense'` (phạm vi
