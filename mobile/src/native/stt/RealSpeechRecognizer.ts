@@ -1112,7 +1112,9 @@ export class RealSpeechRecognizer {
     if (this.forcedLanguage) {
       return this.forcedLanguage;
     }
-    const normalized = (langFromModel ?? '').toLowerCase();
+    // Lột token wrapper `<|en|>` của SenseVoice trước khi so sánh (xem
+    // LanguageGate.scoreUtterance — cùng lý do).
+    const normalized = (langFromModel ?? '').toLowerCase().replace(/[^a-z]/g, '');
     if (normalized.startsWith('en')) return 'en';
     if (normalized.startsWith('ja') || normalized.startsWith('jp')) return 'ja';
     if (normalized.startsWith('ko')) return 'ko';

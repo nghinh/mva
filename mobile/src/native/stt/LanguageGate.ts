@@ -77,7 +77,10 @@ export function scoreUtterance(
   if (senseText.length <= NEAR_EMPTY_MAX && viText.length >= FULL_SENTENCE_MIN) return 'vi';
   if (viText.length <= NEAR_EMPTY_MAX && senseText.length >= FULL_SENTENCE_MIN) return 'sense';
 
-  const senseLang = (sense.lang ?? '').toLowerCase();
+  // SenseVoice trả lang dạng TOKEN `<|en|>` / `<|zh|>` (bridge passthrough) —
+  // phải lột ký tự không phải chữ trước khi so sánh, nếu không mọi rule dựa
+  // trên tag chết im lặng (bug field 18/08: tiếng Anh thua rác-vi hàng loạt).
+  const senseLang = (sense.lang ?? '').toLowerCase().replace(/[^a-z]/g, '');
   const senseCjk =
     (senseLang.startsWith('ja') || senseLang.startsWith('ko') ||
       senseLang.startsWith('zh') || senseLang.startsWith('cn')) &&

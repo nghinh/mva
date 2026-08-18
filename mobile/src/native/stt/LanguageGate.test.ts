@@ -104,6 +104,24 @@ describe('scoreUtterance', () => {
     ).toBe('sense');
   });
 
+  it('token-style SenseVoice tags (<|en|>) are normalized before comparison', () => {
+    // Bridge iOS passthrough r.lang nguyên dạng token — bug field 18/08.
+    expect(
+      scoreUtterance(
+        {text: 'send email to peter about quarterly report', lang: '<|en|>'},
+        {text: 'sen mêu tú pi tơ bao cua li ri po'},
+        'vi',
+      ),
+    ).toBe('sense');
+    expect(
+      scoreUtterance(
+        {text: '我们今天讨论第三季度的计划', lang: '<|zh|>'},
+        {text: 'a'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
   it('dominant vi diacritic density beats sense en tag', () => {
     expect(
       scoreUtterance(
