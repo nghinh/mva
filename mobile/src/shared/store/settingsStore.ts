@@ -64,6 +64,15 @@ export const DEFAULT_STT_ENGINE: SttEngineType = 'sense_voice';
 export type InputLanguageMode = 'auto' | 'vi';
 export const DEFAULT_INPUT_LANGUAGE: InputLanguageMode = 'auto';
 
+/** Device STT capability tier, measured once per install at splash prewarm. */
+export type DeviceSttTier = 'strong' | 'low';
+
+export interface SttBenchmarkResult {
+  /** Real-time factor đo được của SenseVoice; -1 nếu đo lỗi/timeout. */
+  rtf: number;
+  tier: DeviceSttTier;
+}
+
 export type {AppLanguage};
 
 interface SettingsState {
@@ -95,6 +104,9 @@ interface SettingsState {
    */
   inputLanguage: InputLanguageMode;
   setInputLanguage: (mode: InputLanguageMode) => void;
+  /** STT benchmark result — null = chưa đo (đo 1 lần ở splash prewarm). */
+  sttBenchmark: SttBenchmarkResult | null;
+  setSttBenchmark: (result: SttBenchmarkResult | null) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -122,10 +134,12 @@ export const useSettingsStore = create<SettingsState>()(
       setTtsRate: (r) => set({ttsRate: r}),
       inputLanguage: DEFAULT_INPUT_LANGUAGE,
       setInputLanguage: (mode) => set({inputLanguage: mode}),
+      sttBenchmark: null,
+      setSttBenchmark: (result) => set({sttBenchmark: result}),
     }),
     {
       name: 'vibevoice-settings-store',
-      version: 11,
+      version: 12,
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         developerMode: state.developerMode,
@@ -137,6 +151,7 @@ export const useSettingsStore = create<SettingsState>()(
         ttsEnabled: state.ttsEnabled,
         ttsRate: state.ttsRate,
         inputLanguage: state.inputLanguage,
+        sttBenchmark: state.sttBenchmark,
       }),
       migrate: (persistedState: unknown, version) => {
         const state = (persistedState ?? {}) as Partial<SettingsState>;
@@ -161,6 +176,8 @@ export const useSettingsStore = create<SettingsState>()(
           ttsRate: (state as SettingsState).ttsRate ?? 'normal',
           // New in v11 — default to 'auto' (SenseVoice) for all existing installs.
           inputLanguage: (state as SettingsState).inputLanguage ?? DEFAULT_INPUT_LANGUAGE,
+          // New in v12 — null buộc splash đo lại benchmark cho bản cài cũ.
+          sttBenchmark: version < 12 ? null : ((state as SettingsState).sttBenchmark ?? null),
         } as SettingsState;
       },
     }
@@ -176,4 +193,5 @@ export const useAppLanguage = () => useSettingsStore((state) => state.appLanguag
 export const useTtsEnabled = () => useSettingsStore((state) => state.ttsEnabled);
 export const useTtsRate = () => useSettingsStore((state) => state.ttsRate);
 export const useInputLanguage = () => useSettingsStore((state) => state.inputLanguage);
+export const useSttBenchmark = () => useSettingsStore((state) => state.sttBenchmark);
 export type {TtsRate};
