@@ -73,7 +73,12 @@
     "tabLive": "ライブ",
     "tabNetwork": "ネットワーク",
     "ttsToggleLabel": "読み上げ切り替え",
-    "langSelectTarget": "翻訳言語"
+    "langSelectTarget": "翻訳言語",
+    "inputLangModalTitle": "この会議の入力言語",
+    "inputLangModalAuto": "自動 (EN · JA · KO · ZH)",
+    "inputLangModalVi": "ベトナム語",
+    "inputLangModalStart": "会議を開始",
+    "inputLangModalCancel": "キャンセル"
   },
   "settings": {
     "title": "設定",

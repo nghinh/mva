@@ -73,7 +73,12 @@
     "tabLive": "라이브",
     "tabNetwork": "네트워크",
     "ttsToggleLabel": "읽기 토글",
-    "langSelectTarget": "번역 언어"
+    "langSelectTarget": "번역 언어",
+    "inputLangModalTitle": "이 회의의 입력 언어",
+    "inputLangModalAuto": "자동 (EN · JA · KO · ZH)",
+    "inputLangModalVi": "베트남어",
+    "inputLangModalStart": "회의 시작",
+    "inputLangModalCancel": "취소"
   },
   "settings": {
     "title": "설정",

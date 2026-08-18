@@ -73,7 +73,12 @@
     "tabLive": "Trực tiếp",
     "tabNetwork": "Mạng",
     "ttsToggleLabel": "Bật/tắt đọc to",
-    "langSelectTarget": "Ngôn ngữ dịch"
+    "langSelectTarget": "Ngôn ngữ dịch",
+    "inputLangModalTitle": "Ngôn ngữ đầu vào cho cuộc họp",
+    "inputLangModalAuto": "Tự động (EN · JA · KO · ZH)",
+    "inputLangModalVi": "Tiếng Việt",
+    "inputLangModalStart": "Bắt đầu họp",
+    "inputLangModalCancel": "Hủy"
   },
   "settings": {
     "title": "Cài đặt",

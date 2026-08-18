@@ -73,7 +73,12 @@
     "tabLive": "Live",
     "tabNetwork": "Network",
     "ttsToggleLabel": "Toggle read aloud",
-    "langSelectTarget": "Translation language"
+    "langSelectTarget": "Translation language",
+    "inputLangModalTitle": "Input language for this meeting",
+    "inputLangModalAuto": "Auto (EN · JA · KO · ZH)",
+    "inputLangModalVi": "Vietnamese",
+    "inputLangModalStart": "Start Meeting",
+    "inputLangModalCancel": "Cancel"
   },
   "settings": {
     "title": "Settings",
