@@ -61,8 +61,12 @@ const MOCK_MODEL: ModelInfo = {
   isOptimizedFor: ['iPhone 15 Pro'],
 };
 
-// Bootstrap chỉ được chạy một lần mỗi process — xem comment tại chỗ dùng.
-let bootstrapHasRunThisLaunch = false;
+// Guard bootstrap ở mức module — xem comment tại chỗ dùng.
+// 'running': có run() đang chạy → mount mới tuyệt đối không chạy thêm.
+// 'done': đã bootstrap xong → chỉ chạy lại nếu model không còn cached-ready
+//         (ví dụ user xóa model trong ModelRepository — cần cài lại).
+// 'idle': chưa chạy, hoặc lần trước lỗi → cho phép chạy (retry khi remount).
+let bootstrapGuard: 'idle' | 'running' | 'done' = 'idle';
 
 const PLATFORM_TRANSLATION_MODEL: ModelInfo = {
   id: Platform.OS === 'ios' ? 'apple-translation' : 'ml-kit-translation',
@@ -247,11 +251,14 @@ export const SplashScreen: React.FC = () => {
     // SplashScreen mỗi khi overallStatus đổi, và useRef mới sinh theo mỗi mount
     // sẽ cho run() chạy LẠI từ đầu → vòng lặp splash ↔ meeting tự duy trì
     // (mỗi run() flip prewarm status → remount → run() mới). Cờ module sống
-    // theo process nên bootstrap chỉ chạy đúng một lần mỗi lần mở app.
-    if (bootstrapHasRunThisLaunch) {
+    // theo process nên bootstrap chỉ chạy đúng một lần mỗi lần mở app —
+    // trừ khi model đã bị xóa sau đó (cần bootstrap lại để cài lại model).
+    const modelStillReady =
+      useBootstrapStore.getState().state.model.status === 'cached-ready';
+    if (bootstrapGuard === 'running' || (bootstrapGuard === 'done' && modelStillReady)) {
       return;
     }
-    bootstrapHasRunThisLaunch = true;
+    bootstrapGuard = 'running';
 
     const run = async () => {
       try {
@@ -281,6 +288,7 @@ export const SplashScreen: React.FC = () => {
           warnLog('[SplashScreen] STT model install/load failed:', error);
           setModelError(message);
           setIsInitializing(false);
+          bootstrapGuard = 'idle'; // cho phép retry ở lần mount kế tiếp
           return;
         }
 
@@ -423,10 +431,12 @@ export const SplashScreen: React.FC = () => {
         startPrewarm();
         completePrewarm();
         setIsInitializing(false);
+        bootstrapGuard = 'done';
         navigationRef.current.replace('Meeting');
       } catch (error) {
         warnLog('[SplashScreen] Bootstrap sequence failed:', error);
         setIsInitializing(false);
+        bootstrapGuard = 'idle'; // lỗi bất ngờ → remount sau được phép chạy lại
       }
     };
 
