@@ -31,13 +31,14 @@ import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
 import {useBootstrapStore, useModelState, usePrewarmState, useTranslatorModelState} from '../../../shared/store';
-import {useDeveloperMode, useTargetLanguage, useTtsEnabled, useInputLanguage, useSettingsStore, TARGET_LANGUAGE_OPTIONS} from '../../../shared/store/settingsStore';
+import {useDeveloperMode, useTargetLanguage, useTtsEnabled, useInputLanguage, useSttBenchmark, useSettingsStore, TARGET_LANGUAGE_OPTIONS} from '../../../shared/store/settingsStore';
 import {ttsService} from '../../../services/tts/TTSService';
 import {useTTSSpeaker} from '../hooks/useTTSSpeaker';
 import {MeetingStatusBar} from '../components/MeetingStatusBar';
 import {DeveloperMetricsOverlay} from '../components/DeveloperMetricsOverlay/DeveloperMetricsOverlay';
 import {TranscriptLane} from '../components/TranscriptLane';
 import {TranslationLane} from '../components/TranslationLane';
+import {InputLanguageModal} from '../components/InputLanguageModal';
 import {useMeetingSession} from '../hooks/useMeetingSession';
 import {requestAudioPermission} from '../../../shared/utils/permissions';
 import {isAppleTranslationAvailable} from '../../../shared/utils/platformSupport';
@@ -76,16 +77,11 @@ export function MeetingScreen(): React.JSX.Element {
   const targetLanguage = useTargetLanguage();
   const ttsEnabled = useTtsEnabled();
   const inputLanguage = useInputLanguage();
+  const sttBenchmark = useSttBenchmark();
   const {setInputLanguage, setTargetLanguage} = useSettingsStore();
   const [ttsPaused, setTtsPaused] = useState(false);
   const [targetLangModalVisible, setTargetLangModalVisible] = useState(false);
-
-  const handleInputLanguageToggle = useCallback(() => {
-    if (Platform.OS !== 'ios') return;
-    const next: 'auto' | 'vi' = inputLanguage === 'vi' ? 'auto' : 'vi';
-    setInputLanguage(next);
-    if (next === 'vi' && targetLanguage === 'vi') setTargetLanguage('en');
-  }, [inputLanguage, setInputLanguage, targetLanguage, setTargetLanguage]);
+  const [inputLangModalVisible, setInputLangModalVisible] = useState(false);
 
   const {
     session,
@@ -139,18 +135,33 @@ export function MeetingScreen(): React.JSX.Element {
     }
   }, [modelState.status, prewarmState.status, startPrewarm, completePrewarm]);
 
+  const beginMeeting = useCallback(
+    async (choice: 'auto' | 'vi' | 'gate') => {
+      if (choice === 'gate') {
+        await startMeeting('en', targetLanguage, {gateMode: true});
+        return;
+      }
+      setInputLanguage(choice);
+      // Input vi mà target cũng vi → chuyển target sang en để bản dịch không no-op.
+      const effectiveTarget = choice === 'vi' && targetLanguage === 'vi' ? 'en' : targetLanguage;
+      if (effectiveTarget !== targetLanguage) setTargetLanguage(effectiveTarget);
+      await startMeeting(choice === 'vi' ? 'vi' : 'en', effectiveTarget);
+    },
+    [startMeeting, targetLanguage, setInputLanguage, setTargetLanguage],
+  );
+
   const handleStartMeeting = useCallback(async () => {
-    console.warn('[MeetingScreen] handleStartMeeting: pressed');
     const hasPermission = await requestAudioPermission();
-    console.warn('[MeetingScreen] handleStartMeeting: permission result', {hasPermission});
     if (!hasPermission) {
       return;
     }
-    const sourceLanguage = inputLanguage === 'vi' ? 'vi' : 'en';
-    console.warn('[MeetingScreen] handleStartMeeting: calling startMeeting', {sourceLanguage, targetLanguage});
-    await startMeeting(sourceLanguage, targetLanguage);
-    console.warn('[MeetingScreen] handleStartMeeting: startMeeting resolved');
-  }, [startMeeting, inputLanguage, targetLanguage]);
+    if (sttBenchmark?.tier === 'strong') {
+      await beginMeeting('gate');
+    } else {
+      // Máy yếu (hoặc chưa benchmark): hỏi input language, nhớ lựa chọn cũ.
+      setInputLangModalVisible(true);
+    }
+  }, [beginMeeting, sttBenchmark]);
 
   const handlePauseMeeting = useCallback(async () => {
     await pauseMeeting();
@@ -444,35 +455,8 @@ export function MeetingScreen(): React.JSX.Element {
               </View>
             </TouchableOpacity>
 
-            {/* Language picker: source chip (top) ↓ target chip (bottom) */}
+            {/* Language picker: target chip only (input language now decided by tier/modal) */}
             <View style={styles.langPickerCol}>
-              {/* Source: 🌐 Auto ▾ or 🇻🇳 ▾ */}
-              <TouchableOpacity
-                style={[
-                  styles.langChipCol,
-                  inputLanguage === 'vi'
-                    ? {backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.primary + '60'}
-                    : {backgroundColor: theme.colors.surface.secondary, borderColor: theme.colors.border.subtle},
-                ]}
-                onPress={Platform.OS === 'ios' ? handleInputLanguageToggle : undefined}
-                activeOpacity={Platform.OS === 'ios' ? 0.7 : 1}
-                disabled={Platform.OS !== 'ios'}
-                accessibilityLabel="Toggle input language">
-                <Text style={styles.langFlagCol}>
-                  {inputLanguage === 'vi' ? '🇻🇳' : '🌐'}
-                </Text>
-                {inputLanguage !== 'vi' && (
-                  <Text style={[styles.langLabelCol, {color: theme.colors.text.secondary}]}>
-                    Auto
-                  </Text>
-                )}
-                {Platform.OS === 'ios' && (
-                  <Text style={[styles.langCaretCol, {color: theme.colors.text.tertiary}]}>▾</Text>
-                )}
-              </TouchableOpacity>
-
-              <Text style={[styles.langArrowCol, {color: theme.colors.text.tertiary}]}>↓</Text>
-
               {/* Target: flag ▾ */}
               <TouchableOpacity
                 style={[
@@ -537,6 +521,17 @@ export function MeetingScreen(): React.JSX.Element {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Input Language Modal — low-tier (or not-yet-benchmarked) devices only */}
+      <InputLanguageModal
+        visible={inputLangModalVisible}
+        initialChoice={inputLanguage}
+        onConfirm={(choice) => {
+          setInputLangModalVisible(false);
+          beginMeeting(choice);
+        }}
+        onCancel={() => setInputLangModalVisible(false)}
+      />
     </SafeAreaView>
     {!isLiveWorkspace && <AppBottomNav activeTab="live" />}
     </View>
@@ -702,16 +697,8 @@ const styles = StyleSheet.create({
   langFlagCol: {
     fontSize: 15,
   },
-  langLabelCol: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
   langCaretCol: {
     fontSize: 8,
-  },
-  langArrowCol: {
-    fontSize: 10,
   },
   stoppingOverlay: {
     ...StyleSheet.absoluteFill,
