@@ -12,7 +12,7 @@
  * @see docs/implementation-artifacts/4-6-deliver-accessibility-and-dark-mode-for-meeting-screen.md
  */
 
-import React, {useCallback, useState, useEffect} from 'react';
+import React, {useCallback, useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -135,22 +135,34 @@ export function MeetingScreen(): React.JSX.Element {
     }
   }, [modelState.status, prewarmState.status, startPrewarm, completePrewarm]);
 
+  // Chặn double-start: hai điểm vào (nút Start và modal confirm) đều đi qua
+  // beginMeeting, nên guard đặt ở đó là đủ; handleStartMeeting chỉ đọc cờ để
+  // khỏi mở modal/xin permission thừa khi một lượt start đã đang chạy.
+  const isStartingRef = useRef(false);
+
   const beginMeeting = useCallback(
     async (choice: 'auto' | 'vi' | 'gate') => {
-      if (choice === 'gate') {
-        await startMeeting('en', targetLanguage, {gateMode: true});
-        return;
+      if (isStartingRef.current) return;
+      isStartingRef.current = true;
+      try {
+        if (choice === 'gate') {
+          await startMeeting('en', targetLanguage, {gateMode: true});
+          return;
+        }
+        setInputLanguage(choice);
+        // Input vi mà target cũng vi → chuyển target sang en để bản dịch không no-op.
+        const effectiveTarget = choice === 'vi' && targetLanguage === 'vi' ? 'en' : targetLanguage;
+        if (effectiveTarget !== targetLanguage) setTargetLanguage(effectiveTarget);
+        await startMeeting(choice === 'vi' ? 'vi' : 'en', effectiveTarget);
+      } finally {
+        isStartingRef.current = false;
       }
-      setInputLanguage(choice);
-      // Input vi mà target cũng vi → chuyển target sang en để bản dịch không no-op.
-      const effectiveTarget = choice === 'vi' && targetLanguage === 'vi' ? 'en' : targetLanguage;
-      if (effectiveTarget !== targetLanguage) setTargetLanguage(effectiveTarget);
-      await startMeeting(choice === 'vi' ? 'vi' : 'en', effectiveTarget);
     },
     [startMeeting, targetLanguage, setInputLanguage, setTargetLanguage],
   );
 
   const handleStartMeeting = useCallback(async () => {
+    if (isStartingRef.current) return;
     const hasPermission = await requestAudioPermission();
     if (!hasPermission) {
       return;

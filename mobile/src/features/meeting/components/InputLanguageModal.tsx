@@ -7,7 +7,7 @@
  * @see Task 8 of the language-gate feature
  */
 
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {Modal, Text, TouchableOpacity, View, StyleSheet} from 'react-native';
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '../../../shared/hooks/useTheme';
@@ -24,10 +24,13 @@ export function InputLanguageModal({visible, initialChoice, onConfirm, onCancel}
   const {t} = useTranslation('meeting');
   const {theme} = useTheme();
   const [choice, setChoice] = useState<InputLanguageMode>(initialChoice);
+  const prevVisibleRef = useRef(visible);
 
-  // Sync lại lựa chọn ghi nhớ mỗi lần mở modal.
+  // Sync lại lựa chọn ghi nhớ CHỈ ở thời điểm mở modal (transition false→true),
+  // để initialChoice đổi giữa chừng lúc modal đang mở không xoá lựa chọn dở dang.
   useEffect(() => {
-    if (visible) setChoice(initialChoice);
+    if (visible && !prevVisibleRef.current) setChoice(initialChoice);
+    prevVisibleRef.current = visible;
   }, [visible, initialChoice]);
 
   const options: Array<{mode: InputLanguageMode; label: string; flag: string}> = [
@@ -54,7 +57,10 @@ export function InputLanguageModal({visible, initialChoice, onConfirm, onCancel}
                     : {backgroundColor: theme.colors.surface.secondary, borderColor: theme.colors.border.subtle},
                 ]}
                 onPress={() => setChoice(opt.mode)}
-                activeOpacity={0.75}>
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityState={{selected: active}}
+                accessibilityLabel={opt.label}>
                 <Text style={styles.optionFlag}>{opt.flag}</Text>
                 <Text
                   style={[
@@ -67,7 +73,12 @@ export function InputLanguageModal({visible, initialChoice, onConfirm, onCancel}
             );
           })}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.actionBtn} onPress={onCancel} activeOpacity={0.75}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={onCancel}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={t('inputLangModalCancel')}>
               <Text style={[styles.actionText, {color: theme.colors.text.secondary}]}>
                 {t('inputLangModalCancel')}
               </Text>
@@ -75,7 +86,9 @@ export function InputLanguageModal({visible, initialChoice, onConfirm, onCancel}
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionPrimary]}
               onPress={() => onConfirm(choice)}
-              activeOpacity={0.85}>
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={t('inputLangModalStart')}>
               <Text style={[styles.actionText, styles.actionPrimaryText]}>
                 {t('inputLangModalStart')}
               </Text>
