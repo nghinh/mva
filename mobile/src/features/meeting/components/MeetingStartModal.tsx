@@ -107,8 +107,11 @@ export function MeetingStartModal({
               );
             })}
 
-            {/* Ngôn ngữ đầu vào — chỉ máy yếu */}
-            {showInputSection && (
+            {/* Ngôn ngữ NÓI — chỉ máy yếu, và chỉ khi target KHÔNG phải vi.
+                Dịch sang tiếng Việt nghĩa là người nói nói tiếng nước ngoài
+                → input mặc nhiên Auto, hỏi thêm "Tiếng Việt" ở đây vừa thừa
+                vừa tạo tổ hợp vi→vi vô nghĩa. */}
+            {showInputSection && target !== 'vi' && (
               <>
                 <Text
                   style={[styles.sectionTitle, styles.sectionTitleSpaced, {color: theme.colors.text.primary}]}>
@@ -158,7 +161,7 @@ export function MeetingStartModal({
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionPrimary]}
-              onPress={() => onConfirm({input, target})}
+              onPress={() => onConfirm({input: target === 'vi' ? 'auto' : input, target})}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel={t('inputLangModalStart')}>

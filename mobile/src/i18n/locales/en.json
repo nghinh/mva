@@ -74,7 +74,7 @@
     "tabNetwork": "Network",
     "ttsToggleLabel": "Toggle read aloud",
     "langSelectTarget": "Translate to",
-    "inputLangModalTitle": "Input language for this meeting",
+    "inputLangModalTitle": "Spoken language in this meeting",
     "inputLangModalAuto": "Auto (EN · JA · KO · ZH)",
     "inputLangModalVi": "Vietnamese",
     "inputLangModalStart": "Start Meeting",

@@ -74,7 +74,7 @@
     "tabNetwork": "网络",
     "ttsToggleLabel": "切换朗读",
     "langSelectTarget": "翻译目标语言",
-    "inputLangModalTitle": "本次会议的输入语言",
+    "inputLangModalTitle": "会议中使用的语言",
     "inputLangModalAuto": "自动 (EN · JA · KO · ZH)",
     "inputLangModalVi": "越南语",
     "inputLangModalStart": "开始会议",
