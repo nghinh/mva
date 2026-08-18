@@ -201,6 +201,14 @@ export class RealSpeechRecognizer {
     this.gateActive = false;
     this.gateStartMs = 0;
     this.gateTally = createGateTally();
+    if (this.viGateEngine) {
+      try {
+        await this.viGateEngine.destroy();
+      } catch {
+        // engine cũ hỏng — bỏ qua, sẽ bị thay thế bên dưới.
+      }
+      this.viGateEngine = null;
+    }
 
     const modelId: BundledModelId = getSttModelIdForSource(sourceLanguage);
     const engineLabel = BUNDLED_MODEL_CONFIG[modelId].displayName;
@@ -319,16 +327,20 @@ export class RealSpeechRecognizer {
       this.processingChain.catch(() => undefined),
       new Promise<void>(resolve => setTimeout(resolve, drainTimeout)),
     ]);
+    // Tắt gate và tách viGateEngine ra biến cục bộ TRƯỚC khi destroy: nếu
+    // drain chạm timeout mà chain vẫn còn job, job đó có thể gọi lockGate
+    // song song với các destroy bên dưới (double-destroy / engine đã chết).
+    this.gateActive = false;
+    this.gateStartMs = 0;
+    const viEngine = this.viGateEngine;
+    this.viGateEngine = null;
     if (this.engine) {
       await this.engine.destroy();
       this.engine = null;
     }
-    if (this.viGateEngine) {
-      await this.viGateEngine.destroy();
-      this.viGateEngine = null;
+    if (viEngine) {
+      await viEngine.destroy();
     }
-    this.gateActive = false;
-    this.gateStartMs = 0;
     this.gateTally = createGateTally();
     await this.deactivateAudioSession();
     if (this.sessionId) {
@@ -734,7 +746,19 @@ export class RealSpeechRecognizer {
     const leader: GateEngine = this.gateActive ? tallyLeader(this.gateTally) : 'sense';
     const partialEngine =
       this.gateActive && leader === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
-    const result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+    let result: Awaited<ReturnType<SttEngine['transcribeSamples']>>;
+    if (this.gateActive) {
+      // Trong gate, một partial hỏng chỉ được phép mất chính partial đó —
+      // không được ném ra ngoài và làm hỏng processingChain.
+      try {
+        result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      } catch (error) {
+        warnLog('[RealSTT] gate: partial decode failed, skipping this partial:', error);
+        return;
+      }
+    } else {
+      result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+    }
     // State may have changed while we awaited; re-check before emitting so
     // partials from a finalized utterance don't leak into a new one.
     if (this.currentUtteranceId !== uttId) {
@@ -784,8 +808,23 @@ export class RealSpeechRecognizer {
     let lang: SourceLanguage;
     if (this.gateActive && this.viGateEngine) {
       // Dual-decode tuần tự trên cùng snapshot — đỉnh RAM activation không đổi.
-      const senseResult = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
-      const viResult = await this.viGateEngine.transcribeSamples(snapshot, SAMPLE_RATE);
+      // Mỗi decode được bọc riêng: một engine hỏng chỉ làm mất phần của nó,
+      // không ném ra ngoài làm hỏng processingChain của cả phiên.
+      let senseResult: {text?: string; lang?: string} = {};
+      let viResult: {text?: string} = {};
+      let anyDecodeOk = false;
+      try {
+        senseResult = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
+        anyDecodeOk = true;
+      } catch (error) {
+        warnLog('[RealSTT] gate: sense decode failed for this utterance:', error);
+      }
+      try {
+        viResult = await this.viGateEngine.transcribeSamples(snapshot, SAMPLE_RATE);
+        anyDecodeOk = true;
+      } catch (error) {
+        warnLog('[RealSTT] gate: vi decode failed for this utterance:', error);
+      }
       const senseText = (senseResult.text ?? '').trim();
       const viText = (viResult.text ?? '').trim();
       if (!senseText && !viText) {
@@ -797,7 +836,11 @@ export class RealSpeechRecognizer {
           {text: viText},
           tallyLeader(this.gateTally),
         );
-        recordWin(this.gateTally, winner);
+        // Chỉ ghi tally khi có ít nhất một decode chạy được — không để một
+        // engine hỏng "thắng" bằng cách bên kia im lặng vì lỗi kỹ thuật.
+        if (anyDecodeOk) {
+          recordWin(this.gateTally, winner);
+        }
         if (winner === 'vi') {
           text = viText;
           lang = 'vi';
@@ -862,7 +905,11 @@ export class RealSpeechRecognizer {
   // empty_result) để một quãng lặng ngay tại mốc 5 phút không giữ hai engine
   // sống vô thời hạn chờ một final thành công.
   private async maybeLockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
-    if (this.gateActive && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
+    // Cần bằng chứng mới khóa: một phiên im lặng suốt cả cửa sổ sẽ có tally
+    // rỗng, khóa lúc đó là chọn engine bằng mặc định chứ không phải bằng dữ
+    // liệu — chờ utterance có kết quả đầu tiên rồi mới khóa.
+    const decided = this.gateTally.sense + this.gateTally.vi > 0;
+    if (this.gateActive && decided && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
       await this.lockGate(emit);
     }
   }
