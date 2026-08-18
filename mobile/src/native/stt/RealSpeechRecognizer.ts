@@ -9,6 +9,7 @@ import type { SessionId, SourceLanguage, UtteranceId } from '../../shared/types/
 import type { MeetingPipelineEvent } from '../../shared/types/meeting';
 import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
+import { normalizeViCase } from './viTextNormalizer';
 import {
   GATE_WINDOW_MS,
   createGateTally,
@@ -813,6 +814,9 @@ export class RealSpeechRecognizer {
     // detectLanguage có side-effect (emit language_detected) nên chỉ gọi SAU
     // các guard ở trên — giữ đúng thứ tự của code trước gate.
     const lang: SourceLanguage = forcedVi ? 'vi' : this.detectLanguage(text, modelLangHint);
+    if (lang === 'vi') {
+      text = normalizeViCase(text);
+    }
     emit({
       type: 'stt_partial',
       session_id: this.sessionId,
@@ -897,6 +901,10 @@ export class RealSpeechRecognizer {
       const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
       text = (result.text ?? '').trim();
       lang = text ? this.detectLanguage(text, result.lang, utteranceId) : 'en';
+    }
+    if (lang === 'vi') {
+      // Zipformer-VI phát ra toàn chữ hoa — hạ case ở tầng hiển thị.
+      text = normalizeViCase(text);
     }
     if (!text) {
       this.lastFinalizeReason = 'empty_result';
