@@ -40,7 +40,7 @@ import {
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
-import {testLog, flushSessionTestLog, ensureDeviceTag, deviceMeta} from '../../../services/sessionTestLog';
+import {testLog, flushSessionTestLog, uploadSessionTestLog, ensureDeviceTag, deviceMeta} from '../../../services/sessionTestLog';
 import {
   getSpeakerEmbeddingService,
   releaseSpeakerEmbeddingService,
@@ -1421,8 +1421,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
 
     // Chốt log test của phiên và ghi ra file để xem/chia sẻ từ màn Review.
     if (currentSession.id) {
-      testLog(currentSession.id, {kind: 'session_stop', detail: `${utterances.length} utterance đã lưu`});
-      flushSessionTestLog(currentSession.id).catch(() => {});
+      const logSessionId = currentSession.id;
+      testLog(logSessionId, {kind: 'session_stop', detail: `${utterances.length} utterance đã lưu`});
+      // flush TRƯỚC rồi mới upload (upload đọc từ file khi buffer đã xả).
+      flushSessionTestLog(logSessionId)
+        .then(() => uploadSessionTestLog(logSessionId))
+        .catch(() => {});
     }
 
     debugLog('[useMeetingSession] Meeting stopped, navigating. Background post-processing will continue.');

@@ -12,7 +12,8 @@
  */
 
 import {Platform} from 'react-native';
-import {DocumentDirectoryPath, appendFile, exists, mkdir, readFile, writeFile} from '@dr.pogodin/react-native-fs';
+import {DocumentDirectoryPath, TemporaryDirectoryPath, appendFile, exists, mkdir, readFile, writeFile} from '@dr.pogodin/react-native-fs';
+import testLogToken from '../shared/config/testLogToken.local.json';
 import {useSettingsStore} from '../shared/store/settingsStore';
 import {warnLog} from '../shared/utils/logger';
 
@@ -139,6 +140,49 @@ const KIND_LABEL: Record<TestLogKind, string> = {
   translation_cancelled: '↩️ Bản dịch bị hủy (có bản mới hơn)',
   translation_error: '❌ Lỗi dịch',
 };
+
+/**
+ * Tự động đẩy log phiên vào group Telegram [MVA] Test Log sau khi Stop.
+ *
+ * CHỈ hoạt động khi build có bot token trong testLogToken.local.json — file
+ * này commit RỖNG trong repo (không bao giờ commit token thật; máy build nội
+ * bộ điền tay + `git update-index --skip-worktree`). Token rỗng → hàm thoát
+ * im lặng, app hành xử như bản public bình thường. PHẢI giữ nguyên cơ chế này
+ * (hoặc gỡ hẳn) trước khi phát hành ra ngoài nhóm test nội bộ — auto-upload
+ * transcript đi ngược cam kết privacy của sản phẩm.
+ *
+ * Gửi dạng document .txt (log dài vượt trần 4096 ký tự của sendMessage).
+ */
+export async function uploadSessionTestLog(sessionId: string): Promise<void> {
+  const {botToken, chatId} = testLogToken as {botToken: string; chatId: string};
+  if (!botToken || !chatId) return;
+  try {
+    const entries = await readSessionTestLog(sessionId);
+    if (entries.length === 0) return;
+    const tag = await ensureDeviceTag();
+    const body = `MVA test log — ${deviceMeta()}\nphiên ${sessionId}\n\n${renderSessionTestLog(entries)}\n`;
+    const filePath = `${TemporaryDirectoryPath}/mva-test-log-${tag}-${Date.now()}.txt`;
+    await writeFile(filePath, body, 'utf8');
+    const form = new FormData();
+    form.append('chat_id', chatId);
+    form.append('caption', `🧪 ${tag} — ${entries.length} dòng — phiên ${sessionId}`);
+    form.append('document', {
+      uri: filePath.startsWith('file://') ? filePath : `file://${filePath}`,
+      type: 'text/plain',
+      name: `test-log-${tag}.txt`,
+    } as unknown as Blob);
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: 'POST',
+      body: form,
+    });
+    if (!res.ok) {
+      warnLog('[sessionTestLog] upload failed:', res.status, await res.text().catch(() => ''));
+    }
+  } catch (error) {
+    // Mất mạng / group đổi quyền — không được ảnh hưởng luồng kết thúc họp.
+    warnLog('[sessionTestLog] upload error:', error);
+  }
+}
 
 /** Render text dễ đọc để hiển thị / chia sẻ. */
 export function renderSessionTestLog(entries: TestLogEntry[]): string {
