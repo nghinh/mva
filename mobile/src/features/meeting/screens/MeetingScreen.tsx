@@ -42,6 +42,7 @@ import {useMeetingSession} from '../hooks/useMeetingSession';
 import {requestAudioPermission} from '../../../shared/utils/permissions';
 import {isAppleTranslationAvailable} from '../../../shared/utils/platformSupport';
 import {arePacksDownloaded} from '../../../services/languagePackStatus';
+import {ensureTargetLanguagePacks} from '../../../services/ensureTargetLanguagePacks';
 import {activateKeepAwake, deactivateKeepAwake} from '../../../native/keepAwake';
 import type {SessionStatus, ConnectivityStatus} from '../state/meetingStore';
 import {useDeveloperMetrics} from '../store/developerMetricsStore';
@@ -137,6 +138,9 @@ export function MeetingScreen(): React.JSX.Element {
       try {
         // Luôn tự lưu lựa chọn cuối làm mặc định (hiển thị lại trong Settings).
         if (target !== targetLanguage) setTargetLanguage(target);
+        // Đổi target có thể cần gói dịch chưa cài (vd en→vi) — tải nền, không
+        // chặn việc bắt đầu họp; final lỡ thiếu sẽ được dịch bù sau họp.
+        ensureTargetLanguagePacks(target).catch(() => {});
         if (sttBenchmark?.tier === 'strong') {
           // Máy khỏe: gate tự nhận diện input, chỉ cần target từ popup.
           await startMeeting('en', target, {gateMode: true});
