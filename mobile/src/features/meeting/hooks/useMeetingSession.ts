@@ -638,9 +638,20 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
       return;
     }
-    // Câu nói trùng ngôn ngữ đích (vd gate nhận vi, target=vi) không cần dịch
-    // — trước đây passthrough làm lane Dịch lặp lại nguyên văn, gây thừa.
+    // Câu nói trùng ngôn ngữ đích (vd gate nhận vi, target=vi): không chạy
+    // translator, nhưng MIRROR nguyên văn sang lane Dịch (yêu cầu UX 19/08 —
+    // lane trống làm user tưởng lỗi). Chi phí 0ms vì không dịch thật.
     if (event.language === useMeetingStore.getState().session.targetLanguage) {
+      if (event.text.trim()) {
+        useMeetingStore.getState().handleTranslationMessage(
+          event.utterance_id,
+          event.text,
+          false,
+          event.revision,
+          event.text,
+          event.timestamp_ms,
+        );
+      }
       return;
     }
     const translator = getOnDeviceTranslator();
@@ -914,10 +925,44 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         // không tạo entry ở lane Dịch; chỉ lưu utterance với translatedText
         // null. KHÔNG đưa vào deferred queue — không có gì để dịch về sau.
         if (event.language === currentStore.session.targetLanguage) {
-          testLog(sessionId, {kind: 'translation_skip_same_lang', utteranceId: event.utterance_id, detail: `target=${currentStore.session.targetLanguage}`});
-          persistUntranslatedFinal(untranslatedItem).catch((err) =>
-            warnLog('[useMeetingSession] Failed to persist same-language utterance:', err),
+          testLog(sessionId, {kind: 'translation_skip_same_lang', utteranceId: event.utterance_id, detail: `target=${currentStore.session.targetLanguage}, hiển thị nguyên văn`});
+          // Mirror nguyên văn vào lane Dịch + lưu history đồng nhất (latency 0,
+          // không chạy translator).
+          useMeetingStore.getState().handleTranslationMessage(
+            event.utterance_id,
+            event.text,
+            true,
+            event.revision,
+            event.text,
+            event.timestamp_ms,
           );
+          const persistence = getPersistenceService();
+          persistence
+            .saveFinalUtteranceWithTranslation(
+              {
+                ...buildUntranslatedUtteranceData(
+                  sessionId,
+                  event.utterance_id,
+                  event.text,
+                  event.language,
+                  event.revision,
+                  event.timestamp_ms,
+                ),
+                // Mirror: history hiển thị đồng nhất với lane Dịch.
+                translatedText: event.text,
+                translationLatencyMs: 0,
+              },
+              {
+                id: `trans_${event.utterance_id}_final`,
+                utteranceId: event.utterance_id,
+                text: event.text,
+                latencyMs: 0,
+                createdAt: Date.now(),
+              },
+            )
+            .catch((err) =>
+              warnLog('[useMeetingSession] Failed to persist same-language utterance:', err),
+            );
           return;
         }
 
