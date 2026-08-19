@@ -192,12 +192,14 @@ export class RealSpeechRecognizer {
   // Utterance đã emit placeholder "đang xác định ngôn ngữ" (cửa sổ tally rỗng)
   // — mỗi utterance chỉ emit đúng một lần.
   private gatePendingEmittedFor: UtteranceId | null = null;
+  // Bias chấm điểm khi ngôn ngữ dịch sang là vi (xem scoreUtterance).
+  private gateBiasAgainstVi = false;
 
   async start(
     sessionId: SessionId,
     emit: (event: MeetingPipelineEvent) => void,
     sourceLanguage?: SourceLanguage,
-    options?: {gateMode?: boolean},
+    options?: {gateMode?: boolean; targetLanguage?: string},
   ): Promise<void> {
     this.sessionId = sessionId;
     this.emitFn = emit;
@@ -213,6 +215,9 @@ export class RealSpeechRecognizer {
     this.gateStartMs = 0;
     this.gateTally = createGateTally();
     this.gatePendingEmittedFor = null;
+    // Dịch sang tiếng Việt = kỳ vọng speech ngoại ngữ → vùng bằng chứng yếu
+    // trong gate nghiêng về sense (yêu cầu UX 19/08).
+    this.gateBiasAgainstVi = options?.targetLanguage === 'vi';
     if (this.viGateEngine) {
       try {
         await this.viGateEngine.destroy();
@@ -807,7 +812,12 @@ export class RealSpeechRecognizer {
       if (!senseText && !viText) {
         return;
       }
-      const winner = scoreUtterance({text: senseText, lang: senseResult.lang}, {text: viText}, leader);
+      const winner = scoreUtterance(
+        {text: senseText, lang: senseResult.lang},
+        {text: viText},
+        leader,
+        this.gateBiasAgainstVi,
+      );
       if (winner === 'vi') {
         text = viText;
         forcedVi = true;
@@ -917,6 +927,7 @@ export class RealSpeechRecognizer {
           {text: senseText, lang: senseResult.lang},
           {text: viText},
           tallyLeader(this.gateTally),
+          this.gateBiasAgainstVi,
         );
         // Chỉ ghi tally khi CẢ HAI decode đều chạy được: một lỗi kỹ thuật
         // một phía không được tính là chiến thắng cho bên còn lại, nếu không

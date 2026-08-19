@@ -70,6 +70,34 @@ describe('scoreUtterance', () => {
     ).toBe('sense');
   });
 
+  it('short vi garble with high diacritic RATIO cannot beat a fluent en-tagged sentence', () => {
+    // Field 19/08 10:02: "Alô ha" (0.167) / "Ừ d" (0.33) thắng oan tiếng Anh.
+    expect(
+      scoreUtterance({text: 'Hello, how are you today is we day.', lang: '<|en|>'}, {text: 'Alô ha'}, 'vi'),
+    ).toBe('sense');
+    expect(
+      scoreUtterance({text: 'I know it is rain day.', lang: '<|en|>'}, {text: 'Ừ d'}, 'vi'),
+    ).toBe('sense');
+  });
+
+  it('biasAgainstVi (target=vi): weak-evidence zones fall to sense, real vi still wins', () => {
+    // Không bên nào có tín hiệu → sense thay vì leader.
+    expect(scoreUtterance({text: 'abc xyz', lang: '<|ko|>'}, {text: 'abc xyz'}, 'vi', true)).toBe('sense');
+    // vi strong nhưng chưa dominant+dài → sense khi bias.
+    expect(
+      scoreUtterance({text: 'mumble jumble words', lang: '<|ja|>'}, {text: 'sen mêu tú pi tơ bao cua li ri po'}, 'vi', true),
+    ).toBe('sense');
+    // vi thật (dominant + dài + stopword) vẫn thắng dù bias.
+    expect(
+      scoreUtterance(
+        {text: 'homehelello, how are you.', lang: '<|zh|>'},
+        {text: 'xin chào bạn có khỏe không năm nay là thứ tư'},
+        'sense',
+        true,
+      ),
+    ).toBe('vi');
+  });
+
   it('vi phrase using previously-missing diacritics (ơ, ấ, ả) → vi', () => {
     expect(
       scoreUtterance(

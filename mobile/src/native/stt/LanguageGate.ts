@@ -63,6 +63,10 @@ const VI_DIACRITIC_STRONG_RATIO = 0.08;
 // Tiếng Việt THẬT có mật độ dấu ~0.15–0.3; rác-vi do transducer nghe tiếng Anh
 // thường < 0.12. Trên ngưỡng này vi thắng bất chấp lang tag của SenseVoice.
 const VI_DIACRITIC_DOMINANT_RATIO = 0.13;
+// Mật độ dấu là TỶ LỆ — chuỗi càng ngắn thì một dấu càng nặng ký ("Alô ha" =
+// 0.167!). Bug field 19/08 10:02: tiếng Anh bị vi-engine nghe thành mẩu ngắn
+// có dấu và đè luôn tag en. Dominant chỉ được đè tag en khi đủ vật liệu.
+const MIN_VI_EVIDENCE_CHARS = 12;
 const EN_SIGNAL_STRONG = 0.5;
 
 /** Số final tối thiểu để khóa sớm khi bằng chứng tuyệt đối một chiều. */
@@ -90,6 +94,12 @@ export function scoreUtterance(
   sense: GateUtteranceOutput,
   vi: GateUtteranceOutput,
   leader: GateEngine,
+  /**
+   * true khi ngôn ngữ dịch sang là tiếng Việt: người dùng kỳ vọng speech
+   * ngoại ngữ, nên các vùng bằng chứng YẾU nghiêng về sense — vi muốn thắng
+   * phải có bằng chứng thật (dấu dày + đủ dài, hoặc stopword dày).
+   */
+  biasAgainstVi: boolean = false,
 ): GateEngine {
   const senseText = sense.text.trim();
   const viText = vi.text.trim();
@@ -114,19 +124,24 @@ export function scoreUtterance(
   // Rule 2: sense shows CJK script and vi lacks its signal → sense.
   if (senseCjk && !viStrong) return 'sense';
 
-  // Rule 3: mật độ dấu ÁP ĐẢO = tiếng Việt thật (rác-vi từ tiếng Anh hiếm khi
-  // đạt mức này) → vi thắng, kể cả khi SenseVoice tag 'en'.
-  if (viDominant && !senseCjk) return 'vi';
+  // Rule 3: mật độ dấu ÁP ĐẢO + ĐỦ DÀI = tiếng Việt thật → vi thắng, kể cả
+  // khi SenseVoice tag 'en'. Mẩu ngắn (< MIN_VI_EVIDENCE_CHARS) không đủ tư
+  // cách đè tag en — rơi xuống Rule 4.
+  const viSubstantial = viText.length >= MIN_VI_EVIDENCE_CHARS;
+  if (viDominant && viSubstantial && !senseCjk) return 'vi';
 
   // Rule 4: SenseVoice có LID head thật — tag 'en' với text Latin đáng tin hơn
   // rác-vi mật độ dấu thấp. Đây là fix cho "nói tiếng Anh nhận thành tiếng
   // Việt": câu Anh không chứa stopword trước đây thua oan ở Rule 5.
   if (senseEnTag && !senseCjk) return 'sense';
 
-  // Rule 5: vi có dấu (nhưng chưa áp đảo) và sense không có tín hiệu gì → vi,
-  // trừ khi stopword tiếng Anh dày đặc.
+  // Rule 5: vi có dấu (nhưng chưa áp đảo+đủ dài) và sense không có tín hiệu
+  // gì → vi, trừ khi stopword tiếng Anh dày đặc — hoặc đang bias theo target
+  // vi mà bằng chứng vi vẫn yếu.
   if (viStrong && !senseCjk) {
-    return enSignal(sense) >= EN_SIGNAL_STRONG ? 'sense' : 'vi';
+    if (enSignal(sense) >= EN_SIGNAL_STRONG) return 'sense';
+    if (biasAgainstVi && !(viDominant && viSubstantial)) return 'sense';
+    return 'vi';
   }
 
   // Rule 6: sense has strong English signal and vi is not strong → sense.
@@ -140,7 +155,9 @@ export function scoreUtterance(
     return viCommonWordStrong(viText) ? 'vi' : 'sense';
   }
 
-  // Rule 8: neither side shows a signal → leader.
+  // Rule 8: neither side shows a signal → bias theo target nếu có, không thì
+  // leader.
+  if (biasAgainstVi) return 'sense';
   return leader;
 }
 

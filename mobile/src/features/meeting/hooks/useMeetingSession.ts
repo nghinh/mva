@@ -1269,7 +1269,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
             sessionId,
             handleIncomingPipelineEvent,
             effectiveSourceLanguage,
-            {gateMode: options?.gateMode === true},
+            {gateMode: options?.gateMode === true, targetLanguage},
           );
           console.warn('[useMeetingSession] real recognizer start: success', {sessionId});
           startedWithRealRecognizer = true;
