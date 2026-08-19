@@ -103,6 +103,8 @@ export interface STTFinalEvent {
   session_id: SessionId;
   utterance_id: UtteranceId;
   text: string;
+  /** Engine đã cho ra text này: 'sense' | 'vi' (phục vụ log test). */
+  engine?: string;
   language: SourceLanguage;
   confidence: number;
   timestamp_ms: number;

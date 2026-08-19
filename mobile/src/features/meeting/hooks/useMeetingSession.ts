@@ -40,6 +40,7 @@ import {
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
+import {testLog, flushSessionTestLog, ensureDeviceTag, deviceMeta} from '../../../services/sessionTestLog';
 import {
   getSpeakerEmbeddingService,
   releaseSpeakerEmbeddingService,
@@ -748,6 +749,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
     useMeetingStore.getState().handlePipelineEvent(event);
 
+    // Log test: các mốc gate (active / locked) đi qua pipeline_status.
+    if (event.type === 'pipeline_status' && event.details && /gate/i.test(event.details)) {
+      testLog(event.session_id, {kind: 'gate', detail: event.details});
+    }
+
     if (event.type === 'utterance_cancel') {
       // Purge per-utterance throttle state; the store drops the translation
       // entry itself.
@@ -787,6 +793,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       const dispatchFinalTranslation = async () => {
         const currentStore = useMeetingStore.getState();
         const sessionId = currentStore.session.id ?? event.session_id;
+        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'}`});
 
         const assignSpeakerAsync = async () => {
           if (!event.audio_samples || !event.sample_rate || event.audio_samples.length < Math.floor(event.sample_rate * 1.0)) {
@@ -907,6 +914,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         // không tạo entry ở lane Dịch; chỉ lưu utterance với translatedText
         // null. KHÔNG đưa vào deferred queue — không có gì để dịch về sau.
         if (event.language === currentStore.session.targetLanguage) {
+          testLog(sessionId, {kind: 'translation_skip_same_lang', utteranceId: event.utterance_id, detail: `target=${currentStore.session.targetLanguage}`});
           persistUntranslatedFinal(untranslatedItem).catch((err) =>
             warnLog('[useMeetingSession] Failed to persist same-language utterance:', err),
           );
@@ -924,6 +932,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         const translatorReady = await awaitTranslatorReadyForTranslate(180_000);
         if (!translatorReady) {
           warnLog('[useMeetingSession] Translator not ready after wait; skipping translation for utterance.');
+          testLog(sessionId, {kind: 'translation_deferred', utteranceId: event.utterance_id, detail: 'translator chưa sẵn sàng sau 180s'});
           queueDeferredTranslation(untranslatedItem);
           persistUntranslatedFinal(untranslatedItem).catch((err) =>
             warnLog('[useMeetingSession] Failed to persist untranslated utterance:', err),
@@ -945,8 +954,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           .then((result) => {
             const activeVersion = translationVersionRef.current.get(event.utterance_id);
             if (activeVersion !== result.version) {
+              testLog(sessionId, {kind: 'translation_cancelled', utteranceId: event.utterance_id, detail: 'kết quả cũ, đã có bản mới hơn'});
               return;
             }
+            testLog(sessionId, {kind: 'translation_ok', utteranceId: event.utterance_id, text: result.text, detail: `${Date.now() - startedAt}ms`});
 
             useMeetingStore.getState().handleTranslationMessage(
               event.utterance_id,
@@ -991,8 +1002,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           })
           .catch((error) => {
             if (isTranslationCancelledError(error)) {
+              testLog(sessionId, {kind: 'translation_cancelled', utteranceId: event.utterance_id, detail: 'bị hủy bởi yêu cầu dịch mới hơn'});
               return;
             }
+            testLog(sessionId, {kind: 'translation_error', utteranceId: event.utterance_id, detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error)});
             queueDeferredTranslation(untranslatedItem);
 
             const translatorPausedForMemory =
@@ -1180,6 +1193,8 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       getSessionDiarizationWindowService().reset(Date.now(), 16000);
       const sessionId = store.startSession(effectiveSourceLanguage, targetLanguage);
       if (!sessionId) return;
+      await ensureDeviceTag();
+      testLog(sessionId, {kind: 'session_start', lang: targetLanguage, detail: `source=${effectiveSourceLanguage}, gateMode=${options?.gateMode === true}, ${deviceMeta()}`});
 
       const currentSession = {
         ...store.session,
@@ -1403,6 +1418,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     // Fast save: session + all utterances in parallel — user sees SessionReview immediately.
     await persistence.saveSession(finalSessionData);
     await Promise.all(utterances.map((u) => persistence.saveUtterance(u)));
+
+    // Chốt log test của phiên và ghi ra file để xem/chia sẻ từ màn Review.
+    if (currentSession.id) {
+      testLog(currentSession.id, {kind: 'session_stop', detail: `${utterances.length} utterance đã lưu`});
+      flushSessionTestLog(currentSession.id).catch(() => {});
+    }
 
     debugLog('[useMeetingSession] Meeting stopped, navigating. Background post-processing will continue.');
 

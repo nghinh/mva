@@ -852,6 +852,7 @@ export class RealSpeechRecognizer {
 
     let text: string;
     let lang: SourceLanguage;
+    let engineUsed = '';
     if (this.gateActive && this.viGateEngine) {
       // Dual-decode tuần tự trên cùng snapshot — đỉnh RAM activation không đổi.
       // Mỗi decode được bọc riêng: một engine hỏng chỉ làm mất phần của nó,
@@ -897,11 +898,14 @@ export class RealSpeechRecognizer {
           text = senseText;
           lang = this.detectLanguage(senseText, senseResult.lang, utteranceId);
         }
+        // Phục vụ log test: engine thắng + tally hiện tại của cửa sổ gate.
+        engineUsed = `${winner} (gate ${this.gateTally.sense}-${this.gateTally.vi})`;
       }
     } else {
       const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
       text = (result.text ?? '').trim();
       lang = text ? this.detectLanguage(text, result.lang, utteranceId) : 'en';
+      engineUsed = this.forcedLanguage === 'vi' ? 'vi (đã khóa/chọn tay)' : 'sense (đã khóa/mặc định)';
     }
     if (lang === 'vi') {
       // Zipformer-VI phát ra toàn chữ hoa — hạ case ở tầng hiển thị.
@@ -931,6 +935,7 @@ export class RealSpeechRecognizer {
       session_id: sessionId,
       utterance_id: utteranceId,
       text,
+      engine: engineUsed,
       language: lang,
       confidence: 0.9,
       timestamp_ms: now,

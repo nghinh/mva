@@ -33,6 +33,7 @@ import {
   exportRecap,
   exportMinutes,
 } from '../utils/exportTranscript';
+import {readSessionTestLog, renderSessionTestLog} from '../../../services/sessionTestLog';
 
 type SessionReviewNavigationProp = StackNavigationProp<RootStackParamList, 'SessionReview'>;
 type SessionReviewRouteProp = RouteProp<RootStackParamList, 'SessionReview'>;
@@ -393,6 +394,25 @@ export function SessionReviewScreen(): React.JSX.Element {
       Alert.alert('Export Failed', `Could not export recap: ${message}`);
     } finally {
       setIsExportingRecap(false);
+    }
+  };
+
+  // ── Export Test Log handler: nhật ký chẩn đoán phiên (từng câu nói, engine
+  // nào xử lý, dịch ra sao / vì sao không dịch, mốc gate, định danh máy). ──
+  const handleExportTestLog = async () => {
+    if (!sessionId) return;
+    try {
+      const entries = await readSessionTestLog(sessionId);
+      if (entries.length === 0) {
+        Alert.alert('Test Log', 'Phiên này không có log test (phiên cũ trước khi bật tính năng log).');
+        return;
+      }
+      await Share.share({message: `MVA test log — ${sessionId}
+
+${renderSessionTestLog(entries)}`});
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      Alert.alert('Export Failed', `Could not export test log: ${message}`);
     }
   };
 
@@ -1016,6 +1036,28 @@ export function SessionReviewScreen(): React.JSX.Element {
           ) : (
             <Text style={[styles.exportOptionAction, {color: theme.colors.tertiary}]}>Export</Text>
           )}
+        </TouchableOpacity>
+
+        {/* ── Export Test Log ── */}
+        <TouchableOpacity
+          style={[
+            styles.exportOptionCard,
+            {backgroundColor: theme.colors.surface.primary},
+          ]}
+          onPress={handleExportTestLog}
+          activeOpacity={0.7}>
+          <View style={styles.exportOptionHeader}>
+            <Text style={styles.exportOptionIcon}>🧪</Text>
+            <View style={styles.exportOptionInfo}>
+              <Text style={[styles.exportOptionTitle, {color: theme.colors.text.primary}]}>
+                Test Log
+              </Text>
+              <Text style={[styles.exportOptionDesc, {color: theme.colors.text.tertiary}]}>
+                Từng câu nói: engine, thời gian, dịch/không dịch và lý do
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.exportOptionAction, {color: theme.colors.primary}]}>Share</Text>
         </TouchableOpacity>
       </View>
 
