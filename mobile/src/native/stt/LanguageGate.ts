@@ -36,6 +36,27 @@ const EN_COMMON_WORDS = [
   'should', 'think', 'believe', 'consider', 'meeting', 'we', 'you', 'and',
 ];
 
+// Từ chức năng tiếng Việt phổ biến — tiếng Việt THẬT dày đặc những từ này,
+// còn "rác-vi" do transducer nghe nhầm ngôn ngữ khác thì gần như không có.
+// Dùng để phân định vùng garbage-mirror (sense ra CJK VÀ vi ra dấu):
+// speech vi thật → SenseVoice ra zh rác nhưng vi text đầy stopword → vi thắng;
+// speech zh thật → vi text là rác không stopword → sense thắng.
+const VI_COMMON_WORDS = new Set([
+  'không', 'được', 'tôi', 'bạn', 'là', 'có', 'của', 'và', 'rồi', 'đang',
+  'cho', 'với', 'này', 'thì', 'mà', 'muốn', 'làm', 'nói', 'đúng', 'gì',
+  'đã', 'sẽ', 'ở', 'đi', 'em', 'anh', 'chúng', 'ta', 'về', 'trên',
+  'trong', 'bị', 'các', 'một', 'người', 'nhé',
+]);
+const VI_COMMON_MIN_HITS = 2;
+const VI_COMMON_MIN_RATIO = 0.15;
+
+function viCommonWordStrong(text: string): boolean {
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  const hits = words.filter((w) => VI_COMMON_WORDS.has(w)).length;
+  return hits >= VI_COMMON_MIN_HITS && hits / words.length >= VI_COMMON_MIN_RATIO;
+}
+
 const NEAR_EMPTY_MAX = 2;
 const FULL_SENTENCE_MIN = 6;
 const VI_DIACRITIC_STRONG_RATIO = 0.08;
@@ -111,7 +132,15 @@ export function scoreUtterance(
   // Rule 6: sense has strong English signal and vi is not strong → sense.
   if (!viStrong && enSignal(sense) >= EN_SIGNAL_STRONG) return 'sense';
 
-  // Rule 7: both signals present (garbage-mirror zone) or neither → leader.
+  // Rule 7: garbage-mirror zone (sense ra CJK VÀ vi có dấu) — leader nói lên
+  // lịch sử EN-vs-VI, không nói được gì về zh-vs-vi, nên KHÔNG dùng leader ở
+  // đây (bug field 19/08: mở đầu 4 câu EN → leader sense → mọi câu vi sau đó
+  // hiện chữ Trung). Phân định bằng stopword tiếng Việt trên output Zipformer.
+  if (senseCjk && viStrong) {
+    return viCommonWordStrong(viText) ? 'vi' : 'sense';
+  }
+
+  // Rule 8: neither side shows a signal → leader.
   return leader;
 }
 

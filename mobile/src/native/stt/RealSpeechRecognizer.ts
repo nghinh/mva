@@ -102,6 +102,12 @@ const MAX_UTTERANCE_SAMPLES = SAMPLE_RATE * (IS_ANDROID ? 20 : 15);
 // field user can confirm their mic levels match our threshold expectations.
 const RMS_STATS_WINDOW_MS = 2000;
 
+// Cửa sổ chưa-có-bằng-chứng (câu đầu phiên gate): placeholder "đang xác định
+// ngôn ngữ" chỉ được treo tối đa chừng này; sau đó partial dual-decode + chấm
+// điểm để hiện live text của engine đang thắng — câu đầu dài 10-15s mà treo
+// placeholder suốt thì cảm giác rất lâu (phản hồi field 19/08).
+const GATE_FIRST_GUESS_AFTER_MS = 3000;
+
 type AudioSessionNativeModule = {
   activateRecordingSession?: () => Promise<boolean>;
   deactivateRecordingSession?: () => Promise<boolean>;
@@ -760,28 +766,55 @@ export class RealSpeechRecognizer {
     let forcedVi = false;
     let modelLangHint: string | undefined;
     if (this.gateActive && this.viGateEngine && noEvidenceYet) {
-      // Chưa có bằng chứng ngôn ngữ nào (utterance đầu tiên của phiên): mọi
-      // lựa chọn engine cho partial đều là đoán mò — thay vì render tiếng Việt
-      // thành chữ Hán rác (hoặc ngược lại), KHÔNG decode partial mà báo UI
-      // hiển thị placeholder "Đang xác định ngôn ngữ…". Final của utterance
-      // này vẫn dual-decode + chấm điểm và thay placeholder bằng text đúng.
-      if (this.gatePendingEmittedFor === uttId) {
+      // Chưa có bằng chứng ngôn ngữ (utterance đầu phiên). 3 giây đầu: treo
+      // placeholder "đang xác định ngôn ngữ" (không decode — mọi lựa chọn
+      // engine đều là đoán mò). SAU mốc đó: dual-decode partial + chấm điểm
+      // để hiện live text của engine đang thắng — câu đầu có thể dài tới
+      // 10-15s, treo placeholder suốt thì quá lâu. Tally vẫn CHỈ ghi ở final.
+      if (now - this.utteranceStartMs < GATE_FIRST_GUESS_AFTER_MS) {
+        if (this.gatePendingEmittedFor === uttId) {
+          return;
+        }
+        this.gatePendingEmittedFor = uttId;
+        this.currentRevision += 1;
+        emit({
+          type: 'stt_partial',
+          session_id: this.sessionId,
+          utterance_id: uttId,
+          text: '',
+          gate_pending: true,
+          timestamp_ms: now,
+          language: 'en',
+          offset_ms: now - this.utteranceStartMs,
+          revision: this.currentRevision,
+        });
         return;
       }
-      this.gatePendingEmittedFor = uttId;
-      this.currentRevision += 1;
-      emit({
-        type: 'stt_partial',
-        session_id: this.sessionId,
-        utterance_id: uttId,
-        text: '',
-        gate_pending: true,
-        timestamp_ms: now,
-        language: 'en',
-        offset_ms: now - this.utteranceStartMs,
-        revision: this.currentRevision,
-      });
-      return;
+      let senseResult: {text?: string; lang?: string} = {};
+      let viResult: {text?: string} = {};
+      try {
+        senseResult = await this.engine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      } catch (error) {
+        warnLog('[RealSTT] gate: sense first-guess partial decode failed:', error);
+      }
+      try {
+        viResult = await this.viGateEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      } catch (error) {
+        warnLog('[RealSTT] gate: vi first-guess partial decode failed:', error);
+      }
+      const senseText = (senseResult.text ?? '').trim();
+      const viText = (viResult.text ?? '').trim();
+      if (!senseText && !viText) {
+        return;
+      }
+      const winner = scoreUtterance({text: senseText, lang: senseResult.lang}, {text: viText}, leader);
+      if (winner === 'vi') {
+        text = viText;
+        forcedVi = true;
+      } else {
+        text = senseText;
+        modelLangHint = senseResult.lang;
+      }
     } else {
       const partialEngine =
         this.gateActive && leader === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
@@ -853,6 +886,7 @@ export class RealSpeechRecognizer {
     let text: string;
     let lang: SourceLanguage;
     let engineUsed = '';
+    let gateDebug: string | undefined;
     if (this.gateActive && this.viGateEngine) {
       // Dual-decode tuần tự trên cùng snapshot — đỉnh RAM activation không đổi.
       // Mỗi decode được bọc riêng: một engine hỏng chỉ làm mất phần của nó,
@@ -900,6 +934,7 @@ export class RealSpeechRecognizer {
         }
         // Phục vụ log test: engine thắng + tally hiện tại của cửa sổ gate.
         engineUsed = `${winner} (gate ${this.gateTally.sense}-${this.gateTally.vi})`;
+        gateDebug = `sense(${senseResult.lang ?? '?'})=“${senseText}” ↔ vi=“${viText}”`;
       }
     } else {
       const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
@@ -936,6 +971,7 @@ export class RealSpeechRecognizer {
       utterance_id: utteranceId,
       text,
       engine: engineUsed,
+      gate_debug: gateDebug,
       language: lang,
       confidence: 0.9,
       timestamp_ms: now,

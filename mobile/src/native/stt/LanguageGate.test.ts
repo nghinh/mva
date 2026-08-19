@@ -80,11 +80,20 @@ describe('scoreUtterance', () => {
     ).toBe('vi');
   });
 
-  it('ambiguous (sense CJK AND strong vi diacritics) → falls back to leader', () => {
-    const sense = {text: '我们今天讨论第三季度的计划', lang: 'zh'};
-    const vi = {text: 'hôm nay chúng ta họp về kế hoạch quý ba'};
-    expect(scoreUtterance(sense, vi, 'sense')).toBe('sense');
+  it('mirror zone: vi speech (sense hears zh garbage, vi text full of stopwords) → vi regardless of leader', () => {
+    // Bug field 19/08: mở đầu bằng tiếng Anh → leader sense → mọi câu vi rơi
+    // vùng mirror đều hiện chữ Trung. Stopword tiếng Việt phân định thay leader.
+    const sense = {text: '堆满天地的感影的我对内练。', lang: '<|zh|>'};
+    const vi = {text: 'bạn không thể hiển thị được tiếng việt đúng không'};
+    expect(scoreUtterance(sense, vi, 'sense')).toBe('vi');
     expect(scoreUtterance(sense, vi, 'vi')).toBe('vi');
+  });
+
+  it('mirror zone: real zh speech (fluent zh, vi garbage without stopwords) → sense regardless of leader', () => {
+    const sense = {text: '我们今天讨论第三季度的计划', lang: 'zh'};
+    const vi = {text: 'ửa mân thén thảo lứn తె sান giây tú để kê hoặch'};
+    expect(scoreUtterance(sense, vi, 'sense')).toBe('sense');
+    expect(scoreUtterance(sense, vi, 'vi')).toBe('sense');
   });
 
   it('both empty → leader', () => {

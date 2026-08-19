@@ -804,7 +804,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       const dispatchFinalTranslation = async () => {
         const currentStore = useMeetingStore.getState();
         const sessionId = currentStore.session.id ?? event.session_id;
-        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'}`});
+        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'}${event.gate_debug ? ` | ${event.gate_debug}` : ''}`});
 
         const assignSpeakerAsync = async () => {
           if (!event.audio_samples || !event.sample_rate || event.audio_samples.length < Math.floor(event.sample_rate * 1.0)) {

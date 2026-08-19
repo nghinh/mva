@@ -105,6 +105,8 @@ export interface STTFinalEvent {
   text: string;
   /** Engine đã cho ra text này: 'sense' | 'vi' (phục vụ log test). */
   engine?: string;
+  /** Gate window: text của CẢ HAI ứng viên để tinh chỉnh heuristic offline. */
+  gate_debug?: string;
   language: SourceLanguage;
   confidence: number;
   timestamp_ms: number;
