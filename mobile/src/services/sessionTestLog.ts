@@ -122,7 +122,7 @@ export async function readSessionTestLog(sessionId: string): Promise<TestLogEntr
   }
 }
 
-function fmtTime(t: number): string {
+export function fmtTime(t: number): string {
   const d = new Date(t);
   const p = (n: number) => n.toString().padStart(2, '0');
   const ms = (t % 1000).toString().padStart(3, '0');

@@ -155,7 +155,13 @@ export function scoreUtterance(
   // đây (bug field 19/08: mở đầu 4 câu EN → leader sense → mọi câu vi sau đó
   // hiện chữ Trung). Phân định bằng stopword tiếng Việt trên output Zipformer.
   if (senseCjk && viStrong) {
-    return viCommonWordStrong(viText) ? 'vi' : 'sense';
+    if (viCommonWordStrong(viText)) return 'vi';
+    // Bất đối xứng độ dài (field 20/08 11:16:45): speech vi thật làm SenseVoice
+    // sụp về vài ký tự yue rác, còn zh thật cho ra CJK DÀI tương xứng thời
+    // lượng nói. vi dominant + đủ dài mà áp đảo ≥4× độ dài text CJK → vi,
+    // kể cả khi stopword hụt ngưỡng (câu trang trọng liệt kê tên riêng).
+    if (viDominant && viSubstantial && viText.length >= 4 * senseText.length) return 'vi';
+    return 'sense';
   }
 
   // Rule 8: neither side shows a signal → bias theo target nếu có, không thì

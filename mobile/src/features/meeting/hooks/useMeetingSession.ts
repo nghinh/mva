@@ -40,7 +40,7 @@ import {
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
-import {testLog, flushSessionTestLog, uploadSessionTestLog, ensureDeviceTag, deviceMeta} from '../../../services/sessionTestLog';
+import {testLog, flushSessionTestLog, uploadSessionTestLog, ensureDeviceTag, deviceMeta, fmtTime} from '../../../services/sessionTestLog';
 import {
   getSpeakerEmbeddingService,
   releaseSpeakerEmbeddingService,
@@ -804,7 +804,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       const dispatchFinalTranslation = async () => {
         const currentStore = useMeetingStore.getState();
         const sessionId = currentStore.session.id ?? event.session_id;
-        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'}${event.gate_debug ? ` | ${event.gate_debug}` : ''}`});
+        // Timing đầy đủ để đọc độ trễ từ log: bắt đầu nói → hết nói (thời
+        // lượng câu) → STT (decode + dispatch tới UI). Phần dịch xem entry
+        // translation_ok của cùng utterance.
+        const sttTiming = `nói ${fmtTime(event.start_ms)}→${fmtTime(event.end_ms)} (${((event.end_ms - event.start_ms) / 1000).toFixed(1)}s) · STT +${Date.now() - event.end_ms}ms`;
+        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'} | ${sttTiming}${event.gate_debug ? ` | ${event.gate_debug}` : ''}`});
 
         const assignSpeakerAsync = async () => {
           if (!event.audio_samples || !event.sample_rate || event.audio_samples.length < Math.floor(event.sample_rate * 1.0)) {
@@ -1002,7 +1006,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
               testLog(sessionId, {kind: 'translation_cancelled', utteranceId: event.utterance_id, detail: 'kết quả cũ, đã có bản mới hơn'});
               return;
             }
-            testLog(sessionId, {kind: 'translation_ok', utteranceId: event.utterance_id, text: result.text, detail: `${Date.now() - startedAt}ms`});
+            testLog(sessionId, {kind: 'translation_ok', utteranceId: event.utterance_id, text: result.text, detail: `dịch ${Date.now() - startedAt}ms · bắt đầu +${startedAt - event.end_ms}ms sau hết nói`});
 
             useMeetingStore.getState().handleTranslationMessage(
               event.utterance_id,

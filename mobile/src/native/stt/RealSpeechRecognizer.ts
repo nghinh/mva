@@ -108,6 +108,16 @@ const RMS_STATS_WINDOW_MS = 2000;
 // placeholder suốt thì cảm giác rất lâu (phản hồi field 19/08).
 const GATE_FIRST_GUESS_AFTER_MS = 3000;
 
+// SenseVoice lúc nospeech hay nhả "." — text không có chữ/số nào không phải
+// nội dung: coi như rỗng để không ghi tally, không emit final, không dịch
+// (field 20/08: final "." vẫn được dịch thành "."). Range: latin + latin
+// extended (vi có dấu) + CJK + kana + hangul.
+const LEXICAL_CONTENT_RE =
+  /[0-9A-Za-zÀ-ɏḀ-ỿ぀-ヿ一-鿿가-힯]/;
+function lexicalOrEmpty(text: string): string {
+  return LEXICAL_CONTENT_RE.test(text) ? text : '';
+}
+
 type AudioSessionNativeModule = {
   activateRecordingSession?: () => Promise<boolean>;
   deactivateRecordingSession?: () => Promise<boolean>;
@@ -780,8 +790,8 @@ export class RealSpeechRecognizer {
     } catch (error) {
       warnLog('[RealSTT] gate: vi partial decode failed:', error);
     }
-    const senseText = (senseResult.text ?? '').trim();
-    const viText = (viResult.text ?? '').trim();
+    const senseText = lexicalOrEmpty((senseResult.text ?? '').trim());
+    const viText = lexicalOrEmpty((viResult.text ?? '').trim());
     if (!senseText && !viText) {
       return null;
     }
@@ -966,8 +976,8 @@ export class RealSpeechRecognizer {
       } catch (error) {
         warnLog('[RealSTT] gate: vi decode failed for this utterance:', error);
       }
-      const senseText = (senseResult.text ?? '').trim();
-      const viText = (viResult.text ?? '').trim();
+      const senseText = lexicalOrEmpty((senseResult.text ?? '').trim());
+      const viText = lexicalOrEmpty((viResult.text ?? '').trim());
       if (!senseText && !viText) {
         text = '';
         lang = 'en';
@@ -998,7 +1008,7 @@ export class RealSpeechRecognizer {
       }
     } else {
       const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
-      text = (result.text ?? '').trim();
+      text = lexicalOrEmpty((result.text ?? '').trim());
       lang = text ? this.detectLanguage(text, result.lang, utteranceId) : 'en';
       engineUsed = this.forcedLanguage === 'vi' ? 'vi (đã khóa/chọn tay)' : 'sense (đã khóa/mặc định)';
     }

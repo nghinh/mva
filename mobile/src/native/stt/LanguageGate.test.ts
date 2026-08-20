@@ -146,6 +146,36 @@ describe('scoreUtterance', () => {
     ).toBe('vi');
   });
 
+  it('mirror zone length asymmetry: tiny yue snippet vs long fluent vi (stopword ratio just under threshold) → vi', () => {
+    // Field 20/08 11:16:45: câu vi 67 từ, stopword 10/67=0.1493 hụt ngưỡng 0.15
+    // đúng 0.0007 → sense thắng oan với 7 ký tự rác. CJK thật không bao giờ
+    // ra 7 ký tự đối đầu một câu vi dài áp đảo.
+    expect(
+      scoreUtterance(
+        {text: '佢将佢人佢正。', lang: '<|yue|>'},
+        {
+          text: 'chào mừng quý vị và các bạn đến với bản tin tiếng việt ngày mười chín tháng tám của đài truyền hình bess đài loan kính thưa quý vị người dân ở tân trúc phát hiện nghi có lao động việt nam buôn bán thịt chó trái phép sau khi nhận tin báo cơ quan bảo vệ động vật đã đến kiểm tra và bắt quả tang',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone length asymmetry: stopword-thin formal vi (names/titles) vs medium yue garbage → vi', () => {
+    // Field 19/08 17:57:34: câu liệt kê chức danh/tên riêng, stopword thưa
+    // (5/40=0.125) — trước fix yue thắng nhờ Rule 3, sau fix yue rơi vào
+    // mirror zone và phải thắng bằng bất đối xứng độ dài.
+    expect(
+      scoreUtterance(
+        {text: '佢失去咗聯繫個屋企你就失去你個一唔可以佢讀完不去可小便。', lang: '<|yue|>'},
+        {
+          text: 'thương binh và xã hội tấn hải nam cựu cục trưởng cục quản lý lao động ngoài nước thuộc bộ lao động thương binh và xã hội nguyễn gia liêm và phạm viết hương đều là cựu phó cục trưởng cục quản lý lao động ngoài nước về tội nhận hối lộ',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
   it('both empty → leader', () => {
     expect(scoreUtterance({text: ''}, {text: ''}, 'vi')).toBe('vi');
   });
