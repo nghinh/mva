@@ -124,6 +124,28 @@ describe('scoreUtterance', () => {
     expect(scoreUtterance(sense, vi, 'vi')).toBe('sense');
   });
 
+  it('yue tag counts as CJK: cantonese-tagged garbage vs diacritic-free vi garble → sense', () => {
+    // Field 19/08: SenseVoice tag rác CJK là <|yue|> (không phải zh) — senseCjk
+    // bỏ sót yue nên mọi rule dựa trên CJK chết im với chính loại rác phổ biến nhất.
+    expect(
+      scoreUtterance(
+        {text: '佢失去咗聯繫個屋企你就失去你個一唔可以。', lang: '<|yue|>'},
+        {text: 'po instion seat inter'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('yue mirror zone: vi speech (sense hears yue garbage, vi full of stopwords) → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: '似themselves係都未翻你叫時候佢in一去可是水去可。', lang: '<|yue|>'},
+        {text: 'bạn không thể hiển thị được tiếng việt đúng không'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
   it('both empty → leader', () => {
     expect(scoreUtterance({text: ''}, {text: ''}, 'vi')).toBe('vi');
   });
@@ -171,21 +193,30 @@ describe('scoreUtterance', () => {
 });
 
 describe('tally + lock', () => {
-  it('majority wins', () => {
+  it('one-sided tally locks to that engine', () => {
+    const vi = createGateTally();
+    recordWin(vi, 'vi');
+    recordWin(vi, 'vi');
+    expect(decideLock(vi)).toBe('vi');
+    const sense = createGateTally();
+    recordWin(sense, 'sense');
+    expect(decideLock(sense)).toBe('sense');
+  });
+
+  it('mixed tally never locks — bilingual sessions must keep switching', () => {
+    // Phàn nàn field 19-20/08: phiên trộn Vi/En bị khóa theo đa số sau 5 phút,
+    // ngôn ngữ còn lại thành rác đến hết phiên. Trộn → giữ gate suốt phiên.
     const t = createGateTally();
     recordWin(t, 'vi');
     recordWin(t, 'vi');
     recordWin(t, 'sense');
     expect(tallyLeader(t)).toBe('vi');
-    expect(decideLock(t)).toBe('vi');
-  });
-
-  it('tie → sense (wider language coverage)', () => {
-    const t = createGateTally();
-    recordWin(t, 'vi');
-    recordWin(t, 'sense');
-    expect(tallyLeader(t)).toBe('sense');
-    expect(decideLock(t)).toBe('sense');
+    expect(decideLock(t)).toBeNull();
+    const tie = createGateTally();
+    recordWin(tie, 'vi');
+    recordWin(tie, 'sense');
+    expect(tallyLeader(tie)).toBe('sense');
+    expect(decideLock(tie)).toBeNull();
   });
 
   it('empty tally → sense', () => {

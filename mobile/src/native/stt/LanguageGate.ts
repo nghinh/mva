@@ -112,9 +112,12 @@ export function scoreUtterance(
   // phải lột ký tự không phải chữ trước khi so sánh, nếu không mọi rule dựa
   // trên tag chết im lặng (bug field 18/08: tiếng Anh thua rác-vi hàng loạt).
   const senseLang = (sense.lang ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  // 'yue' (tiếng Quảng) là tag SenseVoice hay gán nhất cho rác CJK khi speech
+  // thật sự là vi — bỏ sót nó làm mọi rule CJK chết im (bug field 19-20/08).
   const senseCjk =
     (senseLang.startsWith('ja') || senseLang.startsWith('ko') ||
-      senseLang.startsWith('zh') || senseLang.startsWith('cn')) &&
+      senseLang.startsWith('zh') || senseLang.startsWith('cn') ||
+      senseLang.startsWith('yue')) &&
     CJK_KANA_HANGUL_RE.test(senseText);
   const viRatio = viDiacriticRatio(viText);
   const viStrong = viRatio >= VI_DIACRITIC_STRONG_RATIO;
@@ -174,9 +177,16 @@ export function tallyLeader(tally: GateTally): GateEngine {
   return tally.vi > tally.sense ? 'vi' : 'sense';
 }
 
-/** Final lock decision at end of gate window. Tie → sense. Kept separate from tallyLeader as an intentional seam for future lock policies (e.g., minimum-utterance-count). */
-export function decideLock(tally: GateTally): GateEngine {
-  return tallyLeader(tally);
+/**
+ * Final lock decision at end of gate window. CHỈ khóa khi bằng chứng một
+ * chiều tuyệt đối — tally trộn (cả hai phía có điểm) nghĩa là phiên song ngữ,
+ * khóa theo đa số sẽ biến ngôn ngữ còn lại thành rác đến hết phiên (phàn nàn
+ * field 19-20/08). Trộn → trả null, gate giữ dual-decode suốt phiên.
+ */
+export function decideLock(tally: GateTally): GateEngine | null {
+  if (tally.vi === 0) return 'sense';
+  if (tally.sense === 0) return 'vi';
+  return null;
 }
 
 /**
