@@ -203,6 +203,25 @@ describe('scoreUtterance', () => {
     expect(scoreUtterance({text: ''}, {text: ''}, 'vi')).toBe('vi');
   });
 
+  it('thin CJK snippet cannot flip a heavily-vi session (leader margin ≥ 3)', () => {
+    // Field 20/08 14:40 (hội thoại vi thật, tally 12-1 nghiêng vi): đoạn nói
+    // nhỏ/cười làm Zipformer gần câm còn SenseVoice hallucinate 2-5 ký tự zh
+    // → màn hình lật sang tiếng Trung + dịch bậy. Prior của phiên phải thắng
+    // bằng chứng mỏng.
+    expect(scoreUtterance({text: '不再对吧。', lang: '<|zh|>'}, {text: 'CƯỜI'}, 'vi', true, 8)).toBe('vi');
+    expect(scoreUtterance({text: '所有。', lang: '<|zh|>'}, {text: 'CÓ'}, 'vi', true, 11)).toBe('vi');
+    // Cả khi vi gần rỗng (Rule 1 cũ cho sense thắng): guard phải đứng TRƯỚC.
+    expect(scoreUtterance({text: '我花这么美。', lang: '<|zh|>'}, {text: 'Ở'}, 'vi', true, 9)).toBe('vi');
+  });
+
+  it('thin CJK still wins when the session is NOT heavily one-sided', () => {
+    // Field 20/08 11:38:52: câu zh thật ngắn "看正是较" thắng đúng lúc tally
+    // 6-7 (cách biệt 1) — margin nhỏ thì hành vi cũ giữ nguyên.
+    expect(
+      scoreUtterance({text: '看正是较。', lang: '<|zh|>'}, {text: 'XIN TRÂN TRỌNG'}, 'vi', true, 1),
+    ).toBe('sense');
+  });
+
   it('english WITHOUT stopwords, sense tag en, low-density vi garbage → sense', () => {
     // "send email to peter about the quarterly report" nói tiếng Anh: transducer
     // vi phát ra rác thưa dấu (ratio ~0.09, trên strong 0.08 nhưng dưới

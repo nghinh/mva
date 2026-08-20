@@ -67,6 +67,15 @@ const VI_DIACRITIC_DOMINANT_RATIO = 0.13;
 // có dấu và đè luôn tag en. Dominant chỉ được đè tag en khi đủ vật liệu.
 const MIN_VI_EVIDENCE_CHARS = 12;
 const EN_SIGNAL_STRONG = 0.5;
+// Bằng chứng CJK mỏng: dưới ngưỡng này (≈ số âm tiết) một mẩu zh không đủ tư
+// cách lật hiển thị của một phiên đang nghiêng hẳn về vi — field 20/08 14:40:
+// hội thoại vi (tally 12-1), đoạn nói nhỏ/cười làm Zipformer gần câm còn
+// SenseVoice hallucinate "不再对吧"/"所有" 2-5 ký tự → màn hình ra tiếng Trung.
+const CJK_MIN_EVIDENCE_CHARS = 6;
+// Cách biệt tally tối thiểu để prior phiên được quyền đè bằng chứng mỏng —
+// margin 1-2 chưa nói lên gì (câu zh thật "看正是较" thắng đúng lúc 6-7).
+const LEADER_MARGIN_STRONG = 3;
+const CJK_ALL_RE = /[一-鿿぀-ゟ゠-ヿ가-힯]/g;
 
 function viDiacriticRatio(text: string): number {
   if (!text) return 0;
@@ -96,9 +105,28 @@ export function scoreUtterance(
    * phải có bằng chứng thật (dấu dày + đủ dài, hoặc stopword dày).
    */
   biasAgainstVi: boolean = false,
+  /**
+   * Cách biệt tally của leader so với phía kia (tally[leader] − tally[còn
+   * lại]). Dùng làm PRIOR: phiên nghiêng hẳn một chiều thì bằng chứng mỏng
+   * không được lật hiển thị. 0 = không có prior.
+   */
+  leaderMargin: number = 0,
 ): GateEngine {
   const senseText = sense.text.trim();
   const viText = vi.text.trim();
+
+  // Rule 0: mẩu CJK mỏng (< CJK_MIN_EVIDENCE_CHARS âm tiết) trong phiên đang
+  // nghiêng hẳn về vi → vi, bất kể các rule dưới (kể cả Rule 1 — vi gần rỗng
+  // thì final rỗng sẽ tự hủy, còn hơn hiện zh hallucination + dịch bậy).
+  const senseCjkChars = senseText.match(CJK_ALL_RE)?.length ?? 0;
+  if (
+    senseCjkChars > 0 &&
+    senseCjkChars < CJK_MIN_EVIDENCE_CHARS &&
+    leader === 'vi' &&
+    leaderMargin >= LEADER_MARGIN_STRONG
+  ) {
+    return 'vi';
+  }
 
   // Rule 1: one side near-empty, the other a full sentence → longer side wins.
   if (senseText.length <= NEAR_EMPTY_MAX && viText.length >= FULL_SENTENCE_MIN) return 'vi';

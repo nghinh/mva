@@ -844,6 +844,7 @@ export class RealSpeechRecognizer {
       {text: viText},
       tallyLeader(this.gateTally),
       this.gateBiasAgainstVi,
+      Math.abs(this.gateTally.vi - this.gateTally.sense),
     );
     return winner === 'vi'
       ? {winner, text: viText}
@@ -1130,6 +1131,7 @@ export class RealSpeechRecognizer {
           {text: viText},
           tallyLeader(this.gateTally),
           this.gateBiasAgainstVi,
+          Math.abs(this.gateTally.vi - this.gateTally.sense),
         );
         // Chỉ ghi tally khi CẢ HAI decode đều chạy được: một lỗi kỹ thuật
         // một phía không được tính là chiến thắng cho bên còn lại, nếu không
