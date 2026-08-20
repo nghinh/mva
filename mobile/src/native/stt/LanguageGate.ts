@@ -11,7 +11,6 @@
  * nên một phiên đơn ngữ luôn hội tụ đúng sau vài utterance rõ ràng.
  */
 
-export const GATE_WINDOW_MS = 5 * 60_000;
 export const STRONG_RTF_THRESHOLD = 0.35;
 
 export type GateEngine = 'sense' | 'vi';
@@ -68,9 +67,6 @@ const VI_DIACRITIC_DOMINANT_RATIO = 0.13;
 // có dấu và đè luôn tag en. Dominant chỉ được đè tag en khi đủ vật liệu.
 const MIN_VI_EVIDENCE_CHARS = 12;
 const EN_SIGNAL_STRONG = 0.5;
-
-/** Số final tối thiểu để khóa sớm khi bằng chứng tuyệt đối một chiều. */
-export const GATE_EARLY_LOCK_MIN_WINS = 6;
 
 function viDiacriticRatio(text: string): number {
   if (!text) return 0;
@@ -184,33 +180,14 @@ export function recordWin(tally: GateTally, winner: GateEngine): void {
   tally[winner] += 1;
 }
 
-/** Engine currently leading; ties go to sense (wider coverage). */
+/**
+ * Engine currently leading; ties go to sense (wider coverage). Tally KHÔNG
+ * còn dùng để khóa engine — bài học field 20/08 11:52: video mở đầu 6 câu vi
+ * liền làm early-lock 6-0 destroy SenseVoice, mọi đoạn Anh/Trung sau đó bị ép
+ * decode như vi đến hết phiên. Gate giữ dual-decode suốt phiên (giá đo được:
+ * final chậm thêm ~0.4-0.6s so với đơn engine); leader chỉ là tie-break và
+ * engine hiển thị tạm trong 3s đầu mỗi câu.
+ */
 export function tallyLeader(tally: GateTally): GateEngine {
   return tally.vi > tally.sense ? 'vi' : 'sense';
-}
-
-/**
- * Final lock decision at end of gate window. CHỈ khóa khi bằng chứng một
- * chiều tuyệt đối — tally trộn (cả hai phía có điểm) nghĩa là phiên song ngữ,
- * khóa theo đa số sẽ biến ngôn ngữ còn lại thành rác đến hết phiên (phàn nàn
- * field 19-20/08). Trộn → trả null, gate giữ dual-decode suốt phiên.
- */
-export function decideLock(tally: GateTally): GateEngine | null {
-  if (tally.vi === 0) return 'sense';
-  if (tally.sense === 0) return 'vi';
-  return null;
-}
-
-/**
- * Khóa SỚM (trước GATE_WINDOW_MS) khi bằng chứng tuyệt đối một chiều: đủ
- * GATE_EARLY_LOCK_MIN_WINS final và phía kia trắng tay. Họp đơn ngữ — trường
- * hợp phổ biến nhất — nhờ đó thoát chi phí dual-decode (độ trễ final x2) sau
- * ~1 phút thay vì chịu đủ 5 phút; phiên trộn ngôn ngữ (cả hai phía có điểm)
- * vẫn giữ nguyên cửa sổ đầy đủ. Trả về engine thắng, hoặc null nếu chưa đủ.
- */
-export function decideEarlyLock(tally: GateTally): GateEngine | null {
-  if (tally.sense + tally.vi < GATE_EARLY_LOCK_MIN_WINS) return null;
-  if (tally.vi === 0) return 'sense';
-  if (tally.sense === 0) return 'vi';
-  return null;
 }

@@ -11,10 +11,7 @@ import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
 import { normalizeViCase } from './viTextNormalizer';
 import {
-  GATE_WINDOW_MS,
   createGateTally,
-  decideEarlyLock,
-  decideLock,
   recordWin,
   scoreUtterance,
   tallyLeader,
@@ -194,10 +191,11 @@ export class RealSpeechRecognizer {
   private enginePrefix: 'sense' | 'vi' = 'sense';
 
   // Gate mode (máy khỏe): giữ engine VI thứ hai, dual-decode final từng
-  // utterance. Khóa tại GATE_WINDOW_MS CHỈ khi bằng chứng một chiều tuyệt đối
-  // — phiên trộn ngôn ngữ giữ gate suốt phiên (decideLock trả null).
+  // utterance. KHÔNG BAO GIỜ khóa engine: gate sống suốt phiên (bài học field
+  // 20/08 — early-lock 6-0 destroy SenseVoice làm mọi đoạn Anh/Trung sau đó
+  // bị ép decode như vi). Giá đo được: final chậm thêm ~0.4-0.6s so với đơn
+  // engine — chấp nhận để switch ngôn ngữ luôn hoạt động.
   private gateActive = false;
-  private gateStartMs = 0;
   private gateTally: GateTally = createGateTally();
   private viGateEngine: SttEngine | null = null;
   // Utterance đã emit placeholder "đang xác định ngôn ngữ" (cửa sổ tally rỗng)
@@ -230,7 +228,6 @@ export class RealSpeechRecognizer {
     this.forcedLanguage = sourceLanguage === 'vi' ? 'vi' : null;
     this.enginePrefix = this.forcedLanguage === 'vi' ? 'vi' : 'sense';
     this.gateActive = false;
-    this.gateStartMs = 0;
     this.gateTally = createGateTally();
     this.gatePendingEmittedFor = null;
     this.gateUttEngine = null;
@@ -302,13 +299,12 @@ export class RealSpeechRecognizer {
           numThreads: 2,
         });
         this.gateActive = true;
-        this.gateStartMs = Date.now();
         emit({
           type: 'pipeline_status',
           session_id: sessionId,
           status: 'processing',
           timestamp_ms: Date.now(),
-          details: 'Language gate active (dual-decode window)',
+          details: 'Language gate active (dual-decode, full session)',
         });
       } catch (error) {
         // Fallback an toàn: chạy 1 engine SenseVoice như hiện tại.
@@ -365,10 +361,9 @@ export class RealSpeechRecognizer {
       new Promise<void>(resolve => setTimeout(resolve, drainTimeout)),
     ]);
     // Tắt gate và tách viGateEngine ra biến cục bộ TRƯỚC khi destroy: nếu
-    // drain chạm timeout mà chain vẫn còn job, job đó có thể gọi lockGate
+    // drain chạm timeout mà chain vẫn còn job, job đó không được đụng engine
     // song song với các destroy bên dưới (double-destroy / engine đã chết).
     this.gateActive = false;
-    this.gateStartMs = 0;
     const viEngine = this.viGateEngine;
     this.viGateEngine = null;
     if (this.engine) {
@@ -948,7 +943,6 @@ export class RealSpeechRecognizer {
         reason: 'too_short',
       });
       infoLog('[RealSTT] utterance_cancel too_short', { id: utteranceId, elapsedMs });
-      await this.maybeLockGate(emit);
       return;
     }
 
@@ -1031,7 +1025,6 @@ export class RealSpeechRecognizer {
         samples: snapshot.length,
         durationMs: elapsedMs,
       });
-      await this.maybeLockGate(emit);
       return;
     }
 
@@ -1061,62 +1054,6 @@ export class RealSpeechRecognizer {
       hardCapCount: this.hardCapCount,
       avgRawRms: this.rmsStatsCount > 0 ? Number((this.rmsStatsSum / this.rmsStatsCount).toFixed(5)) : 0,
     });
-
-    await this.maybeLockGate(emit);
-  }
-
-  // Gọi trên MỌI đường thoát của runFinalTranscription (kể cả too_short /
-  // empty_result) để một quãng lặng ngay tại mốc 5 phút không giữ hai engine
-  // sống vô thời hạn chờ một final thành công.
-  private async maybeLockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
-    if (!this.gateActive) return;
-    // Khóa sớm: bằng chứng tuyệt đối một chiều (≥ GATE_EARLY_LOCK_MIN_WINS
-    // final, phía kia 0) — họp đơn ngữ thoát chi phí dual-decode sau ~1 phút.
-    if (decideEarlyLock(this.gateTally) !== null) {
-      await this.lockGate(emit);
-      return;
-    }
-    // Hết cửa sổ: cần bằng chứng mới khóa — một phiên im lặng suốt cả cửa sổ
-    // sẽ có tally rỗng, khóa lúc đó là chọn engine bằng mặc định chứ không
-    // phải bằng dữ liệu; chờ utterance có kết quả đầu tiên rồi mới khóa.
-    // Tally TRỘN (cả hai phía có điểm) → decideLock trả null và lockGate
-    // no-op: phiên song ngữ giữ dual-decode suốt phiên để switch được mãi.
-    const decided = this.gateTally.sense + this.gateTally.vi > 0;
-    if (decided && Date.now() - this.gateStartMs >= GATE_WINDOW_MS) {
-      await this.lockGate(emit);
-    }
-  }
-
-  // Chốt engine tại cuối cửa sổ gate. Chạy BÊN TRONG processingChain (được gọi
-  // từ runFinalTranscription) nên không có inference nào khác in-flight —
-  // destroy engine thua ở đây là an toàn.
-  private async lockGate(emit: (event: MeetingPipelineEvent) => void): Promise<void> {
-    if (!this.gateActive || !this.viGateEngine) return;
-    const winner = decideLock(this.gateTally);
-    if (winner === null) return; // tally trộn — không bao giờ khóa phiên song ngữ
-    const loser = winner === 'vi' ? this.engine : this.viGateEngine;
-    infoLog('[RealSTT] gate lock', {winner, tally: {...this.gateTally}});
-    if (winner === 'vi') {
-      this.engine = this.viGateEngine;
-      this.forcedLanguage = 'vi';
-      this.enginePrefix = 'vi';
-    }
-    this.viGateEngine = null;
-    this.gateActive = false;
-    try {
-      await loser?.destroy();
-    } catch (error) {
-      warnLog('[RealSTT] gate: failed to destroy losing engine (leaked until stop):', error);
-    }
-    if (this.sessionId) {
-      emit({
-        type: 'pipeline_status',
-        session_id: this.sessionId,
-        status: 'processing',
-        timestamp_ms: Date.now(),
-        details: `Gate locked: ${winner === 'vi' ? BUNDLED_MODEL_CONFIG.stt_vi.displayName : BUNDLED_MODEL_CONFIG.stt.displayName}`,
-      });
-    }
   }
 
   private applySttInputGain(samples: Float32Array): Float32Array {

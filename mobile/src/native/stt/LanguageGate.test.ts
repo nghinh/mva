@@ -1,19 +1,12 @@
 import {
-  GATE_WINDOW_MS,
   STRONG_RTF_THRESHOLD,
-  GATE_EARLY_LOCK_MIN_WINS,
   scoreUtterance,
   createGateTally,
   recordWin,
   tallyLeader,
-  decideLock,
-  decideEarlyLock,
 } from './LanguageGate';
 
 describe('constants', () => {
-  it('gate window is 5 minutes', () => {
-    expect(GATE_WINDOW_MS).toBe(5 * 60_000);
-  });
   it('strong tier threshold is 0.35', () => {
     expect(STRONG_RTF_THRESHOLD).toBe(0.35);
   });
@@ -252,53 +245,21 @@ describe('scoreUtterance', () => {
   });
 });
 
-describe('tally + lock', () => {
-  it('one-sided tally locks to that engine', () => {
-    const vi = createGateTally();
-    recordWin(vi, 'vi');
-    recordWin(vi, 'vi');
-    expect(decideLock(vi)).toBe('vi');
-    const sense = createGateTally();
-    recordWin(sense, 'sense');
-    expect(decideLock(sense)).toBe('sense');
-  });
-
-  it('mixed tally never locks — bilingual sessions must keep switching', () => {
-    // Phàn nàn field 19-20/08: phiên trộn Vi/En bị khóa theo đa số sau 5 phút,
-    // ngôn ngữ còn lại thành rác đến hết phiên. Trộn → giữ gate suốt phiên.
+describe('tally', () => {
+  // KHÔNG còn khái niệm khóa: field 20/08 11:52 — video mở đầu 6 câu vi liền
+  // → early-lock 6-0 destroy SenseVoice → toàn bộ tiếng Anh/Trung sau đó bị
+  // ép decode như vi đến hết phiên. Gate sống suốt phiên; tally chỉ còn vai
+  // trò leader (tie-break + engine tạm cho 3s đầu mỗi câu).
+  it('leader follows the majority, ties go to sense (wider coverage)', () => {
     const t = createGateTally();
     recordWin(t, 'vi');
     recordWin(t, 'vi');
     recordWin(t, 'sense');
     expect(tallyLeader(t)).toBe('vi');
-    expect(decideLock(t)).toBeNull();
     const tie = createGateTally();
     recordWin(tie, 'vi');
     recordWin(tie, 'sense');
     expect(tallyLeader(tie)).toBe('sense');
-    expect(decideLock(tie)).toBeNull();
-  });
-
-  it('empty tally → sense', () => {
-    expect(decideLock(createGateTally())).toBe('sense');
-  });
-
-  it('early lock: unanimous after minimum wins', () => {
-    const t = createGateTally();
-    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS; i += 1) recordWin(t, 'vi');
-    expect(decideEarlyLock(t)).toBe('vi');
-  });
-
-  it('early lock: not before minimum wins', () => {
-    const t = createGateTally();
-    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS - 1; i += 1) recordWin(t, 'sense');
-    expect(decideEarlyLock(t)).toBeNull();
-  });
-
-  it('early lock: mixed evidence never locks early', () => {
-    const t = createGateTally();
-    for (let i = 0; i < GATE_EARLY_LOCK_MIN_WINS; i += 1) recordWin(t, 'sense');
-    recordWin(t, 'vi');
-    expect(decideEarlyLock(t)).toBeNull();
+    expect(tallyLeader(createGateTally())).toBe('sense');
   });
 });
