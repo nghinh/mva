@@ -48,7 +48,12 @@ const STT_INPUT_GAIN = IS_ANDROID ? 6 : 1;
 // is the lower bar that keeps us engaged through intra-word energy dips
 // (fricatives, voiceless consonants, inter-syllable pauses). Without the
 // two-threshold setup Android fragments sentences into 1–2 word pieces.
-const SPEECH_START_THRESHOLD = IS_ANDROID ? 0.004 : 0.020;
+// iOS START hạ 0.020 → 0.012 (field 20/08 13:43): giọng vi trong video event
+// nhỏ hơn 0.020 nên KHÔNG BAO GIỜ mở được utterance sau quãng nghỉ — cả câu
+// vi biến mất thành lỗ 7-12s, chỉ lọt vào log khi dính đuôi câu EN to đã mở
+// sẵn (CONTINUE 0.008 vẫn ghi tiếp). Guard thích ứng noiseFloor×3.5 vẫn chặn
+// nhiễu nền. Đường lui nếu nhiễu mở câu lung tung: trả về 0.020.
+const SPEECH_START_THRESHOLD = IS_ANDROID ? 0.004 : 0.012;
 const SPEECH_CONTINUE_THRESHOLD = IS_ANDROID ? 0.0015 : 0.008;
 
 // In addition to the absolute thresholds, we maintain a running estimate of
@@ -116,11 +121,15 @@ const GATE_FIRST_GUESS_AFTER_MS = 3000;
 // CARRY_MS (ngôn ngữ mới) chuyển làm thân utterance kế tiếp — không mất audio.
 // ĐƯỜNG LUI: đặt GATE_LANG_SPLIT_ENABLED = false là trở về nguyên hành vi cũ
 // (chỉ cắt theo silence/soft-cap/hard-cap), không cần revert code.
+// Tham số chỉnh 20/08 sau field 13:43: câu thực tế chỉ 8-10s (silence/soft-cap
+// cắt trước) nên lịch cũ (chốt 3s + 2 xác nhận × 3.5s ≈ 10.5s) KHÔNG BAO GIỜ
+// kịp nổ. 1 lần xác nhận là đủ vì cắt nhầm gần như vô hại: carry cùng ngôn
+// ngữ → mini-gate của câu mới pin lại đúng engine cũ, chỉ tốn một nhát cắt.
 const GATE_LANG_SPLIT_ENABLED = true;
-const LANG_SPLIT_CHECK_INTERVAL_MS = 3500;
+const LANG_SPLIT_CHECK_INTERVAL_MS = 2500;
 const LANG_SPLIT_TAIL_MS = 4000;
-const LANG_SPLIT_CONFIRMATIONS = 2;
-const LANG_SPLIT_CARRY_MS = 6000;
+const LANG_SPLIT_CONFIRMATIONS = 1;
+const LANG_SPLIT_CARRY_MS = 4000;
 
 // SenseVoice lúc nospeech hay nhả "." — text không có chữ/số nào không phải
 // nội dung: coi như rỗng để không ghi tally, không emit final, không dịch
