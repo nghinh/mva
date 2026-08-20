@@ -161,6 +161,36 @@ describe('scoreUtterance', () => {
     ).toBe('vi');
   });
 
+  it('mirror zone yue tag: long yue-tagged garbage vs dominant vi just under both guards → vi', () => {
+    // Field 20/08 11:36:57: vi thật 65 từ (stopword 0.154, dài 3.6× CJK) thua
+    // oan chuỗi yue dài. Bằng chứng field 2 log: zh THẬT luôn tag <|zh|>, còn
+    // <|yue|> chỉ xuất hiện khi SenseVoice đoán mò trên speech vi → trong
+    // mirror zone, tag yue + vi dominant đủ dài là đủ để vi thắng.
+    expect(
+      scoreUtterance(
+        {
+          text: '其实塞岁是周就系话法利日说朋不人仲未面还将说位育中里受havemos经学令增个磁磁未得去转类是第位缩前事说系文子未纪几，说前为半退论对半浸任未纪归。',
+          lang: '<|yue|>',
+        },
+        {
+          text: 'hàng cảnh sát tiếp tục tuần tra và phát đi các thông báo nhắc nhở phòng chống siêu bão theo trung tâm cảnh báo bão liên hợp đường đi của bão ba và đang di chuyển về phía tây với sức gió duy trì gần hai trăm chín mươi ki lô mét mỗi giờ và gió giật lên tới ba trăm năm mươi ki lô mét cường độ',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone: real zh (tag <|zh|>) with dominant-looking vi garble still → sense', () => {
+    // Tag zh là LID tự tin — không được để rule yue/dominant nuốt mất zh thật.
+    expect(
+      scoreUtterance(
+        {text: '我们今天讨论第三季度的计划和进度安排', lang: '<|zh|>'},
+        {text: 'ửa mân thén thảo lứn sản giây tú để kê hoặch'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
   it('mirror zone length asymmetry: stopword-thin formal vi (names/titles) vs medium yue garbage → vi', () => {
     // Field 19/08 17:57:34: câu liệt kê chức danh/tên riêng, stopword thưa
     // (5/40=0.125) — trước fix yue thắng nhờ Rule 3, sau fix yue rơi vào

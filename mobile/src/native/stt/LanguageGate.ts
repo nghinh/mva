@@ -161,6 +161,12 @@ export function scoreUtterance(
     // lượng nói. vi dominant + đủ dài mà áp đảo ≥4× độ dài text CJK → vi,
     // kể cả khi stopword hụt ngưỡng (câu trang trọng liệt kê tên riêng).
     if (viDominant && viSubstantial && viText.length >= 4 * senseText.length) return 'vi';
+    // Tag <|yue|> = LID đoán mò: qua 2 log field (19-20/08), zh THẬT luôn tag
+    // <|zh|>, còn TOÀN BỘ rác-CJK sinh từ speech vi đều tag <|yue|> — nên yue
+    // + vi dominant đủ dài là đủ thắng, không cần chờ stopword/asymmetry vốn
+    // hay hụt ngưỡng sát nút (0.149 vs 0.15, 3.6× vs 4×). Đánh đổi chấp nhận:
+    // tiếng Quảng thật với rác-vi dày dấu sẽ misroute — ngoài tập user mục tiêu.
+    if (senseLang.startsWith('yue') && viDominant && viSubstantial) return 'vi';
     return 'sense';
   }
 
