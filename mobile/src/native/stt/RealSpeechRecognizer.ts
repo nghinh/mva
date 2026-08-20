@@ -105,6 +105,23 @@ const RMS_STATS_WINDOW_MS = 2000;
 // placeholder suốt thì cảm giác rất lâu (phản hồi field 19/08).
 const GATE_FIRST_GUESS_AFTER_MS = 3000;
 
+// ==== Cắt câu theo ranh giới NGÔN NGỮ (field 20/08 12:03) ====
+// Video/sự kiện song ngữ nói liên tục không có khoảng lặng → utterance chỉ bị
+// cắt bởi trần 15s và một chunk chứa CẢ HAI ngôn ngữ: phần thiểu số thành rác,
+// thắng vi (trùng target) thì đoạn tiếng Anh bên trong mất trắng không dịch.
+// Cách cắt: sau khi mini-gate chốt engine cho câu, mỗi LANG_SPLIT_CHECK_
+// INTERVAL_MS dual-decode RIÊNG khúc đuôi (LANG_SPLIT_TAIL_MS cuối buffer);
+// đuôi cho winner khác engine đã chốt LANG_SPLIT_CONFIRMATIONS lần liên tiếp
+// → ép finalize: phần đầu (ngôn ngữ cũ) thành final, phần đuôi ~LANG_SPLIT_
+// CARRY_MS (ngôn ngữ mới) chuyển làm thân utterance kế tiếp — không mất audio.
+// ĐƯỜNG LUI: đặt GATE_LANG_SPLIT_ENABLED = false là trở về nguyên hành vi cũ
+// (chỉ cắt theo silence/soft-cap/hard-cap), không cần revert code.
+const GATE_LANG_SPLIT_ENABLED = true;
+const LANG_SPLIT_CHECK_INTERVAL_MS = 3500;
+const LANG_SPLIT_TAIL_MS = 4000;
+const LANG_SPLIT_CONFIRMATIONS = 2;
+const LANG_SPLIT_CARRY_MS = 6000;
+
 // SenseVoice lúc nospeech hay nhả "." — text không có chữ/số nào không phải
 // nội dung: coi như rỗng để không ghi tally, không emit final, không dịch
 // (field 20/08: final "." vẫn được dịch thành "."). Range: latin + latin
@@ -181,7 +198,7 @@ export class RealSpeechRecognizer {
   private captureCalibrationEndsAt = 0;
   private speechCalibrationWindow: number[] = [];
   private utteranceCalibrationStartMs = 0;
-  private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | null = null;
+  private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | 'lang_switch' | null = null;
   private hardCapCount = 0;
 
   // Engine selection for this session. 'vi' forces the dedicated Vietnamese
@@ -210,6 +227,13 @@ export class RealSpeechRecognizer {
   // suốt 10-15s tới final (phàn nàn field 19-20/08 "switch chậm").
   private gateUttEngine: GateEngine | null = null;
   private gateUttEngineFor: UtteranceId | null = null;
+  // Cắt câu theo ranh giới ngôn ngữ: số lần đuôi buffer "bất đồng" liên tiếp
+  // với engine đã chốt, mốc check gần nhất, và cờ chờ audio-loop thực thi
+  // (keyed theo utterance id để một final khác chen ngang không làm cắt nhầm
+  // câu mới).
+  private langSplitDisagree = 0;
+  private lastLangSplitCheckMs = 0;
+  private pendingLangSplitFor: UtteranceId | null = null;
 
   async start(
     sessionId: SessionId,
@@ -232,6 +256,9 @@ export class RealSpeechRecognizer {
     this.gatePendingEmittedFor = null;
     this.gateUttEngine = null;
     this.gateUttEngineFor = null;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = 0;
+    this.pendingLangSplitFor = null;
     // Dịch sang tiếng Việt = kỳ vọng speech ngoại ngữ → vùng bằng chứng yếu
     // trong gate nghiêng về sense (yêu cầu UX 19/08).
     this.gateBiasAgainstVi = options?.targetLanguage === 'vi';
@@ -508,6 +535,19 @@ export class RealSpeechRecognizer {
     this.appendSamples(this.sampleBuffer, sttSamples);
     const utteranceDurationMs = now - this.utteranceStartMs;
     const silenceSinceSpeech = this.lastSpeechMs ? now - this.lastSpeechMs : 0;
+
+    // Cắt theo ranh giới ngôn ngữ (cờ do maybeCheckLangSplit giương lên trong
+    // inference chain) — chỉ khi cờ vẫn thuộc đúng utterance hiện tại: một
+    // final silence/hard-cap chen giữa làm cờ mồ côi thì bỏ.
+    if (this.pendingLangSplitFor !== null) {
+      const splitValid = this.pendingLangSplitFor === this.currentUtteranceId;
+      this.pendingLangSplitFor = null;
+      if (splitValid) {
+        this.lastFinalizeReason = 'lang_switch';
+        this.finalizeUtteranceForLangSwitch(now, emit);
+        return;
+      }
+    }
 
     const hardCap = MAX_UTTERANCE_SAMPLES;
     if (this.sampleBuffer.length >= hardCap) {
@@ -801,6 +841,100 @@ export class RealSpeechRecognizer {
       : {winner, text: senseText, lang: senseResult.lang};
   }
 
+  // Check ranh giới ngôn ngữ trong câu: dual-decode khúc đuôi buffer và so
+  // winner với engine đã chốt. Bất đồng đủ LANG_SPLIT_CONFIRMATIONS lần liên
+  // tiếp → giương cờ để audio-loop cắt câu (không cắt trực tiếp ở đây — mọi
+  // thao tác buffer/finalize phải nằm trong luồng xử lý audio như cũ).
+  private async maybeCheckLangSplit(now: number, uttId: UtteranceId): Promise<void> {
+    if (!GATE_LANG_SPLIT_ENABLED || !this.gateActive || !this.viGateEngine) return;
+    if (this.gateUttEngineFor !== uttId || this.gateUttEngine === null) return;
+    if (this.pendingLangSplitFor !== null) return;
+    if (now - this.lastLangSplitCheckMs < LANG_SPLIT_CHECK_INTERVAL_MS) return;
+    const tailSamples = Math.floor((SAMPLE_RATE * LANG_SPLIT_TAIL_MS) / 1000);
+    // Cần thân câu (≥2s) đứng trước đuôi thì đuôi mới nói lên "đổi ngôn ngữ";
+    // buffer ngắn hơn thế thì chính mini-gate lo rồi.
+    if (this.sampleBuffer.length < tailSamples + SAMPLE_RATE * 2) return;
+    this.lastLangSplitCheckMs = now;
+    const tail = this.sampleBuffer.slice(this.sampleBuffer.length - tailSamples);
+    const scored = await this.gateScorePartial(tail);
+    // Utterance có thể đã bị finalize (silence/hard-cap) trong lúc decode.
+    if (this.currentUtteranceId !== uttId || this.gateUttEngineFor !== uttId) return;
+    if (!scored) return;
+    if (scored.winner === this.gateUttEngine) {
+      this.langSplitDisagree = 0;
+      return;
+    }
+    this.langSplitDisagree += 1;
+    infoLog('[RealSTT] lang-split disagree', {
+      id: uttId,
+      pinned: this.gateUttEngine,
+      tailWinner: scored.winner,
+      count: this.langSplitDisagree,
+    });
+    if (this.langSplitDisagree >= LANG_SPLIT_CONFIRMATIONS) {
+      this.pendingLangSplitFor = uttId;
+    }
+  }
+
+  // Cắt câu tại ranh giới ngôn ngữ: phần đầu (ngôn ngữ cũ) thành final như
+  // thường, phần đuôi LANG_SPLIT_CARRY_MS (audio ngôn ngữ mới đã thu) trở
+  // thành THÂN của utterance kế tiếp — mở ngay tại đây, không chờ VAD, vì
+  // speech đang liên tục. Utterance mới chưa chốt engine nên partial kế tiếp
+  // sẽ mini-gate lại từ đầu và chọn đúng engine cho ngôn ngữ mới.
+  private finalizeUtteranceForLangSwitch(now: number, emit: (event: MeetingPipelineEvent) => void): void {
+    const utteranceId = this.currentUtteranceId;
+    const sessionId = this.sessionId;
+    if (!utteranceId || !sessionId) {
+      this.resetUtterance();
+      return;
+    }
+    const carrySamples = Math.floor((SAMPLE_RATE * LANG_SPLIT_CARRY_MS) / 1000);
+    if (this.sampleBuffer.length <= carrySamples + SAMPLE_RATE) {
+      // Không đủ thân câu để tách — finalize nguyên khối như cũ.
+      this.finalizeUtterance(now, emit);
+      return;
+    }
+    const splitIndex = this.sampleBuffer.length - carrySamples;
+    const snapshot = this.sampleBuffer.slice(0, splitIndex);
+    const carry = this.sampleBuffer.slice(splitIndex);
+    const startMs = this.utteranceStartMs;
+    const boundaryMs = now - LANG_SPLIT_CARRY_MS;
+    const elapsedMs = Math.max(0, boundaryMs - startMs);
+    const revisionAtScheduling = this.currentRevision;
+
+    // Mở utterance mới mang phần carry. KHÔNG resetUtterance: giữ inSpeech/
+    // lastSpeechMs — dòng speech chưa hề đứt.
+    this.currentUtteranceId = `${sessionId}-${this.enginePrefix}-${++this.utteranceCounter}`;
+    this.currentRevision = 0;
+    this.currentText = '';
+    this.utteranceStartMs = boundaryMs;
+    this.utteranceCalibrationStartMs = boundaryMs;
+    this.sampleBuffer = carry;
+    this.lastPartialMs = now;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = now;
+    this.pendingLangSplitFor = null;
+
+    infoLog('[RealSTT] lang-split final', {
+      headId: utteranceId,
+      newId: this.currentUtteranceId,
+      headMs: elapsedMs,
+      carryMs: LANG_SPLIT_CARRY_MS,
+    });
+    this.scheduleInference(() =>
+      this.runFinalTranscription({
+        snapshot,
+        utteranceId,
+        sessionId,
+        startMs,
+        elapsedMs,
+        revisionAtScheduling,
+        now: boundaryMs,
+        emit,
+      }),
+    );
+  }
+
   private async emitPartial(now: number, emit: (event: MeetingPipelineEvent) => void): Promise<void> {
     if (!this.engine || !this.sessionId || !this.currentUtteranceId || this.sampleBuffer.length === 0) {
       return;
@@ -870,6 +1004,9 @@ export class RealSpeechRecognizer {
       }
       this.gateUttEngine = scored.winner;
       this.gateUttEngineFor = uttId;
+      // Nhịp check ranh giới ngôn ngữ tính từ lúc chốt engine cho câu này.
+      this.langSplitDisagree = 0;
+      this.lastLangSplitCheckMs = now;
       text = scored.text;
       forcedVi = scored.winner === 'vi';
       modelLangHint = scored.lang;
@@ -899,6 +1036,9 @@ export class RealSpeechRecognizer {
       forcedVi = this.gateActive && chosen === 'vi';
       modelLangHint = result.lang;
     }
+    // Cắt câu theo ranh giới ngôn ngữ — chạy TRƯỚC các guard bên dưới vì
+    // partial trùng text (early-return) không được phép làm lỡ nhịp check.
+    await this.maybeCheckLangSplit(now, uttId);
     // State may have changed while we awaited; re-check before emitting so
     // partials from a finalized utterance don't leak into a new one.
     if (this.currentUtteranceId !== uttId) {
@@ -1151,6 +1291,9 @@ export class RealSpeechRecognizer {
     this.lastPartialMs = 0;
     this.sampleBuffer = [];
     this.inSpeech = false;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = 0;
+    this.pendingLangSplitFor = null;
   }
 
   private detectLanguage(
