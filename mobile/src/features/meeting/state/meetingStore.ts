@@ -20,6 +20,8 @@ export interface TranscriptEntry {
   speakerId?: string | null;
   /** Display label for speaker (e.g., "Speaker 1") - non-fatal if absent */
   speakerLabel?: string | null;
+  /** Gate đang xác định ngôn ngữ (utterance đầu phiên) — UI render placeholder. */
+  gatePending?: boolean;
 }
 
 export interface TranslationEntry {
@@ -100,7 +102,7 @@ interface MeetingStore {
   appendPartialTranscript: (text: string) => void;
   clearPartialTranscript: () => void;
   setCurrentUtteranceId: (utteranceId: UtteranceId | null) => void;
-  updatePartialTranscript: (utteranceId: UtteranceId, text: string, language: SourceLanguage, revision: number) => void;
+  updatePartialTranscript: (utteranceId: UtteranceId, text: string, language: SourceLanguage, revision: number, gatePending?: boolean) => void;
   handlePipelineEvent: (event: MeetingPipelineEvent) => void;
   addTranslation: (utteranceId: UtteranceId, originalText: string, translatedText: string, isFinal: boolean, sttRevision?: number) => void;
   updateTranslation: (utteranceId: UtteranceId, translatedText: string, isFinal: boolean) => void;
@@ -238,7 +240,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   clearPartialTranscript: () => set((state) => ({session: {...state.session, partialTranscript: ''}})),
   setCurrentUtteranceId: (utteranceId) => set((state) => ({session: {...state.session, currentUtteranceId: utteranceId}})),
 
-  updatePartialTranscript: (utteranceId, text, language, revision) => {
+  updatePartialTranscript: (utteranceId, text, language, revision, gatePending) => {
     const {session} = get();
     if (!session.id) return;
     const existingIndex = session.transcript.findIndex((t) => t.id === utteranceId && !t.isFinal);
@@ -249,7 +251,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         session: {
           ...state.session,
           transcript: state.session.transcript.map((entry, idx) =>
-            idx === existingIndex ? {...entry, partialText: text, sourceText: text, sourceLanguage: language, revision} : entry,
+            idx === existingIndex ? {...entry, partialText: text, sourceText: text, sourceLanguage: language, revision, gatePending: gatePending === true} : entry,
           ),
           partialTranscript: text,
         },
@@ -260,7 +262,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
           ...state.session,
           transcript: [
             ...state.session.transcript,
-            {id: utteranceId, sessionId: session.id!, timestamp: Date.now(), isFinal: false, sourceText: text, partialText: text, sourceLanguage: language, translatedText: null, revision},
+            {id: utteranceId, sessionId: session.id!, timestamp: Date.now(), isFinal: false, sourceText: text, partialText: text, sourceLanguage: language, translatedText: null, revision, gatePending: gatePending === true},
           ],
           partialTranscript: text,
           currentUtteranceId: utteranceId,
@@ -274,13 +276,13 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     switch (event.type) {
       case 'stt_partial':
         if (session.id !== event.session_id) return;
-        get().updatePartialTranscript(event.utterance_id, event.text, event.language, event.revision);
+        get().updatePartialTranscript(event.utterance_id, event.text, event.language, event.revision, event.gate_pending);
         break;
       case 'stt_final':
         if (session.id !== event.session_id) return;
         const existingIndex = session.transcript.findIndex((t) => t.id === event.utterance_id);
         if (existingIndex >= 0) {
-          get().updateTranscriptEntry(event.utterance_id, {isFinal: true, sourceText: event.text, partialText: '', sourceLanguage: event.language, revision: event.revision});
+          get().updateTranscriptEntry(event.utterance_id, {isFinal: true, sourceText: event.text, partialText: '', sourceLanguage: event.language, revision: event.revision, gatePending: false});
         } else {
           get().addTranscriptEntry({id: event.utterance_id, timestamp: event.timestamp_ms, isFinal: true, sourceText: event.text, partialText: '', sourceLanguage: event.language, translatedText: null, revision: event.revision});
         }

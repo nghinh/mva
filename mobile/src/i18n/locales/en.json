@@ -73,7 +73,13 @@
     "tabLive": "Live",
     "tabNetwork": "Network",
     "ttsToggleLabel": "Toggle read aloud",
-    "langSelectTarget": "Translation language"
+    "langSelectTarget": "Translate to",
+    "inputLangModalTitle": "Spoken language in this meeting",
+    "inputLangModalAuto": "Auto (EN · JA · KO · ZH)",
+    "inputLangModalVi": "Vietnamese",
+    "inputLangModalStart": "Start Meeting",
+    "inputLangModalCancel": "Cancel",
+    "gateIdentifying": "Identifying language…"
   },
   "settings": {
     "title": "Settings",
@@ -89,10 +95,6 @@
     "speechRecognitionDesc": "SenseVoice bundled for offline EN / JA / KO / ZH speech recognition.",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
-    "inputLanguage": "Input Language",
-    "inputLanguageDesc": "Language you will speak in the meeting.",
-    "inputLangAuto": "Auto (EN · JA · KO · ZH)",
-    "inputLangVietnamese": "Vietnamese",
     "sectionAiModels": "On-Device AI",
     "sectionAiModelsSubtitle": "Speech recognition and speaker detection are stored locally on your device.",
     "modelSummaryTitle": "Model Summary",
@@ -247,6 +249,7 @@
     "japaneseToLabel": "Japanese → {{lang}}",
     "koreanToLabel": "Korean → {{lang}}",
     "chineseToLabel": "Chinese → {{lang}}",
+    "vietnameseToLabel": "Vietnamese → {{lang}}",
     "vietnameseLabel": "Vietnamese",
     "englishLabel": "English",
     "chineseLabel": "Chinese",

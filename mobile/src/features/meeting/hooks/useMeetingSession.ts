@@ -40,6 +40,7 @@ import {
 } from '../../../native/stt/MeetingPipeline';
 import {getRealSpeechRecognizer, RealSpeechRecognizer} from '../../../native/stt/RealSpeechRecognizer';
 import {getDiarizationThreshold} from '../../../shared/config/runtimeConfig';
+import {testLog, flushSessionTestLog, ensureDeviceTag, deviceMeta, fmtTime} from '../../../services/sessionTestLog';
 import {
   getSpeakerEmbeddingService,
   releaseSpeakerEmbeddingService,
@@ -59,7 +60,11 @@ export interface UseMeetingSessionReturn {
   transcript: TranscriptEntry[];
   partialTranscript: string;
   currentUtteranceId: UtteranceId | null;
-  startMeeting: (sourceLanguage?: SourceLanguage, targetLanguage?: TargetLanguage) => Promise<void>;
+  startMeeting: (
+    sourceLanguage?: SourceLanguage,
+    targetLanguage?: TargetLanguage,
+    options?: {gateMode?: boolean},
+  ) => Promise<void>;
   stopMeeting: () => Promise<{sessionId: string | null; fallbackSession: SessionData | null; fallbackUtterances: UtteranceData[]}>;
   pauseMeeting: () => Promise<void>;
   resumeMeeting: () => Promise<void>;
@@ -218,6 +223,9 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   // not starve STT CPU.
   const draftLastSizeRef = useRef(new Map<UtteranceId, number>());
   const draftLastTimestampRef = useRef(new Map<UtteranceId, number>());
+  // Language used for the last size measurement above, so a gate-leader flip
+  // mid-utterance (see maybeTranslateDraft) can be detected and reset.
+  const draftLastLangRef = useRef(new Map<UtteranceId, SourceLanguage>());
 
   const trimSamplesForSpeakerEmbedding = useCallback((samples: number[], sampleRate: number): number[] => {
     if (samples.length === 0) {
@@ -630,6 +638,22 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
       return;
     }
+    // Câu nói trùng ngôn ngữ đích (vd gate nhận vi, target=vi): không chạy
+    // translator, nhưng MIRROR nguyên văn sang lane Dịch (yêu cầu UX 19/08 —
+    // lane trống làm user tưởng lỗi). Chi phí 0ms vì không dịch thật.
+    if (event.language === useMeetingStore.getState().session.targetLanguage) {
+      if (event.text.trim()) {
+        useMeetingStore.getState().handleTranslationMessage(
+          event.utterance_id,
+          event.text,
+          false,
+          event.revision,
+          event.text,
+          event.timestamp_ms,
+        );
+      }
+      return;
+    }
     const translator = getOnDeviceTranslator();
     // HARD GATE 1: until splash/meeting has warmed the translator, drafts would pay the
     // ~multi-second decoder_model lazy-load themselves and stall every
@@ -666,7 +690,14 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
 
     const now = Date.now();
-    const lastSize = draftLastSizeRef.current.get(event.utterance_id) ?? 0;
+    // In gate mode the gate leader can flip mid-utterance (e.g. vi -> en between
+    // partials), which flips the measurement unit above (words vs characters).
+    // Comparing sizes across that flip goes deeply negative and would stall
+    // drafts for the rest of the utterance, so treat a language change as a
+    // fresh utterance for growth-tracking purposes.
+    const lastLang = draftLastLangRef.current.get(event.utterance_id);
+    const languageFlipped = lastLang !== undefined && lastLang !== event.language;
+    const lastSize = languageFlipped ? 0 : draftLastSizeRef.current.get(event.utterance_id) ?? 0;
     const lastAt = draftLastTimestampRef.current.get(event.utterance_id) ?? 0;
     const grewEnough = size - lastSize >= growthGate;
     const elapsedEnough = now - lastAt >= MIN_INTERVAL_MS;
@@ -675,6 +706,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     }
     draftLastSizeRef.current.set(event.utterance_id, size);
     draftLastTimestampRef.current.set(event.utterance_id, now);
+    draftLastLangRef.current.set(event.utterance_id, event.language);
 
     const dispatchDraftTranslation = async () => {
       const translator = getOnDeviceTranslator();
@@ -719,16 +751,26 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   }, [IOS_DEBUG_TRANSLATION_SAFE_MODE]);
 
   const handleIncomingPipelineEvent = useCallback((event: MeetingPipelineEvent) => {
-    if (stoppingSessionRef.current && (event.type === 'stt_partial' || event.type === 'stt_final')) {
+    // Khi đang stop, chỉ chặn PARTIAL (không còn ý nghĩa hiển thị). stt_final
+    // PHẢI được cho qua: recognizer.stop() drain chính là để bắn final của
+    // utterance dở dang — chặn nó sẽ mất câu cuối và (trong cửa sổ gate) lưu
+    // hàng placeholder trống vào history.
+    if (stoppingSessionRef.current && event.type === 'stt_partial') {
       return;
     }
     useMeetingStore.getState().handlePipelineEvent(event);
+
+    // Log test: các mốc gate (active / locked) đi qua pipeline_status.
+    if (event.type === 'pipeline_status' && event.details && /gate/i.test(event.details)) {
+      testLog(event.session_id, {kind: 'gate', detail: event.details});
+    }
 
     if (event.type === 'utterance_cancel') {
       // Purge per-utterance throttle state; the store drops the translation
       // entry itself.
       draftLastSizeRef.current.delete(event.utterance_id);
       draftLastTimestampRef.current.delete(event.utterance_id);
+      draftLastLangRef.current.delete(event.utterance_id);
       translationVersionRef.current.delete(event.utterance_id);
     }
 
@@ -752,6 +794,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       // will arrive for it.
       draftLastSizeRef.current.delete(event.utterance_id);
       draftLastTimestampRef.current.delete(event.utterance_id);
+      draftLastLangRef.current.delete(event.utterance_id);
 
       // Record STT latency for final emissions as well
       const eventTime = event.timestamp_ms ?? Date.now();
@@ -761,6 +804,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       const dispatchFinalTranslation = async () => {
         const currentStore = useMeetingStore.getState();
         const sessionId = currentStore.session.id ?? event.session_id;
+        // Timing đầy đủ để đọc độ trễ từ log: bắt đầu nói → hết nói (thời
+        // lượng câu) → STT (decode + dispatch tới UI). Phần dịch xem entry
+        // translation_ok của cùng utterance.
+        const sttTiming = `nói ${fmtTime(event.start_ms)}→${fmtTime(event.end_ms)} (${((event.end_ms - event.start_ms) / 1000).toFixed(1)}s) · STT +${Date.now() - event.end_ms}ms`;
+        testLog(sessionId, {kind: 'stt_final', utteranceId: event.utterance_id, text: event.text, lang: event.language, detail: `engine=${event.engine ?? '?'} | ${sttTiming}${event.gate_debug ? ` | ${event.gate_debug}` : ''}`});
 
         const assignSpeakerAsync = async () => {
           if (!event.audio_samples || !event.sample_rate || event.audio_samples.length < Math.floor(event.sample_rate * 1.0)) {
@@ -877,6 +925,51 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           timestampMs: event.timestamp_ms,
         };
 
+        // Câu nói trùng ngôn ngữ đích (vd vi khi target=vi) → không dịch,
+        // không tạo entry ở lane Dịch; chỉ lưu utterance với translatedText
+        // null. KHÔNG đưa vào deferred queue — không có gì để dịch về sau.
+        if (event.language === currentStore.session.targetLanguage) {
+          testLog(sessionId, {kind: 'translation_skip_same_lang', utteranceId: event.utterance_id, detail: `target=${currentStore.session.targetLanguage}, hiển thị nguyên văn`});
+          // Mirror nguyên văn vào lane Dịch + lưu history đồng nhất (latency 0,
+          // không chạy translator).
+          useMeetingStore.getState().handleTranslationMessage(
+            event.utterance_id,
+            event.text,
+            true,
+            event.revision,
+            event.text,
+            event.timestamp_ms,
+          );
+          const persistence = getPersistenceService();
+          persistence
+            .saveFinalUtteranceWithTranslation(
+              {
+                ...buildUntranslatedUtteranceData(
+                  sessionId,
+                  event.utterance_id,
+                  event.text,
+                  event.language,
+                  event.revision,
+                  event.timestamp_ms,
+                ),
+                // Mirror: history hiển thị đồng nhất với lane Dịch.
+                translatedText: event.text,
+                translationLatencyMs: 0,
+              },
+              {
+                id: `trans_${event.utterance_id}_final`,
+                utteranceId: event.utterance_id,
+                text: event.text,
+                latencyMs: 0,
+                createdAt: Date.now(),
+              },
+            )
+            .catch((err) =>
+              warnLog('[useMeetingSession] Failed to persist same-language utterance:', err),
+            );
+          return;
+        }
+
         if (IOS_DEBUG_TRANSLATION_SAFE_MODE) {
           queueDeferredTranslation(untranslatedItem);
           persistUntranslatedFinal(untranslatedItem).catch((err) =>
@@ -888,6 +981,7 @@ export function useMeetingSession(): UseMeetingSessionReturn {
         const translatorReady = await awaitTranslatorReadyForTranslate(180_000);
         if (!translatorReady) {
           warnLog('[useMeetingSession] Translator not ready after wait; skipping translation for utterance.');
+          testLog(sessionId, {kind: 'translation_deferred', utteranceId: event.utterance_id, detail: 'translator chưa sẵn sàng sau 180s'});
           queueDeferredTranslation(untranslatedItem);
           persistUntranslatedFinal(untranslatedItem).catch((err) =>
             warnLog('[useMeetingSession] Failed to persist untranslated utterance:', err),
@@ -909,8 +1003,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           .then((result) => {
             const activeVersion = translationVersionRef.current.get(event.utterance_id);
             if (activeVersion !== result.version) {
+              testLog(sessionId, {kind: 'translation_cancelled', utteranceId: event.utterance_id, detail: 'kết quả cũ, đã có bản mới hơn'});
               return;
             }
+            testLog(sessionId, {kind: 'translation_ok', utteranceId: event.utterance_id, text: result.text, detail: `dịch ${Date.now() - startedAt}ms · bắt đầu +${startedAt - event.end_ms}ms sau hết nói`});
 
             useMeetingStore.getState().handleTranslationMessage(
               event.utterance_id,
@@ -955,8 +1051,10 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           })
           .catch((error) => {
             if (isTranslationCancelledError(error)) {
+              testLog(sessionId, {kind: 'translation_cancelled', utteranceId: event.utterance_id, detail: 'bị hủy bởi yêu cầu dịch mới hơn'});
               return;
             }
+            testLog(sessionId, {kind: 'translation_error', utteranceId: event.utterance_id, detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error)});
             queueDeferredTranslation(untranslatedItem);
 
             const translatorPausedForMemory =
@@ -1124,7 +1222,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
   );
 
   const startMeeting = useCallback(
-    async (sourceLanguage: SourceLanguage = 'en', targetLanguage: TargetLanguage = 'vi') => {
+    async (
+      sourceLanguage: SourceLanguage = 'en',
+      targetLanguage: TargetLanguage = 'vi',
+      options?: {gateMode?: boolean},
+    ) => {
       const effectiveSourceLanguage: SourceLanguage = sourceLanguage;
 
       console.warn('[useMeetingSession] startMeeting: entered', {effectiveSourceLanguage, targetLanguage});
@@ -1140,6 +1242,8 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       getSessionDiarizationWindowService().reset(Date.now(), 16000);
       const sessionId = store.startSession(effectiveSourceLanguage, targetLanguage);
       if (!sessionId) return;
+      await ensureDeviceTag();
+      testLog(sessionId, {kind: 'session_start', lang: targetLanguage, detail: `source=${effectiveSourceLanguage}, gateMode=${options?.gateMode === true}, ${deviceMeta()}`});
 
       const currentSession = {
         ...store.session,
@@ -1165,7 +1269,12 @@ export function useMeetingSession(): UseMeetingSessionReturn {
           realSpeechRecognizer = getRealSpeechRecognizer();
           console.warn('[useMeetingSession] real recognizer start: instance ready', {hasInstance: !!realSpeechRecognizer});
           realRecognizerRef.current = realSpeechRecognizer;
-          await realSpeechRecognizer.start(sessionId, handleIncomingPipelineEvent, effectiveSourceLanguage);
+          await realSpeechRecognizer.start(
+            sessionId,
+            handleIncomingPipelineEvent,
+            effectiveSourceLanguage,
+            {gateMode: options?.gateMode === true, targetLanguage},
+          );
           console.warn('[useMeetingSession] real recognizer start: success', {sessionId});
           startedWithRealRecognizer = true;
         } catch (error) {
@@ -1336,7 +1445,11 @@ export function useMeetingSession(): UseMeetingSessionReturn {
       speakerLabels: currentSession.speakerLabels,
     };
 
-    const utterances: UtteranceData[] = currentSession.transcript.map((entry) => ({
+    // Chỉ lưu utterance đã final — entry non-final còn sót (partial/placeholder
+    // gate) không được phép vào history.
+    const utterances: UtteranceData[] = currentSession.transcript
+      .filter((entry) => entry.isFinal)
+      .map((entry) => ({
       id: entry.id,
       sessionId: entry.sessionId,
       timestamp: entry.timestamp,
@@ -1354,6 +1467,13 @@ export function useMeetingSession(): UseMeetingSessionReturn {
     // Fast save: session + all utterances in parallel — user sees SessionReview immediately.
     await persistence.saveSession(finalSessionData);
     await Promise.all(utterances.map((u) => persistence.saveUtterance(u)));
+
+    // Chốt log test của phiên và ghi ra file để xem/chia sẻ từ màn Review.
+    if (currentSession.id) {
+      const logSessionId = currentSession.id;
+      testLog(logSessionId, {kind: 'session_stop', detail: `${utterances.length} utterance đã lưu`});
+      flushSessionTestLog(logSessionId).catch(() => {});
+    }
 
     debugLog('[useMeetingSession] Meeting stopped, navigating. Background post-processing will continue.');
 

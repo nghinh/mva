@@ -9,6 +9,15 @@ import type { SessionId, SourceLanguage, UtteranceId } from '../../shared/types/
 import type { MeetingPipelineEvent } from '../../shared/types/meeting';
 import { infoLog, warnLog } from '../../shared/utils/logger';
 import { LanguageDetector } from './LanguageDetector';
+import { normalizeViCase } from './viTextNormalizer';
+import {
+  createGateTally,
+  recordWin,
+  scoreUtterance,
+  tallyLeader,
+  type GateEngine,
+  type GateTally,
+} from './LanguageGate';
 import { ensureBundledModelInstalled } from '../models/BundledModelInstaller';
 import { BUNDLED_MODEL_CONFIG, getSttModelIdForSource, type BundledModelId } from '../models/bundledModels';
 
@@ -39,7 +48,12 @@ const STT_INPUT_GAIN = IS_ANDROID ? 6 : 1;
 // is the lower bar that keeps us engaged through intra-word energy dips
 // (fricatives, voiceless consonants, inter-syllable pauses). Without the
 // two-threshold setup Android fragments sentences into 1–2 word pieces.
-const SPEECH_START_THRESHOLD = IS_ANDROID ? 0.004 : 0.020;
+// iOS START hạ 0.020 → 0.012 (field 20/08 13:43): giọng vi trong video event
+// nhỏ hơn 0.020 nên KHÔNG BAO GIỜ mở được utterance sau quãng nghỉ — cả câu
+// vi biến mất thành lỗ 7-12s, chỉ lọt vào log khi dính đuôi câu EN to đã mở
+// sẵn (CONTINUE 0.008 vẫn ghi tiếp). Guard thích ứng noiseFloor×3.5 vẫn chặn
+// nhiễu nền. Đường lui nếu nhiễu mở câu lung tung: trả về 0.020.
+const SPEECH_START_THRESHOLD = IS_ANDROID ? 0.004 : 0.012;
 const SPEECH_CONTINUE_THRESHOLD = IS_ANDROID ? 0.0015 : 0.008;
 
 // In addition to the absolute thresholds, we maintain a running estimate of
@@ -89,6 +103,43 @@ const MAX_UTTERANCE_SAMPLES = SAMPLE_RATE * (IS_ANDROID ? 20 : 15);
 // Periodic diagnostic: emit raw-RMS stats every RMS_STATS_WINDOW_MS so a
 // field user can confirm their mic levels match our threshold expectations.
 const RMS_STATS_WINDOW_MS = 2000;
+
+// Cửa sổ chưa-có-bằng-chứng (câu đầu phiên gate): placeholder "đang xác định
+// ngôn ngữ" chỉ được treo tối đa chừng này; sau đó partial dual-decode + chấm
+// điểm để hiện live text của engine đang thắng — câu đầu dài 10-15s mà treo
+// placeholder suốt thì cảm giác rất lâu (phản hồi field 19/08).
+const GATE_FIRST_GUESS_AFTER_MS = 3000;
+
+// ==== Cắt câu theo ranh giới NGÔN NGỮ (field 20/08 12:03) ====
+// Video/sự kiện song ngữ nói liên tục không có khoảng lặng → utterance chỉ bị
+// cắt bởi trần 15s và một chunk chứa CẢ HAI ngôn ngữ: phần thiểu số thành rác,
+// thắng vi (trùng target) thì đoạn tiếng Anh bên trong mất trắng không dịch.
+// Cách cắt: sau khi mini-gate chốt engine cho câu, mỗi LANG_SPLIT_CHECK_
+// INTERVAL_MS dual-decode RIÊNG khúc đuôi (LANG_SPLIT_TAIL_MS cuối buffer);
+// đuôi cho winner khác engine đã chốt LANG_SPLIT_CONFIRMATIONS lần liên tiếp
+// → ép finalize: phần đầu (ngôn ngữ cũ) thành final, phần đuôi ~LANG_SPLIT_
+// CARRY_MS (ngôn ngữ mới) chuyển làm thân utterance kế tiếp — không mất audio.
+// ĐƯỜNG LUI: đặt GATE_LANG_SPLIT_ENABLED = false là trở về nguyên hành vi cũ
+// (chỉ cắt theo silence/soft-cap/hard-cap), không cần revert code.
+// Tham số chỉnh 20/08 sau field 13:43: câu thực tế chỉ 8-10s (silence/soft-cap
+// cắt trước) nên lịch cũ (chốt 3s + 2 xác nhận × 3.5s ≈ 10.5s) KHÔNG BAO GIỜ
+// kịp nổ. 1 lần xác nhận là đủ vì cắt nhầm gần như vô hại: carry cùng ngôn
+// ngữ → mini-gate của câu mới pin lại đúng engine cũ, chỉ tốn một nhát cắt.
+const GATE_LANG_SPLIT_ENABLED = true;
+const LANG_SPLIT_CHECK_INTERVAL_MS = 2500;
+const LANG_SPLIT_TAIL_MS = 4000;
+const LANG_SPLIT_CONFIRMATIONS = 1;
+const LANG_SPLIT_CARRY_MS = 4000;
+
+// SenseVoice lúc nospeech hay nhả "." — text không có chữ/số nào không phải
+// nội dung: coi như rỗng để không ghi tally, không emit final, không dịch
+// (field 20/08: final "." vẫn được dịch thành "."). Range: latin + latin
+// extended (vi có dấu) + CJK + kana + hangul.
+const LEXICAL_CONTENT_RE =
+  /[0-9A-Za-zÀ-ɏḀ-ỿ぀-ヿ一-鿿가-힯]/;
+function lexicalOrEmpty(text: string): string {
+  return LEXICAL_CONTENT_RE.test(text) ? text : '';
+}
 
 type AudioSessionNativeModule = {
   activateRecordingSession?: () => Promise<boolean>;
@@ -156,7 +207,7 @@ export class RealSpeechRecognizer {
   private captureCalibrationEndsAt = 0;
   private speechCalibrationWindow: number[] = [];
   private utteranceCalibrationStartMs = 0;
-  private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | null = null;
+  private lastFinalizeReason: 'silence' | 'soft_cap' | 'hard_cap' | 'stop' | 'too_short' | 'empty_result' | 'lang_switch' | null = null;
   private hardCapCount = 0;
 
   // Engine selection for this session. 'vi' forces the dedicated Vietnamese
@@ -165,7 +216,40 @@ export class RealSpeechRecognizer {
   private forcedLanguage: SourceLanguage | null = null;
   private enginePrefix: 'sense' | 'vi' = 'sense';
 
-  async start(sessionId: SessionId, emit: (event: MeetingPipelineEvent) => void, sourceLanguage?: SourceLanguage): Promise<void> {
+  // Gate mode (máy khỏe): giữ engine VI thứ hai, dual-decode final từng
+  // utterance. KHÔNG BAO GIỜ khóa engine: gate sống suốt phiên (bài học field
+  // 20/08 — early-lock 6-0 destroy SenseVoice làm mọi đoạn Anh/Trung sau đó
+  // bị ép decode như vi). Giá đo được: final chậm thêm ~0.4-0.6s so với đơn
+  // engine — chấp nhận để switch ngôn ngữ luôn hoạt động.
+  private gateActive = false;
+  private gateTally: GateTally = createGateTally();
+  private viGateEngine: SttEngine | null = null;
+  // Utterance đã emit placeholder "đang xác định ngôn ngữ" (cửa sổ tally rỗng)
+  // — mỗi utterance chỉ emit đúng một lần.
+  private gatePendingEmittedFor: UtteranceId | null = null;
+  // Bias chấm điểm khi ngôn ngữ dịch sang là vi (xem scoreUtterance).
+  private gateBiasAgainstVi = false;
+  // Mini-gate mỗi câu: tại mốc GATE_FIRST_GUESS_AFTER_MS của MỖI utterance,
+  // dual-decode prefix một lần để chốt engine hiển thị partial cho riêng câu
+  // đó (keyed theo utterance id — sang câu mới tự hết hiệu lực). Trước đây
+  // partial chạy theo leader toàn phiên: đổi ngôn ngữ giữa chừng là nhìn rác
+  // suốt 10-15s tới final (phàn nàn field 19-20/08 "switch chậm").
+  private gateUttEngine: GateEngine | null = null;
+  private gateUttEngineFor: UtteranceId | null = null;
+  // Cắt câu theo ranh giới ngôn ngữ: số lần đuôi buffer "bất đồng" liên tiếp
+  // với engine đã chốt, mốc check gần nhất, và cờ chờ audio-loop thực thi
+  // (keyed theo utterance id để một final khác chen ngang không làm cắt nhầm
+  // câu mới).
+  private langSplitDisagree = 0;
+  private lastLangSplitCheckMs = 0;
+  private pendingLangSplitFor: UtteranceId | null = null;
+
+  async start(
+    sessionId: SessionId,
+    emit: (event: MeetingPipelineEvent) => void,
+    sourceLanguage?: SourceLanguage,
+    options?: {gateMode?: boolean; targetLanguage?: string},
+  ): Promise<void> {
     this.sessionId = sessionId;
     this.emitFn = emit;
     this.detector.setSession(sessionId);
@@ -176,6 +260,25 @@ export class RealSpeechRecognizer {
     this.hardCapCount = 0;
     this.forcedLanguage = sourceLanguage === 'vi' ? 'vi' : null;
     this.enginePrefix = this.forcedLanguage === 'vi' ? 'vi' : 'sense';
+    this.gateActive = false;
+    this.gateTally = createGateTally();
+    this.gatePendingEmittedFor = null;
+    this.gateUttEngine = null;
+    this.gateUttEngineFor = null;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = 0;
+    this.pendingLangSplitFor = null;
+    // Dịch sang tiếng Việt = kỳ vọng speech ngoại ngữ → vùng bằng chứng yếu
+    // trong gate nghiêng về sense (yêu cầu UX 19/08).
+    this.gateBiasAgainstVi = options?.targetLanguage === 'vi';
+    if (this.viGateEngine) {
+      try {
+        await this.viGateEngine.destroy();
+      } catch {
+        // engine cũ hỏng — bỏ qua, sẽ bị thay thế bên dưới.
+      }
+      this.viGateEngine = null;
+    }
 
     const modelId: BundledModelId = getSttModelIdForSource(sourceLanguage);
     const engineLabel = BUNDLED_MODEL_CONFIG[modelId].displayName;
@@ -215,6 +318,36 @@ export class RealSpeechRecognizer {
           },
         },
       });
+    }
+
+    if (options?.gateMode === true && this.forcedLanguage === null) {
+      try {
+        const viModelDir = await this.prepareModelDirectory(
+          emit,
+          'stt_vi',
+          BUNDLED_MODEL_CONFIG.stt_vi.displayName,
+        );
+        this.viGateEngine = await createSTT({
+          modelPath: fileModelPath(viModelDir),
+          modelType: 'transducer',
+          preferInt8: true,
+          provider: 'cpu',
+          numThreads: 2,
+        });
+        this.gateActive = true;
+        emit({
+          type: 'pipeline_status',
+          session_id: sessionId,
+          status: 'processing',
+          timestamp_ms: Date.now(),
+          details: 'Language gate active (dual-decode, full session)',
+        });
+      } catch (error) {
+        // Fallback an toàn: chạy 1 engine SenseVoice như hiện tại.
+        warnLog('[RealSTT] Gate: failed to load Zipformer-VI, running single-engine:', error);
+        this.viGateEngine = null;
+        this.gateActive = false;
+      }
     }
 
     emit({
@@ -263,10 +396,23 @@ export class RealSpeechRecognizer {
       this.processingChain.catch(() => undefined),
       new Promise<void>(resolve => setTimeout(resolve, drainTimeout)),
     ]);
+    // Tắt gate và tách viGateEngine ra biến cục bộ TRƯỚC khi destroy: nếu
+    // drain chạm timeout mà chain vẫn còn job, job đó không được đụng engine
+    // song song với các destroy bên dưới (double-destroy / engine đã chết).
+    this.gateActive = false;
+    const viEngine = this.viGateEngine;
+    this.viGateEngine = null;
     if (this.engine) {
       await this.engine.destroy();
       this.engine = null;
     }
+    if (viEngine) {
+      await viEngine.destroy();
+    }
+    this.gateTally = createGateTally();
+    this.gatePendingEmittedFor = null;
+    this.gateUttEngine = null;
+    this.gateUttEngineFor = null;
     await this.deactivateAudioSession();
     if (this.sessionId) {
       emit({
@@ -398,6 +544,19 @@ export class RealSpeechRecognizer {
     this.appendSamples(this.sampleBuffer, sttSamples);
     const utteranceDurationMs = now - this.utteranceStartMs;
     const silenceSinceSpeech = this.lastSpeechMs ? now - this.lastSpeechMs : 0;
+
+    // Cắt theo ranh giới ngôn ngữ (cờ do maybeCheckLangSplit giương lên trong
+    // inference chain) — chỉ khi cờ vẫn thuộc đúng utterance hiện tại: một
+    // final silence/hard-cap chen giữa làm cờ mồ côi thì bỏ.
+    if (this.pendingLangSplitFor !== null) {
+      const splitValid = this.pendingLangSplitFor === this.currentUtteranceId;
+      this.pendingLangSplitFor = null;
+      if (splitValid) {
+        this.lastFinalizeReason = 'lang_switch';
+        this.finalizeUtteranceForLangSwitch(now, emit);
+        return;
+      }
+    }
 
     const hardCap = MAX_UTTERANCE_SAMPLES;
     if (this.sampleBuffer.length >= hardCap) {
@@ -656,6 +815,136 @@ export class RealSpeechRecognizer {
     });
   }
 
+  // Dual-decode một buffer partial bằng cả hai engine gate rồi chấm điểm.
+  // Mỗi decode bọc riêng — một engine hỏng chỉ mất phần của nó. Trả null khi
+  // cả hai phía trắng tay (chưa đủ vật liệu để nói gì).
+  private async gateScorePartial(
+    buffer: number[],
+  ): Promise<{winner: GateEngine; text: string; lang?: string} | null> {
+    if (!this.engine || !this.viGateEngine) return null;
+    let senseResult: {text?: string; lang?: string} = {};
+    let viResult: {text?: string} = {};
+    try {
+      senseResult = await this.engine.transcribeSamples(buffer, SAMPLE_RATE);
+    } catch (error) {
+      warnLog('[RealSTT] gate: sense partial decode failed:', error);
+    }
+    try {
+      viResult = await this.viGateEngine.transcribeSamples(buffer, SAMPLE_RATE);
+    } catch (error) {
+      warnLog('[RealSTT] gate: vi partial decode failed:', error);
+    }
+    const senseText = lexicalOrEmpty((senseResult.text ?? '').trim());
+    const viText = lexicalOrEmpty((viResult.text ?? '').trim());
+    if (!senseText && !viText) {
+      return null;
+    }
+    const winner = scoreUtterance(
+      {text: senseText, lang: senseResult.lang},
+      {text: viText},
+      tallyLeader(this.gateTally),
+      this.gateBiasAgainstVi,
+      Math.abs(this.gateTally.vi - this.gateTally.sense),
+    );
+    return winner === 'vi'
+      ? {winner, text: viText}
+      : {winner, text: senseText, lang: senseResult.lang};
+  }
+
+  // Check ranh giới ngôn ngữ trong câu: dual-decode khúc đuôi buffer và so
+  // winner với engine đã chốt. Bất đồng đủ LANG_SPLIT_CONFIRMATIONS lần liên
+  // tiếp → giương cờ để audio-loop cắt câu (không cắt trực tiếp ở đây — mọi
+  // thao tác buffer/finalize phải nằm trong luồng xử lý audio như cũ).
+  private async maybeCheckLangSplit(now: number, uttId: UtteranceId): Promise<void> {
+    if (!GATE_LANG_SPLIT_ENABLED || !this.gateActive || !this.viGateEngine) return;
+    if (this.gateUttEngineFor !== uttId || this.gateUttEngine === null) return;
+    if (this.pendingLangSplitFor !== null) return;
+    if (now - this.lastLangSplitCheckMs < LANG_SPLIT_CHECK_INTERVAL_MS) return;
+    const tailSamples = Math.floor((SAMPLE_RATE * LANG_SPLIT_TAIL_MS) / 1000);
+    // Cần thân câu (≥2s) đứng trước đuôi thì đuôi mới nói lên "đổi ngôn ngữ";
+    // buffer ngắn hơn thế thì chính mini-gate lo rồi.
+    if (this.sampleBuffer.length < tailSamples + SAMPLE_RATE * 2) return;
+    this.lastLangSplitCheckMs = now;
+    const tail = this.sampleBuffer.slice(this.sampleBuffer.length - tailSamples);
+    const scored = await this.gateScorePartial(tail);
+    // Utterance có thể đã bị finalize (silence/hard-cap) trong lúc decode.
+    if (this.currentUtteranceId !== uttId || this.gateUttEngineFor !== uttId) return;
+    if (!scored) return;
+    if (scored.winner === this.gateUttEngine) {
+      this.langSplitDisagree = 0;
+      return;
+    }
+    this.langSplitDisagree += 1;
+    infoLog('[RealSTT] lang-split disagree', {
+      id: uttId,
+      pinned: this.gateUttEngine,
+      tailWinner: scored.winner,
+      count: this.langSplitDisagree,
+    });
+    if (this.langSplitDisagree >= LANG_SPLIT_CONFIRMATIONS) {
+      this.pendingLangSplitFor = uttId;
+    }
+  }
+
+  // Cắt câu tại ranh giới ngôn ngữ: phần đầu (ngôn ngữ cũ) thành final như
+  // thường, phần đuôi LANG_SPLIT_CARRY_MS (audio ngôn ngữ mới đã thu) trở
+  // thành THÂN của utterance kế tiếp — mở ngay tại đây, không chờ VAD, vì
+  // speech đang liên tục. Utterance mới chưa chốt engine nên partial kế tiếp
+  // sẽ mini-gate lại từ đầu và chọn đúng engine cho ngôn ngữ mới.
+  private finalizeUtteranceForLangSwitch(now: number, emit: (event: MeetingPipelineEvent) => void): void {
+    const utteranceId = this.currentUtteranceId;
+    const sessionId = this.sessionId;
+    if (!utteranceId || !sessionId) {
+      this.resetUtterance();
+      return;
+    }
+    const carrySamples = Math.floor((SAMPLE_RATE * LANG_SPLIT_CARRY_MS) / 1000);
+    if (this.sampleBuffer.length <= carrySamples + SAMPLE_RATE) {
+      // Không đủ thân câu để tách — finalize nguyên khối như cũ.
+      this.finalizeUtterance(now, emit);
+      return;
+    }
+    const splitIndex = this.sampleBuffer.length - carrySamples;
+    const snapshot = this.sampleBuffer.slice(0, splitIndex);
+    const carry = this.sampleBuffer.slice(splitIndex);
+    const startMs = this.utteranceStartMs;
+    const boundaryMs = now - LANG_SPLIT_CARRY_MS;
+    const elapsedMs = Math.max(0, boundaryMs - startMs);
+    const revisionAtScheduling = this.currentRevision;
+
+    // Mở utterance mới mang phần carry. KHÔNG resetUtterance: giữ inSpeech/
+    // lastSpeechMs — dòng speech chưa hề đứt.
+    this.currentUtteranceId = `${sessionId}-${this.enginePrefix}-${++this.utteranceCounter}`;
+    this.currentRevision = 0;
+    this.currentText = '';
+    this.utteranceStartMs = boundaryMs;
+    this.utteranceCalibrationStartMs = boundaryMs;
+    this.sampleBuffer = carry;
+    this.lastPartialMs = now;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = now;
+    this.pendingLangSplitFor = null;
+
+    infoLog('[RealSTT] lang-split final', {
+      headId: utteranceId,
+      newId: this.currentUtteranceId,
+      headMs: elapsedMs,
+      carryMs: LANG_SPLIT_CARRY_MS,
+    });
+    this.scheduleInference(() =>
+      this.runFinalTranscription({
+        snapshot,
+        utteranceId,
+        sessionId,
+        startMs,
+        elapsedMs,
+        revisionAtScheduling,
+        now: boundaryMs,
+        emit,
+      }),
+    );
+  }
+
   private async emitPartial(now: number, emit: (event: MeetingPipelineEvent) => void): Promise<void> {
     if (!this.engine || !this.sessionId || !this.currentUtteranceId || this.sampleBuffer.length === 0) {
       return;
@@ -666,19 +955,116 @@ export class RealSpeechRecognizer {
     }
     const bufferToTranscribe = this.sampleBuffer;
     const uttId = this.currentUtteranceId;
-    const result = await this.engine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+    // Gate: partial decode bằng engine đã chốt CHO CÂU NÀY (mini-gate tại mốc
+    // 3s — xem nhánh dưới), 3s đầu câu tạm theo leader. Riêng utterance đầu
+    // tiên của phiên (tally rỗng, chưa có bằng chứng nào) dual-decode + chấm
+    // điểm mọi partial sau placeholder để hiển thị đúng ngay từ câu đầu.
+    const noEvidenceYet = this.gateTally.sense + this.gateTally.vi === 0;
+    const leader: GateEngine = this.gateActive ? tallyLeader(this.gateTally) : 'sense';
+    let text: string;
+    let forcedVi = false;
+    let modelLangHint: string | undefined;
+    if (this.gateActive && this.viGateEngine && noEvidenceYet) {
+      // Chưa có bằng chứng ngôn ngữ (utterance đầu phiên). 3 giây đầu: treo
+      // placeholder "đang xác định ngôn ngữ" (không decode — mọi lựa chọn
+      // engine đều là đoán mò). SAU mốc đó: dual-decode partial + chấm điểm
+      // để hiện live text của engine đang thắng — câu đầu có thể dài tới
+      // 10-15s, treo placeholder suốt thì quá lâu. Tally vẫn CHỈ ghi ở final.
+      if (now - this.utteranceStartMs < GATE_FIRST_GUESS_AFTER_MS) {
+        if (this.gatePendingEmittedFor === uttId) {
+          return;
+        }
+        this.gatePendingEmittedFor = uttId;
+        this.currentRevision += 1;
+        emit({
+          type: 'stt_partial',
+          session_id: this.sessionId,
+          utterance_id: uttId,
+          text: '',
+          gate_pending: true,
+          timestamp_ms: now,
+          language: 'en',
+          offset_ms: now - this.utteranceStartMs,
+          revision: this.currentRevision,
+        });
+        return;
+      }
+      const scored = await this.gateScorePartial(bufferToTranscribe);
+      if (!scored) {
+        return;
+      }
+      text = scored.text;
+      forcedVi = scored.winner === 'vi';
+      modelLangHint = scored.lang;
+    } else if (
+      this.gateActive &&
+      this.viGateEngine &&
+      this.gateUttEngineFor !== uttId &&
+      now - this.utteranceStartMs >= GATE_FIRST_GUESS_AFTER_MS
+    ) {
+      // Mini-gate mỗi câu: tại mốc 3s của MỌI utterance trong gate, dual-decode
+      // prefix MỘT LẦN để chốt engine hiển thị cho riêng câu này. Đổi ngôn ngữ
+      // giữa phiên nhờ đó được nhận ra sau ~3s thay vì nhìn rác của leader
+      // suốt 10-15s tới final (phàn nàn field "switch Vi↔En chậm"). Chi phí
+      // thêm đúng một decode prefix ngắn mỗi câu; final vẫn dual-decode và là
+      // quyết định cuối cùng.
+      const scored = await this.gateScorePartial(bufferToTranscribe);
+      if (!scored) {
+        return;
+      }
+      this.gateUttEngine = scored.winner;
+      this.gateUttEngineFor = uttId;
+      // Nhịp check ranh giới ngôn ngữ tính từ lúc chốt engine cho câu này.
+      this.langSplitDisagree = 0;
+      this.lastLangSplitCheckMs = now;
+      text = scored.text;
+      forcedVi = scored.winner === 'vi';
+      modelLangHint = scored.lang;
+    } else {
+      // Câu đã chốt engine bởi mini-gate → dùng đúng engine đó; chưa tới mốc
+      // chốt (3s đầu câu) → tạm decode theo leader như hành vi cũ.
+      const chosen: GateEngine =
+        this.gateActive && this.gateUttEngineFor === uttId && this.gateUttEngine !== null
+          ? this.gateUttEngine
+          : leader;
+      const partialEngine =
+        this.gateActive && chosen === 'vi' && this.viGateEngine ? this.viGateEngine : this.engine;
+      let result: Awaited<ReturnType<SttEngine['transcribeSamples']>>;
+      if (this.gateActive) {
+        // Trong gate, một partial hỏng chỉ được phép mất chính partial đó —
+        // không được ném ra ngoài và làm hỏng processingChain.
+        try {
+          result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+        } catch (error) {
+          warnLog('[RealSTT] gate: partial decode failed, skipping this partial:', error);
+          return;
+        }
+      } else {
+        result = await partialEngine.transcribeSamples(bufferToTranscribe, SAMPLE_RATE);
+      }
+      text = (result.text ?? '').trim();
+      forcedVi = this.gateActive && chosen === 'vi';
+      modelLangHint = result.lang;
+    }
+    // Cắt câu theo ranh giới ngôn ngữ — chạy TRƯỚC các guard bên dưới vì
+    // partial trùng text (early-return) không được phép làm lỡ nhịp check.
+    await this.maybeCheckLangSplit(now, uttId);
     // State may have changed while we awaited; re-check before emitting so
     // partials from a finalized utterance don't leak into a new one.
     if (this.currentUtteranceId !== uttId) {
       return;
     }
-    const text = (result.text ?? '').trim();
     if (!text || text === this.currentText) {
       return;
     }
     this.currentText = text;
     this.currentRevision += 1;
-    const lang = this.detectLanguage(text, result.lang);
+    // detectLanguage có side-effect (emit language_detected) nên chỉ gọi SAU
+    // các guard ở trên — giữ đúng thứ tự của code trước gate.
+    const lang: SourceLanguage = forcedVi ? 'vi' : this.detectLanguage(text, modelLangHint);
+    if (lang === 'vi') {
+      text = normalizeViCase(text);
+    }
     emit({
       type: 'stt_partial',
       session_id: this.sessionId,
@@ -710,8 +1096,71 @@ export class RealSpeechRecognizer {
       return;
     }
 
-    const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
-    const text = (result.text ?? '').trim();
+    let text: string;
+    let lang: SourceLanguage;
+    let engineUsed = '';
+    let gateDebug: string | undefined;
+    if (this.gateActive && this.viGateEngine) {
+      // Dual-decode tuần tự trên cùng snapshot — đỉnh RAM activation không đổi.
+      // Mỗi decode được bọc riêng: một engine hỏng chỉ làm mất phần của nó,
+      // không ném ra ngoài làm hỏng processingChain của cả phiên.
+      let senseResult: {text?: string; lang?: string} = {};
+      let viResult: {text?: string} = {};
+      let senseOk = false;
+      let viOk = false;
+      try {
+        senseResult = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
+        senseOk = true;
+      } catch (error) {
+        warnLog('[RealSTT] gate: sense decode failed for this utterance:', error);
+      }
+      try {
+        viResult = await this.viGateEngine.transcribeSamples(snapshot, SAMPLE_RATE);
+        viOk = true;
+      } catch (error) {
+        warnLog('[RealSTT] gate: vi decode failed for this utterance:', error);
+      }
+      const senseText = lexicalOrEmpty((senseResult.text ?? '').trim());
+      const viText = lexicalOrEmpty((viResult.text ?? '').trim());
+      if (!senseText && !viText) {
+        text = '';
+        lang = 'en';
+      } else {
+        const winner = scoreUtterance(
+          {text: senseText, lang: senseResult.lang},
+          {text: viText},
+          tallyLeader(this.gateTally),
+          this.gateBiasAgainstVi,
+          Math.abs(this.gateTally.vi - this.gateTally.sense),
+        );
+        // Chỉ ghi tally khi CẢ HAI decode đều chạy được: một lỗi kỹ thuật
+        // một phía không được tính là chiến thắng cho bên còn lại, nếu không
+        // một engine hỏng lặp lại sẽ làm lệch quyết định khóa. Văn bản vẫn
+        // được phát bình thường — chỉ việc ghi điểm là chặt hơn.
+        if (senseOk && viOk) {
+          recordWin(this.gateTally, winner);
+        }
+        if (winner === 'vi') {
+          text = viText;
+          lang = 'vi';
+        } else {
+          text = senseText;
+          lang = this.detectLanguage(senseText, senseResult.lang, utteranceId);
+        }
+        // Phục vụ log test: engine thắng + tally hiện tại của cửa sổ gate.
+        engineUsed = `${winner} (gate ${this.gateTally.sense}-${this.gateTally.vi})`;
+        gateDebug = `sense(${senseResult.lang ?? '?'})=“${senseText}” ↔ vi=“${viText}”`;
+      }
+    } else {
+      const result = await this.engine.transcribeSamples(snapshot, SAMPLE_RATE);
+      text = lexicalOrEmpty((result.text ?? '').trim());
+      lang = text ? this.detectLanguage(text, result.lang, utteranceId) : 'en';
+      engineUsed = this.forcedLanguage === 'vi' ? 'vi (đã khóa/chọn tay)' : 'sense (đã khóa/mặc định)';
+    }
+    if (lang === 'vi') {
+      // Zipformer-VI phát ra toàn chữ hoa — hạ case ở tầng hiển thị.
+      text = normalizeViCase(text);
+    }
     if (!text) {
       this.lastFinalizeReason = 'empty_result';
       emit({
@@ -730,12 +1179,13 @@ export class RealSpeechRecognizer {
       return;
     }
 
-    const lang = this.detectLanguage(text, result.lang, utteranceId);
     emit({
       type: 'stt_final',
       session_id: sessionId,
       utterance_id: utteranceId,
       text,
+      engine: engineUsed,
+      gate_debug: gateDebug,
       language: lang,
       confidence: 0.9,
       timestamp_ms: now,
@@ -852,6 +1302,9 @@ export class RealSpeechRecognizer {
     this.lastPartialMs = 0;
     this.sampleBuffer = [];
     this.inSpeech = false;
+    this.langSplitDisagree = 0;
+    this.lastLangSplitCheckMs = 0;
+    this.pendingLangSplitFor = null;
   }
 
   private detectLanguage(
@@ -864,7 +1317,9 @@ export class RealSpeechRecognizer {
     if (this.forcedLanguage) {
       return this.forcedLanguage;
     }
-    const normalized = (langFromModel ?? '').toLowerCase();
+    // Lột token wrapper `<|en|>` của SenseVoice trước khi so sánh (xem
+    // LanguageGate.scoreUtterance — cùng lý do).
+    const normalized = (langFromModel ?? '').toLowerCase().replace(/[^a-z]/g, '');
     if (normalized.startsWith('en')) return 'en';
     if (normalized.startsWith('ja') || normalized.startsWith('jp')) return 'ja';
     if (normalized.startsWith('ko')) return 'ko';

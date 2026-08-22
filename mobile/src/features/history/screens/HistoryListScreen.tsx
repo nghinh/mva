@@ -25,6 +25,7 @@ import {useNavigation} from '../../../app/navigation/router';
 import {StackNavigationProp} from '../../../app/navigation/router';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {RootStackParamList} from '../../../app/navigation/router';
+import {getLanguageFlag} from '../../../shared/utils/languageFlag';
 import {getPersistenceService, SessionData, UtteranceData} from '../../../services/persistence';
 import {SessionId} from '../../../shared/types';
 import {AppBottomNav, AppIcon} from '../../../shared/components/ui';
@@ -51,16 +52,6 @@ interface SessionItem {
 // Language Pill Colors (from mockup)
 // =============================================================================
 
-function getLanguageFlag(lang: string): string {
-  switch (lang.toUpperCase()) {
-    case 'EN': return '🇬🇧';
-    case 'JA': return '🇯🇵';
-    case 'KO': return '🇰🇷';
-    case 'ZH': return '🇨🇳';
-    case 'VI': return '🇻🇳';
-    default:   return '🌐';
-  }
-}
 
 // =============================================================================
 // Duration Formatting — "1H 15M", "45M", "30M" style

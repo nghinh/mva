@@ -24,7 +24,9 @@ import {
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {AppIcon, SpeakerBadge} from '../../../shared/components/ui';
+import {getLanguageFlag} from '../../../shared/utils/languageFlag';
 import {TranscriptEntry} from '../state/meetingStore';
+import {useTargetLanguage} from '../../../shared/store/settingsStore';
 
 interface TranscriptLaneProps {
   style?: StyleProp<ViewStyle>;
@@ -75,16 +77,6 @@ function JumpToLatestPill({
 // LanguageBadge
 // =============================================================================
 
-function getLanguageFlag(language: string): string {
-  switch (language.toLowerCase()) {
-    case 'en': return '🇬🇧';
-    case 'ja': return '🇯🇵';
-    case 'ko': return '🇰🇷';
-    case 'zh': return '🇨🇳';
-    default:   return '🌐';
-  }
-}
-
 function LanguageBadge({language}: {language: string | null}) {
   if (!language) return null;
   return (
@@ -112,15 +104,22 @@ function formatTimestamp(timestamp: number): string {
 
 function TranscriptEntryItem({entry}: {entry: TranscriptEntry}): React.JSX.Element {
   const {theme} = useTheme();
+  const {t} = useTranslation('meeting');
+  const targetLanguage = useTargetLanguage();
   const isFinal = entry.isFinal;
-  const visibleText = entry.sourceText || entry.partialText;
+  // Gate chưa xác định được ngôn ngữ (utterance đầu phiên): thay live text
+  // bằng placeholder, hiển thị bằng NGÔN NGỮ DỊCH SANG mà user vừa chọn.
+  const gatePending = entry.gatePending === true && !isFinal;
+  const visibleText = gatePending
+    ? t('gateIdentifying', {lng: targetLanguage})
+    : entry.sourceText || entry.partialText;
 
   return (
     <View style={[styles.entryContainer, !isFinal && styles.activeEntryContainer]}>
       <View style={styles.entryHeader}>
-        <LanguageBadge language={entry.sourceLanguage} />
+        <LanguageBadge language={gatePending ? null : entry.sourceLanguage} />
         <SpeakerBadge speakerId={entry.speakerId} label={entry.speakerId} size="small" />
-        <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}> 
+        <Text style={[styles.timestamp, {color: theme.colors.text.tertiary}]}>
           {formatTimestamp(entry.timestamp)}
         </Text>
         {!isFinal && (
@@ -135,6 +134,7 @@ function TranscriptEntryItem({entry}: {entry: TranscriptEntry}): React.JSX.Eleme
             styles.entryText,
             {color: theme.colors.text.primary},
             !isFinal && {opacity: 0.92},
+            gatePending && styles.gatePendingText,
           ]}>
           {visibleText}
         </Text>
@@ -493,6 +493,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     fontWeight: '500',
+  },
+  gatePendingText: {
+    fontStyle: 'italic',
+    opacity: 0.65,
   },
   partialIndicator: {
     width: 4,

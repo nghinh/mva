@@ -15,6 +15,40 @@ import {translationService} from '../../../services/TranslationService';
 import {ensureBundledModelInstalled, areInstalledModelFilesPresent} from '../../../native/models/BundledModelInstaller';
 import getNativeAppleTranslator from '../../../native/NativeAppleTranslator';
 import {markPacksDownloaded, markPacksSkipped} from '../../../services/languagePackStatus';
+import {runLanguagePackSetup, PackTranslatorPort} from '../utils/languagePackSetup';
+import {runSttBenchmark} from '../../../native/stt/sttBenchmark';
+import {useSettingsStore} from '../../../shared/store/settingsStore';
+
+/**
+ * One port over both translation backends so the setup flow has a single shape.
+ * iOS answers from the Apple module; Android has no separate status call, so
+ * availability doubles as the status.
+ */
+function createTranslatorPort(): PackTranslatorPort {
+  if (Platform.OS === 'ios') {
+    const nativeModule = getNativeAppleTranslator();
+    return {
+      getStatus: (src, tgt) =>
+        nativeModule
+          ? nativeModule.getLanguagePackStatus(src, tgt)
+          : Promise.resolve('unknown'),
+      download: (src, tgt) =>
+        nativeModule
+          ? nativeModule.downloadLanguageIfNeeded(src, tgt)
+          : Promise.resolve(false),
+      isAvailable: (src, tgt) => translationService.isAvailable(src as never, tgt as never),
+    };
+  }
+
+  return {
+    getStatus: async (src, tgt) =>
+      (await translationService.isAvailable(src as never, tgt as never))
+        ? 'installed'
+        : 'available',
+    download: (src, tgt) => translationService.downloadLanguagePack(src, tgt),
+    isAvailable: (src, tgt) => translationService.isAvailable(src as never, tgt as never),
+  };
+}
 
 const MOCK_MODEL: ModelInfo = {
   id: 'sensevoice-small',
@@ -26,6 +60,13 @@ const MOCK_MODEL: ModelInfo = {
   inferenceSpeedRTF: 0.05,
   isOptimizedFor: ['iPhone 15 Pro'],
 };
+
+// Guard bootstrap ở mức module — xem comment tại chỗ dùng.
+// 'running': có run() đang chạy → mount mới tuyệt đối không chạy thêm.
+// 'done': đã bootstrap xong → chỉ chạy lại nếu model không còn cached-ready
+//         (ví dụ user xóa model trong ModelRepository — cần cài lại).
+// 'idle': chưa chạy, hoặc lần trước lỗi → cho phép chạy (retry khi remount).
+let bootstrapGuard: 'idle' | 'running' | 'done' = 'idle';
 
 const PLATFORM_TRANSLATION_MODEL: ModelInfo = {
   id: Platform.OS === 'ios' ? 'apple-translation' : 'ml-kit-translation',
@@ -94,6 +135,12 @@ async function checkLanguagePacksStatus(targetLang: string, tFn?: (key: string, 
     }
 
     for (const pack of packsToCheck) {
+      // A pair whose source is the target needs no pack. Left in, it reported
+      // 'unsupported' and cleared allSupported, which suppressed the download
+      // offer for every other language.
+      if (pack.srcLang === targetLang) {
+        continue;
+      }
       try {
         const status = await nativeModule.getLanguagePackStatus(pack.srcLang, targetLang);
         if (status === 'installed') {
@@ -114,9 +161,12 @@ async function checkLanguagePacksStatus(targetLang: string, tFn?: (key: string, 
   } else {
     // Android with ML Kit
     try {
-      const packStatus = await translationService.getPackStatus();
+      const packStatus = await translationService.getPackStatus(targetLang as never);
       for (const pack of packsToCheck) {
-        const key = `${pack.srcLang}-vi`;
+        if (pack.srcLang === targetLang) {
+          continue;
+        }
+        const key = `${pack.srcLang}-${targetLang}`;
         if (packStatus[key]) {
           installed.push(pack.displayName);
         } else {
@@ -164,14 +214,24 @@ export const SplashScreen: React.FC = () => {
   const [failedPacks, setFailedPacks] = useState<string[]>([]);
   const [selectedSrcLangs, setSelectedSrcLangs] = useState<Set<string>>(new Set());
   const selectedSrcLangsRef = useRef<Set<string>>(new Set());
-  const [packDownloadItems, setPackDownloadItems] = useState<{srcLang: string; displayName: string; status: 'pending' | 'downloading' | 'done'}[]>([]);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [packDownloadItems, setPackDownloadItems] = useState<{srcLang: string; displayName: string; status: 'pending' | 'downloading' | 'done' | 'failed'}[]>([]);
   const userChoiceRef = useRef<((confirmed: boolean) => void) | null>(null);
-  const hasBootstrappedRef = useRef(false);
+  /** Set while a bounded pack run is in flight so the user can abandon it. */
+  const cancelSignalRef = useRef<{cancelled: boolean} | null>(null);
   const navigationRef = useRef(navigation);
   navigationRef.current = navigation;
 
   const handleSkipDownload = () => userChoiceRef.current?.(false);
+  /**
+   * Abandons an in-flight download run. Without this the 'downloading' state
+   * had no affordance at all and a stuck pack could only be escaped by killing
+   * the app — which then replayed the same bootstrap.
+   */
+  const handleCancelDownload = () => {
+    if (cancelSignalRef.current) {
+      cancelSignalRef.current.cancelled = true;
+    }
+  };
   const handleStartDownload = () => {
     selectedSrcLangsRef.current = selectedSrcLangs;
     userChoiceRef.current?.(true);
@@ -187,10 +247,18 @@ export const SplashScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (hasBootstrappedRef.current) {
+    // Guard Ở MỨC MODULE, không phải useRef: NavigatorContent unmount/remount
+    // SplashScreen mỗi khi overallStatus đổi, và useRef mới sinh theo mỗi mount
+    // sẽ cho run() chạy LẠI từ đầu → vòng lặp splash ↔ meeting tự duy trì
+    // (mỗi run() flip prewarm status → remount → run() mới). Cờ module sống
+    // theo process nên bootstrap chỉ chạy đúng một lần mỗi lần mở app —
+    // trừ khi model đã bị xóa sau đó (cần bootstrap lại để cài lại model).
+    const modelStillReady =
+      useBootstrapStore.getState().state.model.status === 'cached-ready';
+    if (bootstrapGuard === 'running' || (bootstrapGuard === 'done' && modelStillReady)) {
       return;
     }
-    hasBootstrappedRef.current = true;
+    bootstrapGuard = 'running';
 
     const run = async () => {
       try {
@@ -220,7 +288,23 @@ export const SplashScreen: React.FC = () => {
           warnLog('[SplashScreen] STT model install/load failed:', error);
           setModelError(message);
           setIsInitializing(false);
+          bootstrapGuard = 'idle'; // cho phép retry ở lần mount kế tiếp
           return;
+        }
+
+        // Step 1b: Benchmark STT một lần mỗi bản cài để phân tier máy
+        // (language gate). Chạy Ở ĐÂY — trước khi translator ready — vì lúc
+        // này overallStatus chắc chắn còn 'initializing' nên splash hiển thị
+        // ổn định suốt thời gian đo; nếu đặt giữa startPrewarm/completePrewarm
+        // sẽ kéo dài cửa sổ 'warming' và gây nhấp nháy splash ↔ meeting.
+        // Mọi lỗi bên trong runSttBenchmark đã được nuốt → tier 'low' an toàn.
+        {
+          const {sttBenchmark, setSttBenchmark} = useSettingsStore.getState();
+          if (!sttBenchmark) {
+            const benchmarkResult = await runSttBenchmark();
+            setSttBenchmark(benchmarkResult);
+            warnLog('[SplashScreen] STT benchmark:', benchmarkResult);
+          }
         }
 
         // Step 2: Initialize platform-native translation (Apple Translation on iOS, ML Kit on Android)
@@ -229,11 +313,16 @@ export const SplashScreen: React.FC = () => {
         setTranslatorModelDownloading(PLATFORM_TRANSLATION_MODEL);
         try {
           // Check language packs availability
-          const {installed, missing, allSupported} = await checkLanguagePacksStatus(targetLanguage, t);
+          // `allSupported` is deliberately not consulted: unsupported pairs are
+          // already flagged inside `missing`, and gating the whole offer on it
+          // was what hid the download prompt for the supported languages.
+          const {installed, missing} = await checkLanguagePacksStatus(targetLanguage, t);
           warnLog(`[SplashScreen] Language packs: ${installed.length} installed, ${missing.length} missing for target ${targetLanguage}`);
 
-          if (installed.length === 0 && missing.length > 0 && allSupported) {
-            const nativeModule = Platform.OS === 'ios' ? getNativeAppleTranslator() : null;
+          // Offer whatever is missing. The old gate also required that NOTHING
+          // was installed and that EVERY pair was supported, so one installed
+          // pack or one unsupported pair silently suppressed the whole offer.
+          if (missing.length > 0) {
             const allPacks = getLanguagePacksToCheck(targetLanguage, t);
             const missingObjs = allPacks.filter(p => missing.includes(p.displayName));
 
@@ -253,123 +342,61 @@ export const SplashScreen: React.FC = () => {
               warnLog('[SplashScreen] User skipped language pack download');
             } else {
               const selectedPacks = allPacks.filter(p => selectedSrcLangsRef.current.has(p.srcLang));
+              const translatorPort = createTranslatorPort();
               let pendingPacks = [...selectedPacks];
               let keepRetrying = true;
 
-              setPackDownloadItems(selectedPacks.map(p => ({...p, status: 'pending' as const})));
-
+              // Every round is bounded by runLanguagePackSetup. The only way to
+              // start another round is an explicit user tap on Retry, so this
+              // loop can never spin on its own.
               while (keepRetrying && pendingPacks.length > 0) {
-                if (Platform.OS === 'ios') {
-                  // --- iOS: Pre-check to avoid flashing progress when packs already installed ---
-                  // Apple LanguageAvailability.status() can inconsistently report .supported
-                  // for installed packs, so re-verify before showing progress UI.
-                  if (nativeModule) {
-                    const preCheckStatuses = await Promise.all(
-                      pendingPacks.map(p =>
-                        nativeModule.getLanguagePackStatus(p.srcLang, targetLanguage).catch(() => 'unknown'),
-                      ),
-                    );
-                    const alreadyAllInstalled = preCheckStatuses.every(s => s === 'installed');
-                    if (alreadyAllInstalled) {
-                      markPacksDownloaded();
-                      warnLog('[SplashScreen] All packs already installed, skipping download UI');
-                      keepRetrying = false;
-                      break;
-                    }
-                    pendingPacks = pendingPacks.filter((_, i) => preCheckStatuses[i] !== 'installed');
-                  }
+                setPackDownloadItems(pendingPacks.map(p => ({...p, status: 'pending' as const})));
+                setLangPackStep('downloading');
 
-                  // --- iOS download: uses Apple system sheet, poll until confirmed installed ---
-                  const PACK_DOWNLOAD_TIMEOUT_MS = 185_000;
-                  setLangPackStep('downloading');
+                const cancelSignal = {cancelled: false};
+                cancelSignalRef.current = cancelSignal;
 
-                  for (let i = 0; i < pendingPacks.length; i++) {
-                    const pack = pendingPacks[i];
-                    let packInstalled = false;
-
+                const setupResult = await runLanguagePackSetup({
+                  packs: pendingPacks,
+                  targetLang: targetLanguage,
+                  translator: translatorPort,
+                  signal: cancelSignal,
+                  onPackAttempt: (srcLang) => {
                     setPackDownloadItems(prev => prev.map(item =>
-                      item.srcLang === pack.srcLang ? {...item, status: 'downloading' as const} : item,
+                      item.srcLang === srcLang ? {...item, status: 'downloading' as const} : item,
                     ));
-
-                    while (!packInstalled && nativeModule) {
-                      try {
-                        await Promise.race([
-                          nativeModule.downloadLanguageIfNeeded(pack.srcLang, targetLanguage),
-                          new Promise<void>(r => setTimeout(r, PACK_DOWNLOAD_TIMEOUT_MS)),
-                        ]);
-                      } catch {
-                        warnLog(`[SplashScreen] downloadLanguageIfNeeded threw for ${pack.displayName}`);
-                      }
-
-                      const s = await nativeModule
-                        .getLanguagePackStatus(pack.srcLang, targetLanguage)
-                        .catch(() => 'unknown' as const);
-                      if (s === 'installed') {
-                        packInstalled = true;
-                      } else {
-                        await delay(700);
-                      }
-                    }
-
+                  },
+                  onPackResolved: (srcLang, outcome) => {
                     setPackDownloadItems(prev => prev.map(item =>
-                      item.srcLang === pack.srcLang ? {...item, status: 'done' as const} : item,
+                      item.srcLang === srcLang
+                        ? {...item, status: outcome === 'installed' ? ('done' as const) : ('failed' as const)}
+                        : item,
                     ));
-                    if (i < pendingPacks.length - 1) {
-                      await delay(500);
-                    }
-                  }
-                } else {
-                  // --- Android: direct ML Kit download, no system sheet ---
-                  setLangPackStep('downloading');
+                  },
+                });
+                cancelSignalRef.current = null;
 
-                  for (let i = 0; i < pendingPacks.length; i++) {
-                    const pack = pendingPacks[i];
-                    setPackDownloadItems(prev => prev.map(item =>
-                      item.srcLang === pack.srcLang ? {...item, status: 'downloading' as const} : item,
-                    ));
-                    try {
-                      await translationService.downloadLanguagePack(pack.srcLang, targetLanguage);
-                    } catch (err) {
-                      warnLog(`[SplashScreen] ML Kit download failed for ${pack.displayName}:`, err);
-                    }
-                    setPackDownloadItems(prev => prev.map(item =>
-                      item.srcLang === pack.srcLang ? {...item, status: 'done' as const} : item,
-                    ));
-                    if (i < pendingPacks.length - 1) {
-                      await delay(300);
-                    }
-                  }
-                }
+                warnLog(
+                  `[SplashScreen] Pack setup: ${setupResult.installed.length} installed, ` +
+                  `${setupResult.failed.length} failed, cancelled=${setupResult.cancelled}, ` +
+                  `timedOut=${setupResult.timedOut}`,
+                );
 
-                // --- Verify phase (both platforms) ---
-                await delay(1000);
-                setIsVerifying(true);
-                const nowFailed: string[] = [];
-                for (const pack of selectedPacks) {
-                  try {
-                    const ok = await translationService.isAvailable(pack.srcLang as any, targetLanguage as any);
-                    if (!ok) { nowFailed.push(pack.displayName); }
-                  } catch {
-                    nowFailed.push(pack.displayName);
-                  }
-                }
-                setIsVerifying(false);
-
-                if (nowFailed.length === 0) {
+                if (setupResult.cancelled) {
+                  markPacksSkipped();
+                  keepRetrying = false;
+                } else if (setupResult.failed.length === 0) {
                   markPacksDownloaded();
-                  warnLog('[SplashScreen] All selected language packs verified');
                   keepRetrying = false;
                 } else {
-                  setFailedPacks(nowFailed);
+                  setFailedPacks(setupResult.failed);
                   setLangPackStep('retry');
-                  warnLog(`[SplashScreen] ${nowFailed.length} pack(s) failed: ${nowFailed.join(', ')}`);
                   const retry = await new Promise<boolean>(resolve => { userChoiceRef.current = resolve; });
                   if (!retry) {
                     markPacksSkipped();
                     keepRetrying = false;
                   } else {
-                    pendingPacks = selectedPacks.filter(p => nowFailed.includes(p.displayName));
-                    setPackDownloadItems(pendingPacks.map(p => ({...p, status: 'pending' as const})));
+                    pendingPacks = pendingPacks.filter(p => setupResult.failed.includes(p.displayName));
                   }
                 }
               }
@@ -398,15 +425,18 @@ export const SplashScreen: React.FC = () => {
         // pressure on physical devices. Diarization is only needed after the
         // meeting or when live speaker assignment is explicitly enabled, so it
         // is initialized lazily at point-of-use instead.
+        // startPrewarm → completePrewarm phải liền kề (cùng một batch React):
+        // mọi khoảng chờ chen giữa sẽ mở cửa sổ overallStatus='initializing'
+        // khiến NavigatorContent nhấp nháy về splash.
         startPrewarm();
-
-        await delay(300);
         completePrewarm();
         setIsInitializing(false);
+        bootstrapGuard = 'done';
         navigationRef.current.replace('Meeting');
       } catch (error) {
         warnLog('[SplashScreen] Bootstrap sequence failed:', error);
         setIsInitializing(false);
+        bootstrapGuard = 'idle'; // lỗi bất ngờ → remount sau được phép chạy lại
       }
     };
 
@@ -504,13 +534,15 @@ export const SplashScreen: React.FC = () => {
           ) : langPackStep === 'downloading' ? (
             <View style={[styles.langPackCard, {borderColor: ringBorderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'}]}>
               <Text style={[styles.langPackTitle, {color: theme.colors.text.primary}]}>
-                {isVerifying ? t('langPackVerifyingTitle') : t('langPackDownloadingTitle')}
+                {t('langPackDownloadingTitle')}
               </Text>
               <View style={styles.langPackList}>
                 {packDownloadItems.map(item => (
                   <View key={item.srcLang} style={styles.langPackItem}>
                     {item.status === 'done' ? (
                       <Text style={[styles.packStatusIcon, {color: theme.colors.secondary}]}>✓</Text>
+                    ) : item.status === 'failed' ? (
+                      <Text style={[styles.packStatusIcon, {color: theme.colors.error}]}>!</Text>
                     ) : item.status === 'downloading' ? (
                       <ActivityIndicator size="small" color={theme.colors.secondary} style={styles.packStatusSpinner} />
                     ) : (
@@ -519,6 +551,13 @@ export const SplashScreen: React.FC = () => {
                     <Text style={[styles.langPackItemText, {color: theme.colors.text.secondary}]}>{item.displayName}</Text>
                   </View>
                 ))}
+              </View>
+              <View style={styles.langPackActions}>
+                <Pressable
+                  style={[styles.skipBtn, {borderColor: ringBorderColor}]}
+                  onPress={handleCancelDownload}>
+                  <Text style={[styles.skipBtnText, {color: theme.colors.text.secondary}]}>{t('langPackSkip')}</Text>
+                </Pressable>
               </View>
             </View>
           ) : langPackStep === 'retry' ? (
@@ -622,11 +661,6 @@ export const SplashScreen: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 
 const styles = StyleSheet.create({
   container: {flex: 1},

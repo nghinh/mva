@@ -91,6 +91,11 @@ export interface STTPartialEvent {
   language: SourceLanguage;
   offset_ms: number;
   revision: number;
+  /**
+   * Gate chưa có bằng chứng ngôn ngữ (utterance đầu tiên của phiên): text rỗng,
+   * UI hiển thị placeholder "Đang xác định ngôn ngữ…" thay vì live text.
+   */
+  gate_pending?: boolean;
 }
 
 export interface STTFinalEvent {
@@ -98,6 +103,10 @@ export interface STTFinalEvent {
   session_id: SessionId;
   utterance_id: UtteranceId;
   text: string;
+  /** Engine đã cho ra text này: 'sense' | 'vi' (phục vụ log test). */
+  engine?: string;
+  /** Gate window: text của CẢ HAI ứng viên để tinh chỉnh heuristic offline. */
+  gate_debug?: string;
   language: SourceLanguage;
   confidence: number;
   timestamp_ms: number;

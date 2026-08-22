@@ -10,6 +10,7 @@ import {View, Text, StyleSheet, TouchableOpacity, Animated, AccessibilityInfo} f
 import {useTranslation} from 'react-i18next';
 import {useTheme} from '../../../shared/hooks/useTheme';
 import {AppIcon} from '../../../shared/components/ui';
+import {getLanguageFlag} from '../../../shared/utils/languageFlag';
 import {SessionStatus, ConnectivityStatus} from '../state/meetingStore';
 
 // =============================================================================
@@ -27,15 +28,6 @@ function formatTime(startedAt: number | null, pausedTotalMs: number = 0): string
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-function getLanguageFlag(language: string): string {
-  switch (language.toLowerCase()) {
-    case 'en': return '🇬🇧';
-    case 'ja': return '🇯🇵';
-    case 'ko': return '🇰🇷';
-    case 'zh': return '🇨🇳';
-    default:   return '🌐';
-  }
-}
 
 // =============================================================================
 // Sub-components

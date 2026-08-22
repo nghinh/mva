@@ -73,7 +73,13 @@
     "tabLive": "라이브",
     "tabNetwork": "네트워크",
     "ttsToggleLabel": "읽기 토글",
-    "langSelectTarget": "번역 언어"
+    "langSelectTarget": "번역 대상 언어",
+    "inputLangModalTitle": "회의에서 말하는 언어",
+    "inputLangModalAuto": "자동 (EN · JA · KO · ZH)",
+    "inputLangModalVi": "베트남어",
+    "inputLangModalStart": "회의 시작",
+    "inputLangModalCancel": "취소",
+    "gateIdentifying": "언어 확인 중…"
   },
   "settings": {
     "title": "설정",
@@ -89,10 +95,6 @@
     "speechRecognitionDesc": "SenseVoice가 오프라인 EN/JA/KO/ZH 음성 인식을 지원합니다.",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
-    "inputLanguage": "입력 언어",
-    "inputLanguageDesc": "회의에서 사용할 언어입니다.",
-    "inputLangAuto": "자동 (EN · JA · KO · ZH)",
-    "inputLangVietnamese": "베트남어",
     "sectionAiModels": "기기 내 AI",
     "sectionAiModelsSubtitle": "음성 인식 및 화자 감지는 기기에 로컬로 저장됩니다.",
     "modelSummaryTitle": "모델 요약",
@@ -247,6 +249,7 @@
     "japaneseToLabel": "일본어 → {{lang}}",
     "koreanToLabel": "한국어 → {{lang}}",
     "chineseToLabel": "중국어 → {{lang}}",
+    "vietnameseToLabel": "베트남어 → {{lang}}",
     "vietnameseLabel": "베트남어",
     "englishLabel": "영어",
     "chineseLabel": "중국어",

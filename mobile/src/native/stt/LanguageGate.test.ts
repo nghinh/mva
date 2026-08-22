@@ -1,0 +1,284 @@
+import {
+  STRONG_RTF_THRESHOLD,
+  scoreUtterance,
+  createGateTally,
+  recordWin,
+  tallyLeader,
+} from './LanguageGate';
+
+describe('constants', () => {
+  it('strong tier threshold is 0.35', () => {
+    expect(STRONG_RTF_THRESHOLD).toBe(0.35);
+  });
+});
+
+describe('scoreUtterance', () => {
+  it('near-empty vi output vs full sense sentence → sense', () => {
+    expect(
+      scoreUtterance(
+        {text: 'we should review the third quarter plan', lang: 'en'},
+        {text: 'à'},
+        'sense',
+      ),
+    ).toBe('sense');
+  });
+
+  it('near-empty sense output vs full vi sentence → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: '嗯', lang: 'zh'},
+        {text: 'hôm nay chúng ta họp về kế hoạch quý ba'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('sense CJK (ja) with weak vi diacritics → sense', () => {
+    expect(
+      scoreUtterance(
+        {text: '今日は第三四半期の計画について話します', lang: 'ja'},
+        {text: 'con nichi oa'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('strong vi diacritics with latin sense output lacking english signal → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: 'hom nay chung ta hop ve ke hoach', lang: 'en'},
+        {text: 'hôm nay chúng ta họp về kế hoạch quý ba'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('english sense output with common words vs weak vi → sense', () => {
+    expect(
+      scoreUtterance(
+        {text: 'i think we should have the meeting tomorrow', lang: 'en'},
+        {text: 'ai think guy sut have de mít tinh tu mô râu'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('short vi garble with high diacritic RATIO cannot beat a fluent en-tagged sentence', () => {
+    // Field 19/08 10:02: "Alô ha" (0.167) / "Ừ d" (0.33) thắng oan tiếng Anh.
+    expect(
+      scoreUtterance({text: 'Hello, how are you today is we day.', lang: '<|en|>'}, {text: 'Alô ha'}, 'vi'),
+    ).toBe('sense');
+    expect(
+      scoreUtterance({text: 'I know it is rain day.', lang: '<|en|>'}, {text: 'Ừ d'}, 'vi'),
+    ).toBe('sense');
+  });
+
+  it('biasAgainstVi (target=vi): weak-evidence zones fall to sense, real vi still wins', () => {
+    // Không bên nào có tín hiệu → sense thay vì leader.
+    expect(scoreUtterance({text: 'abc xyz', lang: '<|ko|>'}, {text: 'abc xyz'}, 'vi', true)).toBe('sense');
+    // vi strong nhưng chưa dominant+dài → sense khi bias.
+    expect(
+      scoreUtterance({text: 'mumble jumble words', lang: '<|ja|>'}, {text: 'sen mêu tú pi tơ bao cua li ri po'}, 'vi', true),
+    ).toBe('sense');
+    // vi thật (dominant + dài + stopword) vẫn thắng dù bias.
+    expect(
+      scoreUtterance(
+        {text: 'homehelello, how are you.', lang: '<|zh|>'},
+        {text: 'xin chào bạn có khỏe không năm nay là thứ tư'},
+        'sense',
+        true,
+      ),
+    ).toBe('vi');
+  });
+
+  it('vi phrase using previously-missing diacritics (ơ, ấ, ả) → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: 'cam on rat nhieu', lang: 'en'},
+        {text: 'cảm ơn rất nhiều bạn nhé'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone: vi speech (sense hears zh garbage, vi text full of stopwords) → vi regardless of leader', () => {
+    // Bug field 19/08: mở đầu bằng tiếng Anh → leader sense → mọi câu vi rơi
+    // vùng mirror đều hiện chữ Trung. Stopword tiếng Việt phân định thay leader.
+    const sense = {text: '堆满天地的感影的我对内练。', lang: '<|zh|>'};
+    const vi = {text: 'bạn không thể hiển thị được tiếng việt đúng không'};
+    expect(scoreUtterance(sense, vi, 'sense')).toBe('vi');
+    expect(scoreUtterance(sense, vi, 'vi')).toBe('vi');
+  });
+
+  it('mirror zone: real zh speech (fluent zh, vi garbage without stopwords) → sense regardless of leader', () => {
+    const sense = {text: '我们今天讨论第三季度的计划', lang: 'zh'};
+    const vi = {text: 'ửa mân thén thảo lứn తె sান giây tú để kê hoặch'};
+    expect(scoreUtterance(sense, vi, 'sense')).toBe('sense');
+    expect(scoreUtterance(sense, vi, 'vi')).toBe('sense');
+  });
+
+  it('yue tag counts as CJK: cantonese-tagged garbage vs diacritic-free vi garble → sense', () => {
+    // Field 19/08: SenseVoice tag rác CJK là <|yue|> (không phải zh) — senseCjk
+    // bỏ sót yue nên mọi rule dựa trên CJK chết im với chính loại rác phổ biến nhất.
+    expect(
+      scoreUtterance(
+        {text: '佢失去咗聯繫個屋企你就失去你個一唔可以。', lang: '<|yue|>'},
+        {text: 'po instion seat inter'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('yue mirror zone: vi speech (sense hears yue garbage, vi full of stopwords) → vi', () => {
+    expect(
+      scoreUtterance(
+        {text: '似themselves係都未翻你叫時候佢in一去可是水去可。', lang: '<|yue|>'},
+        {text: 'bạn không thể hiển thị được tiếng việt đúng không'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone length asymmetry: tiny yue snippet vs long fluent vi (stopword ratio just under threshold) → vi', () => {
+    // Field 20/08 11:16:45: câu vi 67 từ, stopword 10/67=0.1493 hụt ngưỡng 0.15
+    // đúng 0.0007 → sense thắng oan với 7 ký tự rác. CJK thật không bao giờ
+    // ra 7 ký tự đối đầu một câu vi dài áp đảo.
+    expect(
+      scoreUtterance(
+        {text: '佢将佢人佢正。', lang: '<|yue|>'},
+        {
+          text: 'chào mừng quý vị và các bạn đến với bản tin tiếng việt ngày mười chín tháng tám của đài truyền hình bess đài loan kính thưa quý vị người dân ở tân trúc phát hiện nghi có lao động việt nam buôn bán thịt chó trái phép sau khi nhận tin báo cơ quan bảo vệ động vật đã đến kiểm tra và bắt quả tang',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone yue tag: long yue-tagged garbage vs dominant vi just under both guards → vi', () => {
+    // Field 20/08 11:36:57: vi thật 65 từ (stopword 0.154, dài 3.6× CJK) thua
+    // oan chuỗi yue dài. Bằng chứng field 2 log: zh THẬT luôn tag <|zh|>, còn
+    // <|yue|> chỉ xuất hiện khi SenseVoice đoán mò trên speech vi → trong
+    // mirror zone, tag yue + vi dominant đủ dài là đủ để vi thắng.
+    expect(
+      scoreUtterance(
+        {
+          text: '其实塞岁是周就系话法利日说朋不人仲未面还将说位育中里受havemos经学令增个磁磁未得去转类是第位缩前事说系文子未纪几，说前为半退论对半浸任未纪归。',
+          lang: '<|yue|>',
+        },
+        {
+          text: 'hàng cảnh sát tiếp tục tuần tra và phát đi các thông báo nhắc nhở phòng chống siêu bão theo trung tâm cảnh báo bão liên hợp đường đi của bão ba và đang di chuyển về phía tây với sức gió duy trì gần hai trăm chín mươi ki lô mét mỗi giờ và gió giật lên tới ba trăm năm mươi ki lô mét cường độ',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('mirror zone: real zh (tag <|zh|>) with dominant-looking vi garble still → sense', () => {
+    // Tag zh là LID tự tin — không được để rule yue/dominant nuốt mất zh thật.
+    expect(
+      scoreUtterance(
+        {text: '我们今天讨论第三季度的计划和进度安排', lang: '<|zh|>'},
+        {text: 'ửa mân thén thảo lứn sản giây tú để kê hoặch'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('mirror zone length asymmetry: stopword-thin formal vi (names/titles) vs medium yue garbage → vi', () => {
+    // Field 19/08 17:57:34: câu liệt kê chức danh/tên riêng, stopword thưa
+    // (5/40=0.125) — trước fix yue thắng nhờ Rule 3, sau fix yue rơi vào
+    // mirror zone và phải thắng bằng bất đối xứng độ dài.
+    expect(
+      scoreUtterance(
+        {text: '佢失去咗聯繫個屋企你就失去你個一唔可以佢讀完不去可小便。', lang: '<|yue|>'},
+        {
+          text: 'thương binh và xã hội tấn hải nam cựu cục trưởng cục quản lý lao động ngoài nước thuộc bộ lao động thương binh và xã hội nguyễn gia liêm và phạm viết hương đều là cựu phó cục trưởng cục quản lý lao động ngoài nước về tội nhận hối lộ',
+        },
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+
+  it('both empty → leader', () => {
+    expect(scoreUtterance({text: ''}, {text: ''}, 'vi')).toBe('vi');
+  });
+
+  it('thin CJK snippet cannot flip a heavily-vi session (leader margin ≥ 3)', () => {
+    // Field 20/08 14:40 (hội thoại vi thật, tally 12-1 nghiêng vi): đoạn nói
+    // nhỏ/cười làm Zipformer gần câm còn SenseVoice hallucinate 2-5 ký tự zh
+    // → màn hình lật sang tiếng Trung + dịch bậy. Prior của phiên phải thắng
+    // bằng chứng mỏng.
+    expect(scoreUtterance({text: '不再对吧。', lang: '<|zh|>'}, {text: 'CƯỜI'}, 'vi', true, 8)).toBe('vi');
+    expect(scoreUtterance({text: '所有。', lang: '<|zh|>'}, {text: 'CÓ'}, 'vi', true, 11)).toBe('vi');
+    // Cả khi vi gần rỗng (Rule 1 cũ cho sense thắng): guard phải đứng TRƯỚC.
+    expect(scoreUtterance({text: '我花这么美。', lang: '<|zh|>'}, {text: 'Ở'}, 'vi', true, 9)).toBe('vi');
+  });
+
+  it('thin CJK still wins when the session is NOT heavily one-sided', () => {
+    // Field 20/08 11:38:52: câu zh thật ngắn "看正是较" thắng đúng lúc tally
+    // 6-7 (cách biệt 1) — margin nhỏ thì hành vi cũ giữ nguyên.
+    expect(
+      scoreUtterance({text: '看正是较。', lang: '<|zh|>'}, {text: 'XIN TRÂN TRỌNG'}, 'vi', true, 1),
+    ).toBe('sense');
+  });
+
+  it('english WITHOUT stopwords, sense tag en, low-density vi garbage → sense', () => {
+    // "send email to peter about the quarterly report" nói tiếng Anh: transducer
+    // vi phát ra rác thưa dấu (ratio ~0.09, trên strong 0.08 nhưng dưới
+    // dominant 0.13) — tag 'en' của SenseVoice phải thắng.
+    expect(
+      scoreUtterance(
+        {text: 'send email to peter about quarterly report', lang: 'en'},
+        {text: 'sen mêu tú pi tơ bao cua li ri po'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('token-style SenseVoice tags (<|en|>) are normalized before comparison', () => {
+    // Bridge iOS passthrough r.lang nguyên dạng token — bug field 18/08.
+    expect(
+      scoreUtterance(
+        {text: 'send email to peter about quarterly report', lang: '<|en|>'},
+        {text: 'sen mêu tú pi tơ bao cua li ri po'},
+        'vi',
+      ),
+    ).toBe('sense');
+    expect(
+      scoreUtterance(
+        {text: '我们今天讨论第三季度的计划', lang: '<|zh|>'},
+        {text: 'a'},
+        'vi',
+      ),
+    ).toBe('sense');
+  });
+
+  it('dominant vi diacritic density beats sense en tag', () => {
+    expect(
+      scoreUtterance(
+        {text: 'hom nay chung ta hop ve ke hoach quy ba', lang: 'en'},
+        {text: 'hôm nay chúng ta họp về kế hoạch quý ba'},
+        'sense',
+      ),
+    ).toBe('vi');
+  });
+});
+
+describe('tally', () => {
+  // KHÔNG còn khái niệm khóa: field 20/08 11:52 — video mở đầu 6 câu vi liền
+  // → early-lock 6-0 destroy SenseVoice → toàn bộ tiếng Anh/Trung sau đó bị
+  // ép decode như vi đến hết phiên. Gate sống suốt phiên; tally chỉ còn vai
+  // trò leader (tie-break + engine tạm cho 3s đầu mỗi câu).
+  it('leader follows the majority, ties go to sense (wider coverage)', () => {
+    const t = createGateTally();
+    recordWin(t, 'vi');
+    recordWin(t, 'vi');
+    recordWin(t, 'sense');
+    expect(tallyLeader(t)).toBe('vi');
+    const tie = createGateTally();
+    recordWin(tie, 'vi');
+    recordWin(tie, 'sense');
+    expect(tallyLeader(tie)).toBe('sense');
+    expect(tallyLeader(createGateTally())).toBe('sense');
+  });
+});

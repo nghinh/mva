@@ -73,7 +73,13 @@
     "tabLive": "ライブ",
     "tabNetwork": "ネットワーク",
     "ttsToggleLabel": "読み上げ切り替え",
-    "langSelectTarget": "翻訳言語"
+    "langSelectTarget": "翻訳先言語",
+    "inputLangModalTitle": "会議で話す言語",
+    "inputLangModalAuto": "自動 (EN · JA · KO · ZH)",
+    "inputLangModalVi": "ベトナム語",
+    "inputLangModalStart": "会議を開始",
+    "inputLangModalCancel": "キャンセル",
+    "gateIdentifying": "言語を判定中…"
   },
   "settings": {
     "title": "設定",
@@ -89,10 +95,6 @@
     "speechRecognitionDesc": "SenseVoiceがEN/JA/KO/ZHのオフライン音声認識に対応。",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
-    "inputLanguage": "入力言語",
-    "inputLanguageDesc": "会議で話す言語です。",
-    "inputLangAuto": "自動 (EN · JA · KO · ZH)",
-    "inputLangVietnamese": "ベトナム語",
     "sectionAiModels": "デバイス上のAI",
     "sectionAiModelsSubtitle": "音声認識と話者検出はデバイス上にローカル保存されています。",
     "modelSummaryTitle": "モデルサマリー",
@@ -247,6 +249,7 @@
     "japaneseToLabel": "日本語 → {{lang}}",
     "koreanToLabel": "韓国語 → {{lang}}",
     "chineseToLabel": "中国語 → {{lang}}",
+    "vietnameseToLabel": "ベトナム語 → {{lang}}",
     "vietnameseLabel": "ベトナム語",
     "englishLabel": "英語",
     "chineseLabel": "中国語",

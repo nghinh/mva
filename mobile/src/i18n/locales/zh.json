@@ -73,7 +73,13 @@
     "tabLive": "直播",
     "tabNetwork": "网络",
     "ttsToggleLabel": "切换朗读",
-    "langSelectTarget": "翻译语言"
+    "langSelectTarget": "翻译目标语言",
+    "inputLangModalTitle": "会议中使用的语言",
+    "inputLangModalAuto": "自动 (EN · JA · KO · ZH)",
+    "inputLangModalVi": "越南语",
+    "inputLangModalStart": "开始会议",
+    "inputLangModalCancel": "取消",
+    "gateIdentifying": "正在识别语言…"
   },
   "settings": {
     "title": "设置",
@@ -89,10 +95,6 @@
     "speechRecognitionDesc": "SenseVoice 内置支持离线 EN/JA/KO/ZH 语音识别。",
     "sttEngineName": "SenseVoice",
     "sttEngineLangs": "EN · JA · KO · ZH",
-    "inputLanguage": "输入语言",
-    "inputLanguageDesc": "会议中您将使用的语言。",
-    "inputLangAuto": "自动 (EN · JA · KO · ZH)",
-    "inputLangVietnamese": "越南语",
     "sectionAiModels": "设备端 AI",
     "sectionAiModelsSubtitle": "语音识别和说话人检测存储在设备本地。",
     "modelSummaryTitle": "模型摘要",
@@ -247,6 +249,7 @@
     "japaneseToLabel": "日语 → {{lang}}",
     "koreanToLabel": "韩语 → {{lang}}",
     "chineseToLabel": "中文 → {{lang}}",
+    "vietnameseToLabel": "越南语 → {{lang}}",
     "vietnameseLabel": "越南语",
     "englishLabel": "英语",
     "chineseLabel": "中文",
